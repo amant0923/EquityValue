@@ -2,7 +2,6 @@ import numpy as np
 import warnings
 import requests
 import os
-import json
 import time
 warnings.filterwarnings("ignore")
 
@@ -12,13 +11,8 @@ try:
 except ImportError:
     USE_YFINANCE = False
 
-AV_KEY       = os.environ.get("AV_KEY", "")
+FINNHUB_KEY  = os.environ.get("FINNHUB_KEY", "")
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-}
 
 def _safe_val(val, default=None):
     if val is None: return default
@@ -29,118 +23,154 @@ def _safe_val(val, default=None):
     except (TypeError, ValueError):
         return default
 
-# ── Alpha Vantage ────────────────────────────────────────────────────────────
-def fetch_alpha_vantage(ticker: str) -> dict:
-    if not AV_KEY:
+# ── Finnhub ──────────────────────────────────────────────────────────────────
+def fetch_finnhub(ticker: str) -> dict:
+    if not FINNHUB_KEY:
         return {}
     result = {}
-    base = "https://www.alphavantage.co/query"
+    base = "https://finnhub.io/api/v1"
+    h = {"X-Finnhub-Token": FINNHUB_KEY}
 
-    # Overview — company info + key metrics
+    # Quote (price)
     try:
-        r = requests.get(base, params={"function": "OVERVIEW", "symbol": ticker, "apikey": AV_KEY}, timeout=15)
+        r = requests.get(f"{base}/quote", params={"symbol": ticker}, headers=h, timeout=10)
         d = r.json()
-        if "Symbol" in d:
-            result["name"]             = d.get("Name", ticker)
-            result["sector"]           = d.get("Sector", "Unknown")
-            result["industry"]         = d.get("Industry", "Unknown")
-            result["description"]      = d.get("Description", "")
-            result["market_cap"]       = _safe_val(d.get("MarketCapitalization"))
-            result["pe_ratio"]         = _safe_val(d.get("PERatio"))
-            result["forward_pe"]       = _safe_val(d.get("ForwardPE"))
-            result["pb_ratio"]         = _safe_val(d.get("PriceToBookRatio"))
-            result["ps_ratio"]         = _safe_val(d.get("PriceToSalesRatioTTM"))
-            result["peg_ratio"]        = _safe_val(d.get("PEGRatio"))
-            result["eps"]              = _safe_val(d.get("EPS"))
-            result["beta"]             = _safe_val(d.get("Beta"))
-            result["52w_high"]         = _safe_val(d.get("52WeekHigh"))
-            result["52w_low"]          = _safe_val(d.get("52WeekLow"))
-            result["dividend_yield"]   = _safe_val(d.get("DividendYield"))
-            result["dividend_rate"]    = _safe_val(d.get("DividendPerShare"))
-            result["payout_ratio"]     = _safe_val(d.get("PayoutRatio"))
-            result["book_value"]       = _safe_val(d.get("BookValue"))
-            result["shares_outstanding"] = _safe_val(d.get("SharesOutstanding"))
-            result["ev_to_ebitda"]     = _safe_val(d.get("EVToEBITDA"))
-            result["ev_to_revenue"]    = _safe_val(d.get("EVToRevenue"))
-            result["profit_margin"]    = _safe_val(d.get("ProfitMargin"))
-            result["operating_margin"] = _safe_val(d.get("OperatingMarginTTM"))
-            result["roe"]              = _safe_val(d.get("ReturnOnEquityTTM"))
-            result["roa"]              = _safe_val(d.get("ReturnOnAssetsTTM"))
-            result["revenue_growth"]   = _safe_val(d.get("QuarterlyRevenueGrowthYOY"))
-            result["earnings_growth"]  = _safe_val(d.get("QuarterlyEarningsGrowthYOY"))
-            result["target_price"]     = _safe_val(d.get("AnalystTargetPrice"))
-            result["debt_to_equity"]   = _safe_val(d.get("DebtToEquityRatio") or d.get("DebtToEquity"))
-            result["current_ratio"]    = _safe_val(d.get("CurrentRatio"))
-            result["forward_eps"]      = _safe_val(d.get("ForwardAnnualDividendRate")) # fallback
-            # Revenue & income from overview
-            result["revenue"]          = _safe_val(d.get("RevenueTTM"))
-            result["gross_profit"]     = _safe_val(d.get("GrossProfitTTM"))
-            result["ebitda"]           = _safe_val(d.get("EBITDA"))
-            result["enterprise_value"] = _safe_val(d.get("EnterpriseValue"))
-            result["diluted_eps"]      = _safe_val(d.get("DilutedEPSTTM"))
-            result["eps"]              = result["eps"] or result.get("diluted_eps")
-        else:
-            print(f"[av overview] no data: {d.get('Note') or d.get('Information') or 'unknown'}")
+        result["current_price"] = _safe_val(d.get("c"))
+        result["52w_high"]      = _safe_val(d.get("h"))
+        result["52w_low"]       = _safe_val(d.get("l"))
     except Exception as e:
-        print(f"[av overview error] {e}")
+        print(f"[finnhub quote] {e}")
 
-    # Current price via global quote
+    # Company profile
     try:
-        r = requests.get(base, params={"function": "GLOBAL_QUOTE", "symbol": ticker, "apikey": AV_KEY}, timeout=10)
-        d = r.json().get("Global Quote", {})
-        if d.get("05. price"):
-            result["current_price"] = _safe_val(d.get("05. price"))
-            result["52w_high"]      = result.get("52w_high") or _safe_val(d.get("03. high"))
-            result["52w_low"]       = result.get("52w_low")  or _safe_val(d.get("04. low"))
-    except Exception as e:
-        print(f"[av quote error] {e}")
-
-    # Income statement for detailed financials
-    try:
-        r = requests.get(base, params={"function": "INCOME_STATEMENT", "symbol": ticker, "apikey": AV_KEY}, timeout=15)
+        r = requests.get(f"{base}/stock/profile2", params={"symbol": ticker}, headers=h, timeout=10)
         d = r.json()
-        reports = d.get("annualReports", [])
+        result["name"]               = d.get("name", ticker)
+        result["sector"]             = d.get("finnhubIndustry", "Unknown")
+        result["industry"]           = d.get("finnhubIndustry", "Unknown")
+        result["market_cap"]         = _safe_val(d.get("marketCapitalization"))
+        if result["market_cap"]:
+            result["market_cap"] *= 1_000_000  # Finnhub returns in millions
+        result["shares_outstanding"] = _safe_val(d.get("shareOutstanding"))
+        if result["shares_outstanding"]:
+            result["shares_outstanding"] *= 1_000_000
+        result["website"]            = d.get("weburl", "")
+    except Exception as e:
+        print(f"[finnhub profile] {e}")
+
+    # Basic financials (key metrics)
+    try:
+        r = requests.get(f"{base}/stock/metric", params={"symbol": ticker, "metric": "all"}, headers=h, timeout=10)
+        d = r.json().get("metric", {})
+        result["52w_high"]         = _safe_val(d.get("52WeekHigh")) or result.get("52w_high")
+        result["52w_low"]          = _safe_val(d.get("52WeekLow"))  or result.get("52w_low")
+        result["beta"]             = _safe_val(d.get("beta"))
+        result["pe_ratio"]         = _safe_val(d.get("peBasicExclExtraTTM") or d.get("peTTM"))
+        result["forward_pe"]       = _safe_val(d.get("forwardPE"))
+        result["pb_ratio"]         = _safe_val(d.get("pbQuarterly") or d.get("pbAnnual"))
+        result["ps_ratio"]         = _safe_val(d.get("psAnnual") or d.get("psTTM"))
+        result["peg_ratio"]        = _safe_val(d.get("pegAnnual"))
+        result["eps"]              = _safe_val(d.get("epsBasicExclExtraTTM") or d.get("epsTTM"))
+        result["book_value"]       = _safe_val(d.get("bookValuePerShareAnnual") or d.get("bookValuePerShareQuarterly"))
+        result["dividend_yield"]   = _safe_val(d.get("dividendYieldIndicatedAnnual"))
+        result["dividend_rate"]    = _safe_val(d.get("dividendPerShareAnnual"))
+        result["payout_ratio"]     = _safe_val(d.get("payoutRatioAnnual") or d.get("payoutRatioTTM"))
+        result["roe"]              = _safe_val(d.get("roeTTM") or d.get("roeRfy"))
+        result["roa"]              = _safe_val(d.get("roaTTM") or d.get("roaRfy"))
+        result["revenue_growth"]   = _safe_val(d.get("revenueGrowthTTMYoy") or d.get("revenueGrowth3Y"))
+        result["earnings_growth"]  = _safe_val(d.get("epsGrowthTTMYoy") or d.get("epsGrowth3Y"))
+        result["profit_margin"]    = _safe_val(d.get("netProfitMarginTTM") or d.get("netProfitMarginAnnual"))
+        result["operating_margin"] = _safe_val(d.get("operatingMarginTTM") or d.get("operatingMarginAnnual"))
+        result["current_ratio"]    = _safe_val(d.get("currentRatioQuarterly") or d.get("currentRatioAnnual"))
+        result["debt_to_equity"]   = _safe_val(d.get("totalDebt/totalEquityAnnual") or d.get("longTermDebt/equityAnnual"))
+        result["ev_to_ebitda"]     = _safe_val(d.get("evToEbitdaTTM") or d.get("evToEbitdaAnnual"))
+        result["ev_to_revenue"]    = _safe_val(d.get("evToSalesTTM") or d.get("evToSalesAnnual"))
+        result["enterprise_value"] = _safe_val(d.get("enterpriseValue"))
+        if result["enterprise_value"]:
+            result["enterprise_value"] *= 1_000_000
+        result["revenue"]          = _safe_val(d.get("revenueTTM") or d.get("revenueAnnual"))
+        if result["revenue"] and result["revenue"] < 1_000_000:
+            result["revenue"] *= 1_000_000
+        result["ebitda"]           = _safe_val(d.get("ebitdaTTM") or d.get("ebitdaAnnual"))
+        if result["ebitda"] and result["ebitda"] < 1_000_000:
+            result["ebitda"] *= 1_000_000
+        result["free_cashflow"]    = _safe_val(d.get("freeCashFlowTTM") or d.get("freeCashFlowAnnual"))
+        if result["free_cashflow"] and abs(result["free_cashflow"]) < 1_000_000:
+            result["free_cashflow"] *= 1_000_000
+        result["gross_profit"]     = _safe_val(d.get("grossMarginTTM"))  # ratio, convert below
+        result["total_debt"]       = _safe_val(d.get("totalDebtAnnual") or d.get("totalDebtQuarterly"))
+        if result["total_debt"] and result["total_debt"] < 1_000_000:
+            result["total_debt"] *= 1_000_000
+        result["net_income"]       = _safe_val(d.get("netIncomeAnnual") or d.get("netIncomeTTM"))
+        if result["net_income"] and abs(result["net_income"]) < 1_000_000:
+            result["net_income"] *= 1_000_000
+    except Exception as e:
+        print(f"[finnhub metrics] {e}")
+
+    # Financials (income statement for full numbers)
+    try:
+        r = requests.get(f"{base}/stock/financials-reported",
+                         params={"symbol": ticker, "freq": "annual"}, headers=h, timeout=15)
+        d = r.json()
+        reports = d.get("data", [])
         if reports:
             rep = reports[0]
-            result["revenue"]      = result.get("revenue")      or _safe_val(rep.get("totalRevenue"))
-            result["gross_profit"] = result.get("gross_profit") or _safe_val(rep.get("grossProfit"))
-            result["ebitda"]       = result.get("ebitda")       or _safe_val(rep.get("ebitda"))
-            result["net_income"]   = _safe_val(rep.get("netIncome"))
-            result["operating_margin"] = result.get("operating_margin") or _safe_val(rep.get("operatingIncome"))
-    except Exception as e:
-        print(f"[av income error] {e}")
+            ic = rep.get("report", {}).get("ic", [])
+            bs = rep.get("report", {}).get("bs", [])
+            cf = rep.get("report", {}).get("cf", [])
 
-    # Cash flow statement
-    try:
-        r = requests.get(base, params={"function": "CASH_FLOW", "symbol": ticker, "apikey": AV_KEY}, timeout=15)
-        d = r.json()
-        reports = d.get("annualReports", [])
-        if reports:
-            rep = reports[0]
-            result["operating_cashflow"] = _safe_val(rep.get("operatingCashflow"))
-            result["free_cashflow"]      = _safe_val(rep.get("operatingCashflow")) 
-            capex = _safe_val(rep.get("capitalExpenditures"))
-            op    = result.get("operating_cashflow")
-            if op and capex:
-                result["free_cashflow"] = op - abs(capex)
-    except Exception as e:
-        print(f"[av cashflow error] {e}")
+            def find(items, *labels):
+                for item in items:
+                    label = (item.get("label") or item.get("concept") or "").lower()
+                    for l in labels:
+                        if l.lower() in label:
+                            v = _safe_val(item.get("value"))
+                            if v is not None: return v
+                return None
 
-    # Balance sheet
-    try:
-        r = requests.get(base, params={"function": "BALANCE_SHEET", "symbol": ticker, "apikey": AV_KEY}, timeout=15)
-        d = r.json()
-        reports = d.get("annualReports", [])
-        if reports:
-            rep = reports[0]
-            result["total_debt"]  = _safe_val(rep.get("shortLongTermDebtTotal") or rep.get("longTermDebt"))
-            result["total_cash"]  = _safe_val(rep.get("cashAndCashEquivalentsAtCarryingValue"))
+            result["revenue"]      = result.get("revenue")      or find(ic, "revenue", "sales")
+            result["gross_profit"] = result.get("gross_profit") or find(ic, "gross profit")
+            result["ebitda"]       = result.get("ebitda")       or find(ic, "ebitda")
+            result["net_income"]   = result.get("net_income")   or find(ic, "net income", "net earnings")
+            result["total_debt"]   = result.get("total_debt")   or find(bs, "long term debt", "total debt")
+            result["total_cash"]   = find(bs, "cash and cash equivalents", "cash")
+            result["operating_cashflow"] = find(cf, "operating activities", "operating cash")
+            result["free_cashflow"] = result.get("free_cashflow") or find(cf, "free cash flow")
+            if not result.get("free_cashflow"):
+                op    = result.get("operating_cashflow")
+                capex = find(cf, "capital expenditure", "purchase of property")
+                if op and capex:
+                    result["free_cashflow"] = op - abs(capex)
     except Exception as e:
-        print(f"[av balance error] {e}")
+        print(f"[finnhub financials] {e}")
+
+    # Analyst recommendations & target price
+    try:
+        r = requests.get(f"{base}/stock/price-target", params={"symbol": ticker}, headers=h, timeout=10)
+        d = r.json()
+        result["target_price"] = _safe_val(d.get("targetMean"))
+        result["target_high"]  = _safe_val(d.get("targetHigh"))
+        result["target_low"]   = _safe_val(d.get("targetLow"))
+    except Exception as e:
+        print(f"[finnhub target] {e}")
+
+    try:
+        r = requests.get(f"{base}/stock/recommendation", params={"symbol": ticker}, headers=h, timeout=10)
+        d = r.json()
+        if isinstance(d, list) and d:
+            latest = d[0]
+            total = sum([latest.get("strongBuy",0), latest.get("buy",0),
+                        latest.get("hold",0), latest.get("sell",0), latest.get("strongSell",0)])
+            buy   = latest.get("strongBuy",0) + latest.get("buy",0)
+            if total > 0:
+                result["recommendation"] = "buy" if buy/total > 0.5 else "hold"
+                result["analyst_count"]  = total
+    except Exception as e:
+        print(f"[finnhub rec] {e}")
 
     return result
 
-# ── RapidAPI fallback ────────────────────────────────────────────────────────
+# ── RapidAPI fallback for price ───────────────────────────────────────────────
 def fetch_rapidapi(ticker: str) -> dict:
     if not RAPIDAPI_KEY:
         return {}
@@ -156,25 +186,15 @@ def fetch_rapidapi(ticker: str) -> dict:
         )
         body = r.json().get("body", [{}])
         info = body[0] if isinstance(body, list) and body else body
-        result["current_price"]      = _safe_val(info.get("regularMarketPrice"))
-        result["name"]               = info.get("longName") or info.get("shortName") or ticker
-        result["market_cap"]         = _safe_val(info.get("marketCap"))
-        result["pe_ratio"]           = _safe_val(info.get("trailingPE"))
-        result["forward_pe"]         = _safe_val(info.get("forwardPE"))
-        result["eps"]                = _safe_val(info.get("epsTrailingTwelveMonths"))
-        result["forward_eps"]        = _safe_val(info.get("epsForward"))
-        result["52w_high"]           = _safe_val(info.get("fiftyTwoWeekHigh"))
-        result["52w_low"]            = _safe_val(info.get("fiftyTwoWeekLow"))
-        result["dividend_yield"]     = _safe_val(info.get("dividendYield"))
-        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
-        result["book_value"]         = _safe_val(info.get("bookValue"))
-        result["pb_ratio"]           = _safe_val(info.get("priceToBook"))
-        result["beta"]               = _safe_val(info.get("beta"))
+        result["current_price"]  = _safe_val(info.get("regularMarketPrice"))
+        result["forward_eps"]    = _safe_val(info.get("epsForward"))
+        result["52w_high"]       = _safe_val(info.get("fiftyTwoWeekHigh"))
+        result["52w_low"]        = _safe_val(info.get("fiftyTwoWeekLow"))
     except Exception as e:
         print(f"[rapidapi] {e}")
     return result
 
-# ── yfinance fallback ────────────────────────────────────────────────────────
+# ── yfinance fallback ─────────────────────────────────────────────────────────
 def fetch_yfinance(ticker: str) -> dict:
     if not USE_YFINANCE:
         return {}
@@ -183,33 +203,12 @@ def fetch_yfinance(ticker: str) -> dict:
         t    = yf.Ticker(ticker)
         info = t.info or {}
         result["current_price"]  = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
-        result["name"]           = info.get("longName") or info.get("shortName") or ticker
+        result["forward_eps"]    = _safe_val(info.get("forwardEps"))
+        result["description"]    = info.get("longBusinessSummary", "")
         result["sector"]         = info.get("sector", "Unknown")
         result["industry"]       = info.get("industry", "Unknown")
-        result["market_cap"]     = _safe_val(info.get("marketCap"))
-        result["pe_ratio"]       = _safe_val(info.get("trailingPE"))
-        result["forward_pe"]     = _safe_val(info.get("forwardPE"))
-        result["pb_ratio"]       = _safe_val(info.get("priceToBook"))
-        result["eps"]            = _safe_val(info.get("trailingEps"))
-        result["forward_eps"]    = _safe_val(info.get("forwardEps"))
-        result["beta"]           = _safe_val(info.get("beta"))
-        result["52w_high"]       = _safe_val(info.get("fiftyTwoWeekHigh"))
-        result["52w_low"]        = _safe_val(info.get("fiftyTwoWeekLow"))
-        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
-        result["book_value"]     = _safe_val(info.get("bookValue"))
-        result["dividend_yield"] = _safe_val(info.get("dividendYield"))
-        result["target_price"]   = _safe_val(info.get("targetMeanPrice"))
-        result["recommendation"] = info.get("recommendationKey", "")
-        result["enterprise_value"] = _safe_val(info.get("enterpriseValue"))
-        result["ev_to_ebitda"]   = _safe_val(info.get("enterpriseToEbitda"))
-        result["roe"]            = _safe_val(info.get("returnOnEquity"))
-        result["roa"]            = _safe_val(info.get("returnOnAssets"))
-        result["profit_margin"]  = _safe_val(info.get("profitMargins"))
-        result["revenue_growth"] = _safe_val(info.get("revenueGrowth"))
-        result["debt_to_equity"] = _safe_val(info.get("debtToEquity"))
-        result["current_ratio"]  = _safe_val(info.get("currentRatio"))
     except Exception as e:
-        print(f"[yfinance error] {e}")
+        print(f"[yfinance] {e}")
     return result
 
 def merge(primary: dict, fallback: dict) -> dict:
@@ -222,12 +221,11 @@ def merge(primary: dict, fallback: dict) -> dict:
 def fetch_stock_data(ticker: str) -> dict:
     ticker = ticker.upper().strip()
 
-    av_data    = fetch_alpha_vantage(ticker)
+    fh_data    = fetch_finnhub(ticker)
     rapid_data = fetch_rapidapi(ticker)
     yf_data    = fetch_yfinance(ticker)
 
-    # AV has best financials, RapidAPI has best price, yfinance fills gaps
-    data = merge(av_data, merge(rapid_data, yf_data))
+    data = merge(fh_data, merge(rapid_data, yf_data))
     data["ticker"] = ticker
 
     price  = data.get("current_price")
@@ -253,32 +251,28 @@ def fetch_stock_data(ticker: str) -> dict:
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
     ticker = ticker.upper()
 
-    # Alpha Vantage daily prices
-    if AV_KEY:
+    # Finnhub candles
+    if FINNHUB_KEY:
         try:
+            from datetime import datetime, timedelta
+            days = {"1d":1,"5d":5,"1mo":30,"3mo":90,"6mo":180,"1y":365,"2y":730,"5y":1825}
+            now   = int(time.time())
+            start = int((datetime.now() - timedelta(days=days.get(period, 365))).timestamp())
             r = requests.get(
-                "https://www.alphavantage.co/query",
-                params={"function": "TIME_SERIES_DAILY", "symbol": ticker,
-                        "outputsize": "full" if period in ("2y","5y") else "compact",
-                        "apikey": AV_KEY},
-                timeout=20,
+                "https://finnhub.io/api/v1/stock/candle",
+                params={"symbol": ticker, "resolution": "D", "from": start, "to": now},
+                headers={"X-Finnhub-Token": FINNHUB_KEY},
+                timeout=15,
             )
-            d = r.json().get("Time Series (Daily)", {})
-            if d:
-                items  = sorted(d.items())
-                # Filter by period
-                from datetime import datetime, timedelta
-                days = {"1d":1,"5d":5,"1mo":30,"3mo":90,"6mo":180,"1y":365,"2y":730,"5y":1825}
-                cutoff = datetime.today() - timedelta(days=days.get(period, 365))
-                items  = [(dt, v) for dt, v in items if datetime.strptime(dt, "%Y-%m-%d") >= cutoff]
-                if items:
-                    return {
-                        "dates":   [i[0] for i in items],
-                        "closes":  [_safe_val(i[1].get("4. close")) for i in items],
-                        "volumes": [int(float(i[1].get("5. volume", 0) or 0)) for i in items],
-                    }
+            d = r.json()
+            if d.get("s") == "ok":
+                from datetime import datetime as dt
+                dates  = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
+                closes = [round(float(c), 2) for c in d["c"]]
+                volumes = [int(v) for v in d.get("v", [0]*len(closes))]
+                return {"dates": dates, "closes": closes, "volumes": volumes}
         except Exception as e:
-            print(f"[av history error] {e}")
+            print(f"[finnhub candles] {e}")
 
     # yfinance fallback
     if USE_YFINANCE:
