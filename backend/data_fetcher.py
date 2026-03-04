@@ -91,19 +91,23 @@ def fetch_finnhub(ticker: str) -> dict:
         result["revenue"]          = _safe_val(d.get("revenueTTM") or d.get("revenueAnnual"))
         if result["revenue"] and result["revenue"] < 1_000_000:
             result["revenue"] *= 1_000_000
-        result["ebitda"]           = _safe_val(d.get("ebitdaTTM") or d.get("ebitdaAnnual"))
-        if result["ebitda"] and result["ebitda"] < 1_000_000:
-            result["ebitda"] *= 1_000_000
-        result["free_cashflow"]    = _safe_val(d.get("freeCashFlowTTM") or d.get("freeCashFlowAnnual"))
-        if result["free_cashflow"] and abs(result["free_cashflow"]) < 1_000_000:
-            result["free_cashflow"] *= 1_000_000
-        result["gross_profit"]     = _safe_val(d.get("grossMarginTTM"))  # ratio, convert below
-        result["total_debt"]       = _safe_val(d.get("totalDebtAnnual") or d.get("totalDebtQuarterly"))
-        if result["total_debt"] and result["total_debt"] < 1_000_000:
-            result["total_debt"] *= 1_000_000
-        result["net_income"]       = _safe_val(d.get("netIncomeAnnual") or d.get("netIncomeTTM"))
-        if result["net_income"] and abs(result["net_income"]) < 1_000_000:
-            result["net_income"] *= 1_000_000
+        # EBITDA - Finnhub returns in millions for these
+        ebitda_raw = _safe_val(d.get("ebitdaTTM") or d.get("ebitdaAnnual"))
+        if ebitda_raw is not None:
+            result["ebitda"] = ebitda_raw * 1_000_000 if abs(ebitda_raw) < 100_000 else ebitda_raw
+        # FCF - Finnhub returns in millions
+        fcf_raw = _safe_val(d.get("freeCashFlowTTM") or d.get("freeCashFlowAnnual"))
+        if fcf_raw is not None:
+            result["free_cashflow"] = fcf_raw * 1_000_000 if abs(fcf_raw) < 100_000 else fcf_raw
+        # Debt - Finnhub returns in millions
+        debt_raw = _safe_val(d.get("totalDebtAnnual") or d.get("totalDebtQuarterly") or d.get("netDebtAnnual"))
+        if debt_raw is not None:
+            result["total_debt"] = debt_raw * 1_000_000 if abs(debt_raw) < 100_000 else debt_raw
+        # Net income - Finnhub returns in millions
+        ni_raw = _safe_val(d.get("netIncomeAnnual") or d.get("netIncomeTTM"))
+        if ni_raw is not None:
+            result["net_income"] = ni_raw * 1_000_000 if abs(ni_raw) < 100_000 else ni_raw
+        result["gross_profit"] = None  # not available directly from metrics
     except Exception as e:
         print(f"[finnhub metrics] {e}")
 
