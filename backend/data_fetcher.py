@@ -1,9 +1,8 @@
 import numpy as np
 import warnings
 import requests
+import os
 import json
-import time
-import random
 warnings.filterwarnings("ignore")
 
 try:
@@ -12,51 +11,13 @@ try:
 except ImportError:
     USE_YFINANCE = False
 
-# ── Rotating user agents to avoid blocks ────────────────────────────────────
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-]
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
 
-def _get_headers():
-    return {
-        "User-Agent": random.choice(USER_AGENTS),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Cache-Control": "max-age=0",
-    }
-
-def _get_crumb_and_cookie():
-    """Get a valid crumb + cookie from Yahoo Finance — required for API calls."""
-    session = requests.Session()
-    try:
-        # First hit the main page to get cookies
-        r = session.get(
-            "https://finance.yahoo.com",
-            headers=_get_headers(),
-            timeout=10,
-            allow_redirects=True,
-        )
-        # Get crumb
-        crumb_r = session.get(
-            "https://query1.finance.yahoo.com/v1/test/getcrumb",
-            headers={**_get_headers(), "Referer": "https://finance.yahoo.com"},
-            timeout=10,
-        )
-        crumb = crumb_r.text.strip()
-        cookies = session.cookies.get_dict()
-        return crumb, cookies
-    except Exception as e:
-        print(f"[crumb error] {e}")
-        return None, {}
+HEADERS_YF = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 def _safe_val(val, default=None):
     if val is None or (isinstance(val, float) and np.isnan(val)):
@@ -67,142 +28,199 @@ def _safe_val(val, default=None):
     except (TypeError, ValueError):
         return default
 
-def fetch_yahoo_direct(ticker: str) -> dict:
-    """Pull fundamentals directly from Yahoo Finance with crumb auth."""
+# ── RapidAPI Yahoo Finance ───────────────────────────────────────────────────
+def fetch_rapidapi(ticker: str) -> dict:
+    """Fetch via RapidAPI Yahoo Finance — reliable from cloud servers."""
+    if not RAPIDAPI_KEY:
+        return {}
     result = {}
-    ticker = ticker.upper().strip()
+    headers = {
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
+        "X-RapidAPI-Host": "yahoo-finance15.p.rapidapi.com",
+    }
+    try:
+        r = requests.get(
+            f"https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/quotes",
+            headers=headers,
+            params={"ticker": ticker},
+            timeout=15,
+        )
+        d = r.json()
+        body = d.get("body", [{}])
+        if isinstance(body, list) and body:
+            info = body[0]
+        elif isinstance(body, dict):
+            info = body
+        else:
+            info = {}
 
-    crumb, cookies = _get_crumb_and_cookie()
-    headers = {**_get_headers(), "Referer": f"https://finance.yahoo.com/quote/{ticker}"}
+        result["current_price"]    = _safe_val(info.get("regularMarketPrice"))
+        result["name"]             = info.get("longName") or info.get("shortName") or ticker
+        result["market_cap"]       = _safe_val(info.get("marketCap"))
+        result["pe_ratio"]         = _safe_val(info.get("trailingPE"))
+        result["forward_pe"]       = _safe_val(info.get("forwardPE"))
+        result["eps"]              = _safe_val(info.get("epsTrailingTwelveMonths"))
+        result["forward_eps"]      = _safe_val(info.get("epsForward"))
+        result["52w_high"]         = _safe_val(info.get("fiftyTwoWeekHigh"))
+        result["52w_low"]          = _safe_val(info.get("fiftyTwoWeekLow"))
+        result["dividend_yield"]   = _safe_val(info.get("dividendYield"))
+        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
+        result["book_value"]       = _safe_val(info.get("bookValue"))
+        result["pb_ratio"]         = _safe_val(info.get("priceToBook"))
+        result["beta"]             = _safe_val(info.get("beta"))
+    except Exception as e:
+        print(f"[rapidapi quotes error] {e}")
 
-    # ── Price via chart endpoint ─────────────────────────────────────────────
-    for base in ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]:
-        try:
-            r = requests.get(
-                f"{base}/v8/finance/chart/{ticker}?interval=1d&range=1d",
-                headers=headers, cookies=cookies, timeout=10,
-            )
-            data = r.json()
-            meta = data["chart"]["result"][0]["meta"]
-            result["current_price"] = _safe_val(meta.get("regularMarketPrice") or meta.get("chartPreviousClose"))
-            result["ticker"] = ticker
-            result["name"]   = meta.get("longName") or meta.get("shortName") or ticker
-            break
-        except Exception as e:
-            print(f"[chart {base}] {e}")
-            continue
+    # Also fetch financials
+    try:
+        r2 = requests.get(
+            f"https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/modules",
+            headers=headers,
+            params={"ticker": ticker, "module": "financial-data,asset-profile,default-key-statistics,summary-detail"},
+            timeout=15,
+        )
+        d2 = r2.json()
+        body2 = d2.get("body", {})
 
-    # ── Fundamentals via quoteSummary ────────────────────────────────────────
-    modules = "summaryDetail,defaultKeyStatistics,financialData,assetProfile,recommendationTrend,earningsTrend"
-    params  = {"modules": modules}
-    if crumb:
-        params["crumb"] = crumb
+        fd = body2.get("financialData", {})
+        ap = body2.get("assetProfile", {})
+        ks = body2.get("defaultKeyStatistics", {})
+        sd = body2.get("summaryDetail", {})
 
-    for base in ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]:
-        try:
-            r = requests.get(
-                f"{base}/v10/finance/quoteSummary/{ticker}",
-                params=params,
-                headers=headers,
-                cookies=cookies,
-                timeout=15,
-            )
-            qs = r.json().get("quoteSummary", {}).get("result", [{}])
-            if not qs or qs[0] is None:
-                continue
-            qs = qs[0]
+        def raw(d, k):
+            v = d.get(k, {})
+            return v.get("raw") if isinstance(v, dict) else v
 
-            sd = qs.get("summaryDetail", {})
-            ks = qs.get("defaultKeyStatistics", {})
-            fd = qs.get("financialData", {})
-            ap = qs.get("assetProfile", {})
+        result["sector"]          = ap.get("sector", "Unknown")
+        result["industry"]        = ap.get("industry", "Unknown")
+        result["description"]     = ap.get("longBusinessSummary", "")
+        result["revenue"]         = _safe_val(raw(fd, "totalRevenue"))
+        result["ebitda"]          = _safe_val(raw(fd, "ebitda"))
+        result["net_income"]      = _safe_val(raw(fd, "netIncomeToCommon"))
+        result["gross_profit"]    = _safe_val(raw(fd, "grossProfits"))
+        result["free_cashflow"]   = _safe_val(raw(fd, "freeCashflow"))
+        result["operating_cashflow"] = _safe_val(raw(fd, "operatingCashflow"))
+        result["total_debt"]      = _safe_val(raw(fd, "totalDebt"))
+        result["total_cash"]      = _safe_val(raw(fd, "totalCash"))
+        result["revenue_growth"]  = _safe_val(raw(fd, "revenueGrowth"))
+        result["earnings_growth"] = _safe_val(raw(fd, "earningsGrowth"))
+        result["profit_margin"]   = _safe_val(raw(fd, "profitMargins"))
+        result["operating_margin"]= _safe_val(raw(fd, "operatingMargins"))
+        result["roe"]             = _safe_val(raw(fd, "returnOnEquity"))
+        result["roa"]             = _safe_val(raw(fd, "returnOnAssets"))
+        result["debt_to_equity"]  = _safe_val(raw(fd, "debtToEquity"))
+        result["current_ratio"]   = _safe_val(raw(fd, "currentRatio"))
+        result["target_price"]    = _safe_val(raw(fd, "targetMeanPrice"))
+        result["recommendation"]  = fd.get("recommendationKey", "")
+        result["enterprise_value"]= _safe_val(raw(ks, "enterpriseValue"))
+        result["ev_to_ebitda"]    = _safe_val(raw(ks, "enterpriseToEbitda"))
+        result["ev_to_revenue"]   = _safe_val(raw(ks, "enterpriseToRevenue"))
+        result["peg_ratio"]       = _safe_val(raw(ks, "pegRatio"))
+        result["ps_ratio"]        = _safe_val(raw(ks, "priceToSalesTrailing12Months"))
+        result["payout_ratio"]    = _safe_val(raw(sd, "payoutRatio"))
+        result["dividend_rate"]   = _safe_val(raw(sd, "dividendRate"))
+    except Exception as e:
+        print(f"[rapidapi modules error] {e}")
 
-            def raw(d, k):
-                v = d.get(k, {})
-                return v.get("raw") if isinstance(v, dict) else v
+    return result
 
-            result["name"]        = ap.get("longName") or result.get("name") or ticker
-            result["sector"]      = ap.get("sector", "Unknown")
-            result["industry"]    = ap.get("industry", "Unknown")
-            result["description"] = ap.get("longBusinessSummary", "")
-            result["market_cap"]  = _safe_val(raw(sd, "marketCap"))
-            result["pe_ratio"]    = _safe_val(raw(sd, "trailingPE"))
-            result["forward_pe"]  = _safe_val(raw(ks, "forwardPE"))
-            result["pb_ratio"]    = _safe_val(raw(ks, "priceToBook"))
-            result["ps_ratio"]    = _safe_val(raw(ks, "priceToSalesTrailing12Months"))
-            result["peg_ratio"]   = _safe_val(raw(ks, "pegRatio"))
-            result["eps"]         = _safe_val(raw(ks, "trailingEps"))
-            result["forward_eps"] = _safe_val(raw(ks, "forwardEps"))
-            result["beta"]        = _safe_val(raw(sd, "beta"))
-            result["dividend_yield"]  = _safe_val(raw(sd, "dividendYield"))
-            result["dividend_rate"]   = _safe_val(raw(sd, "dividendRate"))
-            result["payout_ratio"]    = _safe_val(raw(sd, "payoutRatio"))
-            result["shares_outstanding"] = _safe_val(raw(ks, "sharesOutstanding"))
-            result["book_value"]  = _safe_val(raw(ks, "bookValue"))
-            result["52w_high"]    = _safe_val(raw(sd, "fiftyTwoWeekHigh"))
-            result["52w_low"]     = _safe_val(raw(sd, "fiftyTwoWeekLow"))
-            result["revenue"]         = _safe_val(raw(fd, "totalRevenue"))
-            result["ebitda"]          = _safe_val(raw(fd, "ebitda"))
-            result["net_income"]      = _safe_val(raw(fd, "netIncomeToCommon"))
-            result["gross_profit"]    = _safe_val(raw(fd, "grossProfits"))
-            result["free_cashflow"]   = _safe_val(raw(fd, "freeCashflow"))
-            result["operating_cashflow"] = _safe_val(raw(fd, "operatingCashflow"))
-            result["total_debt"]      = _safe_val(raw(fd, "totalDebt"))
-            result["total_cash"]      = _safe_val(raw(fd, "totalCash"))
-            result["revenue_growth"]  = _safe_val(raw(fd, "revenueGrowth"))
-            result["earnings_growth"] = _safe_val(raw(fd, "earningsGrowth"))
-            result["profit_margin"]   = _safe_val(raw(fd, "profitMargins"))
-            result["operating_margin"]= _safe_val(raw(fd, "operatingMargins"))
-            result["roe"]             = _safe_val(raw(fd, "returnOnEquity"))
-            result["roa"]             = _safe_val(raw(fd, "returnOnAssets"))
-            result["debt_to_equity"]  = _safe_val(raw(fd, "debtToEquity"))
-            result["current_ratio"]   = _safe_val(raw(fd, "currentRatio"))
-            result["target_price"]    = _safe_val(raw(fd, "targetMeanPrice"))
-            result["recommendation"]  = fd.get("recommendationKey", "")
-            result["enterprise_value"]= _safe_val(raw(ks, "enterpriseValue"))
-            result["ev_to_ebitda"]    = _safe_val(raw(ks, "enterpriseToEbitda"))
-            result["ev_to_revenue"]   = _safe_val(raw(ks, "enterpriseToRevenue"))
-            break
-        except Exception as e:
-            print(f"[quoteSummary {base}] {e}")
-            continue
+# ── Direct Yahoo fallback ────────────────────────────────────────────────────
+def fetch_yahoo_direct(ticker: str) -> dict:
+    result = {}
+    try:
+        r = requests.get(
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d",
+            headers=HEADERS_YF, timeout=10,
+        )
+        meta = r.json()["chart"]["result"][0]["meta"]
+        result["current_price"] = _safe_val(meta.get("regularMarketPrice"))
+        result["name"] = meta.get("longName") or meta.get("shortName") or ticker
+    except Exception as e:
+        print(f"[yahoo direct error] {e}")
+
+    try:
+        modules = "summaryDetail,defaultKeyStatistics,financialData,assetProfile"
+        r2 = requests.get(
+            f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}?modules={modules}",
+            headers=HEADERS_YF, timeout=15,
+        )
+        qs = r2.json().get("quoteSummary", {}).get("result", [{}])[0]
+        sd = qs.get("summaryDetail", {})
+        ks = qs.get("defaultKeyStatistics", {})
+        fd = qs.get("financialData", {})
+        ap = qs.get("assetProfile", {})
+
+        def raw(d, k):
+            v = d.get(k, {})
+            return v.get("raw") if isinstance(v, dict) else v
+
+        result["sector"]      = ap.get("sector", "Unknown")
+        result["industry"]    = ap.get("industry", "Unknown")
+        result["description"] = ap.get("longBusinessSummary", "")
+        result["market_cap"]  = _safe_val(raw(sd, "marketCap"))
+        result["pe_ratio"]    = _safe_val(raw(sd, "trailingPE"))
+        result["forward_pe"]  = _safe_val(raw(ks, "forwardPE"))
+        result["pb_ratio"]    = _safe_val(raw(ks, "priceToBook"))
+        result["eps"]         = _safe_val(raw(ks, "trailingEps"))
+        result["forward_eps"] = _safe_val(raw(ks, "forwardEps"))
+        result["beta"]        = _safe_val(raw(sd, "beta"))
+        result["52w_high"]    = _safe_val(raw(sd, "fiftyTwoWeekHigh"))
+        result["52w_low"]     = _safe_val(raw(sd, "fiftyTwoWeekLow"))
+        result["revenue"]     = _safe_val(raw(fd, "totalRevenue"))
+        result["ebitda"]      = _safe_val(raw(fd, "ebitda"))
+        result["free_cashflow"] = _safe_val(raw(fd, "freeCashflow"))
+        result["total_debt"]  = _safe_val(raw(fd, "totalDebt"))
+        result["total_cash"]  = _safe_val(raw(fd, "totalCash"))
+        result["profit_margin"] = _safe_val(raw(fd, "profitMargins"))
+        result["roe"]         = _safe_val(raw(fd, "returnOnEquity"))
+        result["roa"]         = _safe_val(raw(fd, "returnOnAssets"))
+        result["debt_to_equity"] = _safe_val(raw(fd, "debtToEquity"))
+        result["enterprise_value"] = _safe_val(raw(ks, "enterpriseValue"))
+        result["ev_to_ebitda"] = _safe_val(raw(ks, "enterpriseToEbitda"))
+        result["recommendation"] = fd.get("recommendationKey", "")
+        result["target_price"] = _safe_val(raw(fd, "targetMeanPrice"))
+    except Exception as e:
+        print(f"[yahoo quoteSummary error] {e}")
 
     return result
 
 def fetch_yfinance(ticker: str) -> dict:
-    """yfinance-based fetch."""
     if not USE_YFINANCE:
         return {}
     result = {}
     try:
         t    = yf.Ticker(ticker)
         info = t.info or {}
-
-        result["current_price"] = _safe_val(
-            info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-        )
-        result["name"]        = info.get("longName") or info.get("shortName") or ticker
-        result["sector"]      = info.get("sector", "Unknown")
-        result["industry"]    = info.get("industry", "Unknown")
-        result["description"] = info.get("longBusinessSummary", "")
-        result["market_cap"]  = _safe_val(info.get("marketCap"))
-        result["beta"]        = _safe_val(info.get("beta"))
-        result["pe_ratio"]    = _safe_val(info.get("trailingPE"))
-        result["forward_pe"]  = _safe_val(info.get("forwardPE"))
-        result["pb_ratio"]    = _safe_val(info.get("priceToBook"))
-        result["ps_ratio"]    = _safe_val(info.get("priceToSalesTrailing12Months"))
-        result["peg_ratio"]   = _safe_val(info.get("pegRatio"))
-        result["eps"]         = _safe_val(info.get("trailingEps"))
-        result["forward_eps"] = _safe_val(info.get("forwardEps"))
-        result["book_value"]  = _safe_val(info.get("bookValue"))
-        result["dividend_yield"]     = _safe_val(info.get("dividendYield"))
-        result["dividend_rate"]      = _safe_val(info.get("dividendRate"))
-        result["payout_ratio"]       = _safe_val(info.get("payoutRatio"))
-        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
-        result["52w_high"]    = _safe_val(info.get("fiftyTwoWeekHigh"))
-        result["52w_low"]     = _safe_val(info.get("fiftyTwoWeekLow"))
+        result["current_price"]  = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
+        result["name"]           = info.get("longName") or info.get("shortName") or ticker
+        result["sector"]         = info.get("sector", "Unknown")
+        result["industry"]       = info.get("industry", "Unknown")
+        result["description"]    = info.get("longBusinessSummary", "")
+        result["market_cap"]     = _safe_val(info.get("marketCap"))
+        result["pe_ratio"]       = _safe_val(info.get("trailingPE"))
+        result["forward_pe"]     = _safe_val(info.get("forwardPE"))
+        result["pb_ratio"]       = _safe_val(info.get("priceToBook"))
+        result["ps_ratio"]       = _safe_val(info.get("priceToSalesTrailing12Months"))
+        result["peg_ratio"]      = _safe_val(info.get("pegRatio"))
+        result["eps"]            = _safe_val(info.get("trailingEps"))
+        result["forward_eps"]    = _safe_val(info.get("forwardEps"))
+        result["beta"]           = _safe_val(info.get("beta"))
+        result["dividend_yield"] = _safe_val(info.get("dividendYield"))
+        result["dividend_rate"]  = _safe_val(info.get("dividendRate"))
+        result["52w_high"]       = _safe_val(info.get("fiftyTwoWeekHigh"))
+        result["52w_low"]        = _safe_val(info.get("fiftyTwoWeekLow"))
         result["target_price"]   = _safe_val(info.get("targetMeanPrice"))
         result["recommendation"] = info.get("recommendationKey", "")
+        result["revenue_growth"] = _safe_val(info.get("revenueGrowth"))
+        result["profit_margin"]  = _safe_val(info.get("profitMargins"))
+        result["roe"]            = _safe_val(info.get("returnOnEquity"))
+        result["roa"]            = _safe_val(info.get("returnOnAssets"))
+        result["debt_to_equity"] = _safe_val(info.get("debtToEquity"))
+        result["current_ratio"]  = _safe_val(info.get("currentRatio"))
+        result["enterprise_value"] = _safe_val(info.get("enterpriseValue"))
+        result["ev_to_ebitda"]   = _safe_val(info.get("enterpriseToEbitda"))
+        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
+        result["book_value"]     = _safe_val(info.get("bookValue"))
 
         try:
             inc = t.income_stmt
@@ -218,7 +236,7 @@ def fetch_yfinance(ticker: str) -> dict:
                 result["revenue"]      = get_inc("Total Revenue", "Revenue")
                 result["gross_profit"] = get_inc("Gross Profit")
                 result["ebitda"]       = get_inc("EBITDA", "Normalized EBITDA")
-                result["net_income"]   = get_inc("Net Income", "Net Income Common Stockholders")
+                result["net_income"]   = get_inc("Net Income")
         except Exception: pass
 
         try:
@@ -234,11 +252,6 @@ def fetch_yfinance(ticker: str) -> dict:
                     return None
                 result["operating_cashflow"] = get_cf("Operating Cash Flow")
                 result["free_cashflow"]      = get_cf("Free Cash Flow")
-                if result.get("free_cashflow") is None:
-                    op    = result.get("operating_cashflow")
-                    capex = get_cf("Capital Expenditure", "Capital Expenditures")
-                    if op and capex:
-                        result["free_cashflow"] = op - abs(capex)
         except Exception: pass
 
         try:
@@ -253,20 +266,8 @@ def fetch_yfinance(ticker: str) -> dict:
                             if v is not None: return v
                     return None
                 result["total_debt"] = get_bs("Total Debt", "Long Term Debt")
-                result["total_cash"] = get_bs("Cash And Cash Equivalents", "Cash Cash Equivalents")
+                result["total_cash"] = get_bs("Cash And Cash Equivalents")
         except Exception: pass
-
-        result["revenue_growth"]   = _safe_val(info.get("revenueGrowth"))
-        result["earnings_growth"]  = _safe_val(info.get("earningsGrowth"))
-        result["profit_margin"]    = _safe_val(info.get("profitMargins"))
-        result["operating_margin"] = _safe_val(info.get("operatingMargins"))
-        result["roe"]              = _safe_val(info.get("returnOnEquity"))
-        result["roa"]              = _safe_val(info.get("returnOnAssets"))
-        result["debt_to_equity"]   = _safe_val(info.get("debtToEquity"))
-        result["current_ratio"]    = _safe_val(info.get("currentRatio"))
-        result["enterprise_value"] = _safe_val(info.get("enterpriseValue"))
-        result["ev_to_ebitda"]     = _safe_val(info.get("enterpriseToEbitda"))
-        result["ev_to_revenue"]    = _safe_val(info.get("enterpriseToRevenue"))
 
     except Exception as e:
         print(f"[yfinance error] {e}")
@@ -282,11 +283,13 @@ def merge(primary: dict, fallback: dict) -> dict:
 def fetch_stock_data(ticker: str) -> dict:
     ticker = ticker.upper().strip()
 
-    # Try direct API first (more reliable on cloud), then yfinance
-    direct_data = fetch_yahoo_direct(ticker)
+    # Priority: RapidAPI (works on cloud) → yfinance → direct Yahoo
+    rapid_data  = fetch_rapidapi(ticker)
     yf_data     = fetch_yfinance(ticker)
+    direct_data = fetch_yahoo_direct(ticker)
 
-    data = merge(yf_data, direct_data)
+    # Merge: rapidapi most reliable on cloud, yfinance best for financials
+    data = merge(rapid_data, merge(yf_data, direct_data))
     data["ticker"] = ticker
 
     price  = data.get("current_price")
@@ -312,11 +315,35 @@ def fetch_stock_data(ticker: str) -> dict:
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
     ticker = ticker.upper()
 
-    # Try yfinance first
+    # Try RapidAPI first
+    if RAPIDAPI_KEY:
+        try:
+            headers = {
+                "X-RapidAPI-Key": RAPIDAPI_KEY,
+                "X-RapidAPI-Host": "yahoo-finance15.p.rapidapi.com",
+            }
+            period_map = {"1d":"1d","5d":"5d","1mo":"1mo","3mo":"3mo","6mo":"6mo","1y":"1y","2y":"2y","5y":"5y"}
+            r = requests.get(
+                f"https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/history",
+                headers=headers,
+                params={"symbol": ticker, "interval": "1d", "diffandsplits": "false"},
+                timeout=15,
+            )
+            d = r.json()
+            body = d.get("body", {})
+            if isinstance(body, dict) and body:
+                items = sorted(body.items())
+                dates  = [item[0] for item in items]
+                closes = [_safe_val(item[1].get("close")) for item in items]
+                volumes = [int(item[1].get("volume", 0) or 0) for item in items]
+                return {"dates": dates, "closes": closes, "volumes": volumes}
+        except Exception as e:
+            print(f"[rapidapi history error] {e}")
+
+    # yfinance fallback
     if USE_YFINANCE:
         try:
-            t    = yf.Ticker(ticker)
-            hist = t.history(period=period)
+            hist = yf.Ticker(ticker).history(period=period)
             if hist is not None and not hist.empty:
                 return {
                     "dates":   [str(d.date()) for d in hist.index],
@@ -327,24 +354,16 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
 
     # Direct fallback
     try:
-        crumb, cookies = _get_crumb_and_cookie()
-        headers = _get_headers()
-        period_map = {"1d":"1d","5d":"5d","1mo":"1mo","3mo":"3mo","6mo":"6mo","1y":"1y","2y":"2y","5y":"5y"}
         r = requests.get(
-            f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-            f"?interval=1d&range={period_map.get(period,'1y')}",
-            headers=headers, cookies=cookies, timeout=15,
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1y",
+            headers=HEADERS_YF, timeout=15,
         )
-        d          = r.json()["chart"]["result"][0]
-        timestamps = d["timestamp"]
-        closes     = d["indicators"]["quote"][0]["close"]
-        volumes    = d["indicators"]["quote"][0]["volume"]
+        d = r.json()["chart"]["result"][0]
         from datetime import datetime
-        dates = [datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in timestamps]
         return {
-            "dates":   dates,
-            "closes":  [round(float(c), 2) if c else None for c in closes],
-            "volumes": [int(v) if v else 0 for v in volumes],
+            "dates":   [datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["timestamp"]],
+            "closes":  [round(float(c), 2) if c else None for c in d["indicators"]["quote"][0]["close"]],
+            "volumes": [int(v) if v else 0 for v in d["indicators"]["quote"][0]["volume"]],
         }
     except Exception as e:
         print(f"[price history error] {e}")
