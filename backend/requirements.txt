@@ -4,5 +4,4 @@ yfinance
 requests
 numpy
 pandas
-httpx
-reportlab
+anthropic

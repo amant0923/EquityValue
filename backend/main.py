@@ -249,3 +249,8 @@ Be direct, analytical, and use specific financial data. Write like a professiona
 @app.get("/search/{query}")
 def search(query: str):
     return {"results": []}
+
+@app.get("/cache/clear")
+def clear_cache():
+    _cache.clear()
+    return {"message": "Cache cleared"}

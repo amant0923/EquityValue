@@ -132,19 +132,46 @@ def fetch_finnhub(ticker: str) -> dict:
                             if v is not None: return v
                 return None
 
-            result["revenue"]      = result.get("revenue")      or find(ic, "revenue", "sales")
-            result["gross_profit"] = result.get("gross_profit") or find(ic, "gross profit")
-            result["ebitda"]       = result.get("ebitda")       or find(ic, "ebitda")
-            result["net_income"]   = result.get("net_income")   or find(ic, "net income", "net earnings")
-            result["total_debt"]   = result.get("total_debt")   or find(bs, "long term debt", "total debt")
-            result["total_cash"]   = find(bs, "cash and cash equivalents", "cash")
-            result["operating_cashflow"] = find(cf, "operating activities", "operating cash")
-            result["free_cashflow"] = result.get("free_cashflow") or find(cf, "free cash flow")
+            result["revenue"]      = result.get("revenue")      or find(ic, "revenue", "net sales", "total revenue")
+            result["gross_profit"] = result.get("gross_profit") or find(ic, "gross profit", "gross margin")
+            result["ebitda"]       = result.get("ebitda")       or find(ic, "ebitda", "earnings before interest")
+            result["net_income"]   = result.get("net_income")   or find(ic, "net income", "net earnings", "net loss")
+            result["total_debt"]   = result.get("total_debt")   or find(bs, "long-term debt", "long term debt", "total debt", "notes payable")
+            result["total_cash"]   = result.get("total_cash")   or find(bs, "cash and cash equivalents", "cash and short", "cash")
+            result["operating_cashflow"] = find(cf, "operating activities", "operating cash", "net cash from operating")
+            result["free_cashflow"] = result.get("free_cashflow") or find(cf, "free cash flow", "free cashflow")
             if not result.get("free_cashflow"):
                 op    = result.get("operating_cashflow")
-                capex = find(cf, "capital expenditure", "purchase of property")
+                capex = find(cf, "capital expenditure", "purchase of property", "acquisition of property", "payments for acquisition")
                 if op and capex:
                     result["free_cashflow"] = op - abs(capex)
+
+    except Exception as e:
+        print(f"[finnhub financials] {e}")
+
+    # ── Fallback calculations from what we have ──────────────────────────────
+    # Calculate EBITDA from net income + estimates if still missing
+    if not result.get("ebitda"):
+        ni  = result.get("net_income")
+        rev = result.get("revenue")
+        op_margin = result.get("operating_margin")  # decimal e.g. 0.32
+        if rev and op_margin and abs(op_margin) <= 1:
+            # EBIT = revenue * operating_margin, EBITDA ≈ EBIT * 1.1 (rough D&A estimate)
+            ebit = rev * op_margin
+            result["ebitda"] = ebit * 1.1
+        elif ni and rev:
+            # Rough: EBITDA ≈ net income / 0.7 for profitable tech companies
+            result["ebitda"] = ni * 1.4
+
+    # Calculate FCF from operating cashflow if still missing
+    if not result.get("free_cashflow"):
+        op = result.get("operating_cashflow")
+        if op:
+            # Rough: FCF ≈ operating CF * 0.85 (assumes 15% capex ratio)
+            result["free_cashflow"] = op * 0.85
+        elif result.get("net_income"):
+            # Last resort: FCF ≈ net income (conservative)
+            result["free_cashflow"] = result["net_income"]
     except Exception as e:
         print(f"[finnhub financials] {e}")
 
