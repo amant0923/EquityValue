@@ -150,30 +150,24 @@ def fetch_finnhub(ticker: str) -> dict:
         print(f"[finnhub financials] {e}")
 
     # ── Fallback calculations from what we have ──────────────────────────────
-    # Calculate EBITDA from net income + estimates if still missing
+    # Calculate EBITDA from margins if still missing
     if not result.get("ebitda"):
-        ni  = result.get("net_income")
         rev = result.get("revenue")
-        op_margin = result.get("operating_margin")  # decimal e.g. 0.32
-        if rev and op_margin and abs(op_margin) <= 1:
-            # EBIT = revenue * operating_margin, EBITDA ≈ EBIT * 1.1 (rough D&A estimate)
-            ebit = rev * op_margin
-            result["ebitda"] = ebit * 1.1
-        elif ni and rev:
-            # Rough: EBITDA ≈ net income / 0.7 for profitable tech companies
+        op_margin = result.get("operating_margin")
+        ni = result.get("net_income")
+        if rev and op_margin and abs(float(op_margin)) <= 1.0:
+            result["ebitda"] = rev * float(op_margin) * 1.1
+        elif ni:
             result["ebitda"] = ni * 1.4
 
-    # Calculate FCF from operating cashflow if still missing
+    # Calculate FCF if still missing
     if not result.get("free_cashflow"):
         op = result.get("operating_cashflow")
+        ni = result.get("net_income")
         if op:
-            # Rough: FCF ≈ operating CF * 0.85 (assumes 15% capex ratio)
             result["free_cashflow"] = op * 0.85
-        elif result.get("net_income"):
-            # Last resort: FCF ≈ net income (conservative)
-            result["free_cashflow"] = result["net_income"]
-    except Exception as e:
-        print(f"[finnhub financials] {e}")
+        elif ni:
+            result["free_cashflow"] = ni
 
     # Analyst recommendations & target price
     try:

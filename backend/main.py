@@ -189,11 +189,11 @@ Write a concise but comprehensive investment memo for {data.get('name', ticker)}
 COMPANY DATA:
 - Sector: {data.get('sector', 'N/A')} | Industry: {data.get('industry', 'N/A')}
 - Current Price: ${data.get('price', 'N/A')}
-- Market Cap: ${data.get('market_cap', 'N/A'):,.0f} if data.get('market_cap') else 'N/A'
-- Revenue: ${data.get('revenue', 'N/A'):,.0f} if data.get('revenue') else 'N/A'
-- EBITDA: ${data.get('ebitda', 'N/A'):,.0f} if data.get('ebitda') else 'N/A'
-- Net Income: ${data.get('net_income', 'N/A'):,.0f} if data.get('net_income') else 'N/A'
-- Free Cash Flow: ${data.get('free_cashflow', 'N/A'):,.0f} if data.get('free_cashflow') else 'N/A'
+- Market Cap: {f"${data['market_cap']:,.0f}" if data.get('market_cap') else 'N/A'}
+- Revenue: {f"${data['revenue']:,.0f}" if data.get('revenue') else 'N/A'}
+- EBITDA: {f"${data['ebitda']:,.0f}" if data.get('ebitda') else 'N/A'}
+- Net Income: {f"${data['net_income']:,.0f}" if data.get('net_income') else 'N/A'}
+- Free Cash Flow: {f"${data['free_cashflow']:,.0f}" if data.get('free_cashflow') else 'N/A'}
 
 KEY METRICS:
 - P/E: {metrics.get('pe_ratio', 'N/A')} | Forward P/E: {data.get('forward_pe', 'N/A')}
