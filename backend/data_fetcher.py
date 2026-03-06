@@ -303,6 +303,23 @@ def fetch_stock_data(ticker: str) -> dict:
         if mc and debt is not None and cash is not None:
             data["enterprise_value"] = mc + debt - cash
 
+    # Calculate ev_to_ebitda if missing but we have the components
+    if data.get("ev_to_ebitda") is None:
+        ev    = data.get("enterprise_value")
+        ebitda = data.get("ebitda")
+        if ev and ebitda and ebitda > 0:
+            data["ev_to_ebitda"] = round(float(ev) / float(ebitda), 2)
+
+    # Calculate ebitda from operating margin + revenue if still missing
+    if data.get("ebitda") is None:
+        rev = data.get("revenue")
+        op_margin = data.get("operating_margin")
+        if rev and op_margin:
+            data["ebitda"] = rev * abs(float(op_margin))
+            ev = data.get("enterprise_value")
+            if ev and data["ebitda"] > 0:
+                data["ev_to_ebitda"] = round(float(ev) / data["ebitda"], 2)
+
     return data
 
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
