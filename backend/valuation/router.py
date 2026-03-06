@@ -175,10 +175,11 @@ def run_valuation(ticker: str, data: dict) -> dict:
     ve_target_high = round(max(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
     ve_target_low  = round(min(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
 
+    # Use same market-based pool for consensus (exclude outliers like DDM, Graham)
     consensus = None
-    if applicable:
+    if target_pool:
         price  = data["price"]
-        avg    = sum(r["intrinsic_value"] for r in applicable) / len(applicable)
+        avg    = sum(r["intrinsic_value"] for r in target_pool) / len(target_pool)
         margin = (avg - price) / price
         consensus = {
             "average_intrinsic_value": round(avg, 2),
@@ -189,7 +190,7 @@ def run_valuation(ticker: str, data: dict) -> dict:
                 "Overvalued"  if margin < -0.15 else
                 "Fairly Valued"
             ),
-            "models_used": len(applicable),
+            "models_used": len(target_pool),
         }
 
     return {
