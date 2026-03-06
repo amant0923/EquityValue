@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from data_fetcher import fetch_stock_data, fetch_price_history
@@ -259,6 +260,9 @@ Be direct, analytical, and use specific financial data. Write like a professiona
 def search(query: str):
     if len(query) < 1:
         return {"results": []}
+    cached = _get_cached(f"search:{query.upper()}")
+    if cached:
+        return cached
     try:
         import yfinance as yf
         result = yf.Search(query, max_results=7)
@@ -271,18 +275,22 @@ def search(query: str):
             exch   = q.get("exchDisp") or q.get("exchange", "")
             if symbol and etype in ("EQUITY", "ETF"):
                 results.append({"symbol": symbol, "name": name, "type": etype, "exchange": exch})
-        return {"results": results[:7]}
+        out = {"results": results[:7]}
+        _set_cached(f"search:{query.upper()}", out)
+        return out
     except Exception as e:
         print(f"[search] {e}")
         return {"results": []}
 
 
+class ThesisRequest(BaseModel):
+    messages: list
+
 @app.post("/ai/thesis")
-async def ai_thesis_stream(request: Request):
+async def ai_thesis_stream(payload: ThesisRequest):
     from fastapi.responses import StreamingResponse
     import anthropic, json
-    body     = await request.json()
-    messages = body.get("messages", [])
+    messages = payload.messages
     if not messages:
         return {"error": "no messages"}
 
