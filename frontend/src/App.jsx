@@ -254,14 +254,11 @@ export default function App() {
                     body: JSON.stringify({ data: result, memo: memoText, monte_carlo: mcStats, lbo: lboStats }),
                   });
                   if (!res.ok) throw new Error("PDF generation failed");
-                  const blob = await res.blob();
+                  const html = await res.text();
+                  const blob = new Blob([html], { type: "text/html" });
                   const url  = URL.createObjectURL(blob);
-                  const a    = document.createElement("a");
-                  a.href = url;
-                  a.download = `${result.ticker}_ValuEngine.pdf`;
-                  document.body.appendChild(a); a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+                  const win  = window.open(url, "_blank");
+                  if (win) win.onload = () => { win.focus(); win.print(); };
                 } catch(e) {
                   alert("PDF export failed: " + e.message);
                 }

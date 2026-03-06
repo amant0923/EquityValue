@@ -276,7 +276,20 @@ def fetch_stock_data(ticker: str) -> dict:
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
     ticker = ticker.upper()
 
-    # Finnhub candles
+    # yfinance first — reliable, free, no API key needed
+    if USE_YFINANCE:
+        try:
+            hist = yf.Ticker(ticker).history(period=period)
+            if hist is not None and not hist.empty:
+                return {
+                    "dates":   [str(d.date()) for d in hist.index],
+                    "closes":  [round(float(c), 2) for c in hist["Close"]],
+                    "volumes": [int(v) for v in hist["Volume"]],
+                }
+        except Exception as e:
+            print(f"[yfinance history] {e}")
+
+    # Finnhub candles as fallback (free tier often returns no_data)
     if FINNHUB_KEY:
         try:
             from datetime import datetime, timedelta
@@ -292,23 +305,11 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
             d = r.json()
             if d.get("s") == "ok":
                 from datetime import datetime as dt
-                dates  = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
-                closes = [round(float(c), 2) for c in d["c"]]
+                dates   = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
+                closes  = [round(float(c), 2) for c in d["c"]]
                 volumes = [int(v) for v in d.get("v", [0]*len(closes))]
                 return {"dates": dates, "closes": closes, "volumes": volumes}
         except Exception as e:
             print(f"[finnhub candles] {e}")
-
-    # yfinance fallback
-    if USE_YFINANCE:
-        try:
-            hist = yf.Ticker(ticker).history(period=period)
-            if hist is not None and not hist.empty:
-                return {
-                    "dates":   [str(d.date()) for d in hist.index],
-                    "closes":  [round(float(c), 2) for c in hist["Close"]],
-                    "volumes": [int(v) for v in hist["Volume"]],
-                }
-        except Exception: pass
 
     return {}

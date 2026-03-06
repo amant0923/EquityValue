@@ -324,23 +324,12 @@ async def export_pdf(request: Request):
 </body>
 </html>"""
 
-    # Try WeasyPrint for real PDF, fall back to HTML download
-    try:
-        from weasyprint import HTML as WH
-        pdf_bytes = WH(string=html).write_pdf()
-        from fastapi.responses import Response
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={ticker}_ValuEngine.pdf"}
-        )
-    except ImportError:
-        # WeasyPrint not installed — return HTML which browser can print-to-PDF
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse(
-            content=html,
-            headers={"Content-Disposition": f"attachment; filename={ticker}_ValuEngine.html"}
-        )
+    # Return HTML with print-optimised styles — user can Cmd+P / Ctrl+P to save as PDF
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(
+        content=html,
+        headers={"Content-Disposition": f"inline; filename={ticker}_ValuEngine.html"}
+    )
 
 
 # ── Keep old /thesis endpoint for backward compat ────────────────────────────
