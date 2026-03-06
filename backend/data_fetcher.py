@@ -282,7 +282,21 @@ def fetch_stock_data(ticker: str) -> dict:
     rapid_data = fetch_rapidapi(ticker)
     yf_data    = fetch_yfinance(ticker)
 
+    # Finnhub is primary for most fields, but yfinance fills gaps
     data = merge(fh_data, merge(rapid_data, yf_data))
+
+    # For fields Finnhub free tier doesn't return, explicitly use yfinance values
+    yf_fill_fields = [
+        'target_price', 'target_high', 'target_low', 'analyst_count',
+        'ebitda', 'gross_profit', 'total_debt', 'total_cash', 'free_cashflow',
+        'revenue', 'net_income', 'enterprise_value', 'ev_to_ebitda', 'ev_to_revenue',
+        'forward_pe', 'peg_ratio', 'profit_margin', 'operating_margin',
+        'revenue_growth', 'earnings_growth', 'roe', 'roa', 'current_ratio',
+        'debt_to_equity', 'dividend_yield', 'dividend_rate', 'payout_ratio',
+    ]
+    for field in yf_fill_fields:
+        if data.get(field) is None and yf_data.get(field) is not None:
+            data[field] = yf_data[field]
     data["ticker"] = ticker
 
     price  = data.get("current_price")
