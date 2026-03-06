@@ -191,7 +191,7 @@ export default function MonteCarlo({ data, onStatsGenerated }) {
       const p75  = percentile(sorted, 0.75);
       const p95  = percentile(sorted, 0.95);
       const probAbove = sorted.filter(v => v > price).length / sorted.length;
-      const newStats = { mean, std, p5, p25, p50, p75, p95, prob_above: probAbove, n: sorted.length };
+      const newStats = { mean, std, p5, p25, p50, p75, p95, probAbove, n: sorted.length };
       setSimData(hist);
       setStats(newStats);
       if (onStatsGenerated) onStatsGenerated(newStats);
