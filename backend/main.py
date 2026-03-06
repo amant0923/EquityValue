@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from data_fetcher import fetch_stock_data, fetch_price_history
 from valuation.router import run_valuation
 import time
 import os
+import json
 import anthropic
 
 app = FastAPI(title="Stock Valuation API", version="2.0.0")
@@ -23,28 +25,20 @@ def _set_cached(key, data):
     _cache[key] = {"data": data, "ts": time.time()}
 
 # ── Field normalisation ───────────────────────────────────────────────────────
-# Our fetcher uses current_price / book_value / total_cash
-# The models/router expect price / book_value_per_share / cash
 def normalise(data: dict) -> dict:
     d = dict(data)
-    # Price
     if d.get("current_price") and not d.get("price"):
         d["price"] = d["current_price"]
-    # Book value per share
     if d.get("book_value") and not d.get("book_value_per_share"):
         d["book_value_per_share"] = d["book_value"]
-    # Cash
     if d.get("total_cash") and not d.get("cash"):
         d["cash"] = d["total_cash"]
-    # Fix percentage fields — Finnhub returns decimals (0.27) not percent (27)
     for field in ("profit_margin", "operating_margin", "roe", "roa",
                   "dividend_yield", "revenue_growth", "earnings_growth", "payout_ratio"):
         val = d.get(field)
         if val is not None:
-            # If value is clearly already a percentage (e.g. 159.0 for ROE), divide by 100
-            # Finnhub returns these as decimals (0.27) but sometimes as whole numbers
             fval = float(val)
-            if abs(fval) > 5:  # clearly a percentage already, normalise to decimal
+            if abs(fval) > 5:
                 d[field] = fval / 100
     return d
 
@@ -57,7 +51,6 @@ def get_valuation(ticker: str):
     ticker = ticker.upper().strip()
     cached = _get_cached(f"val:{ticker}")
     if cached:
-        print(f"[cache hit] {ticker}")
         return cached
     raw = fetch_stock_data(ticker)
     if not raw or not raw.get("current_price"):
@@ -75,9 +68,8 @@ def get_history(ticker: str, period: str = "1y"):
     if cached:
         return cached
     history = fetch_price_history(ticker, period)
-    if not history:
-        raise HTTPException(status_code=404, detail="No price history available.")
-    result = {"ticker": ticker, "period": period, "prices": history}
+    # FIX: return empty prices instead of 404 so frontend chart doesn't crash
+    result = {"ticker": ticker, "period": period, "prices": history or {"dates": [], "closes": [], "volumes": []}}
     _set_cached(cache_key, result)
     return result
 
@@ -88,14 +80,12 @@ def get_comps(ticker: str):
     if cached:
         return cached
 
-    # Get the main stock data first
     raw = fetch_stock_data(ticker)
     if not raw:
         raise HTTPException(status_code=404, detail="Ticker not found.")
     data = normalise(raw)
     sector = data.get("sector", "Technology")
 
-    # Sector peer tickers
     SECTOR_PEERS = {
         "Technology": ["MSFT", "GOOGL", "META", "NVDA", "AMZN"],
         "Information Technology": ["MSFT", "GOOGL", "META", "NVDA", "AMZN"],
@@ -122,15 +112,19 @@ def get_comps(ticker: str):
             if not peer_raw or not peer_raw.get("current_price"):
                 continue
             pd = normalise(peer_raw)
+            # FIX: ensure ev_ebitda is populated from ev_to_ebitda if needed
+            ev_ebitda = pd.get("ev_ebitda") or pd.get("ev_to_ebitda")
             comps.append({
                 "ticker": peer,
                 "name": pd.get("name", peer),
                 "price": pd.get("price"),
                 "market_cap": pd.get("market_cap"),
                 "pe_ratio": pd.get("pe_ratio"),
+                "forward_pe": pd.get("forward_pe"),
                 "pb_ratio": pd.get("pb_ratio"),
                 "ps_ratio": pd.get("ps_ratio"),
-                "ev_ebitda": pd.get("ev_ebitda") or pd.get("ev_to_ebitda"),
+                "ev_ebitda": ev_ebitda,
+                "ev_revenue": pd.get("ev_to_revenue"),
                 "revenue_growth": pd.get("revenue_growth"),
                 "profit_margin": pd.get("profit_margin"),
                 "roe": pd.get("roe"),
@@ -142,16 +136,18 @@ def get_comps(ticker: str):
             print(f"[comps] error fetching {peer}: {e}")
             continue
 
-    # Include the subject company
+    # FIX: include ev_ebitda and forward_pe in subject too
     subject = {
         "ticker": ticker,
         "name": data.get("name", ticker),
         "price": data.get("price"),
         "market_cap": data.get("market_cap"),
         "pe_ratio": data.get("pe_ratio"),
+        "forward_pe": data.get("forward_pe"),
         "pb_ratio": data.get("pb_ratio"),
         "ps_ratio": data.get("ps_ratio"),
         "ev_ebitda": data.get("ev_ebitda") or data.get("ev_to_ebitda"),
+        "ev_revenue": data.get("ev_to_revenue"),
         "revenue_growth": data.get("revenue_growth"),
         "profit_margin": data.get("profit_margin"),
         "roe": data.get("roe"),
@@ -165,85 +161,217 @@ def get_comps(ticker: str):
     _set_cached(f"comps:{ticker}", result)
     return result
 
+
+# ── FIX: New streaming AI thesis endpoint (frontend calls /ai/thesis) ─────────
+@app.post("/ai/thesis")
+async def ai_thesis(request: Request):
+    body = await request.json()
+    messages = body.get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="No messages provided.")
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured.")
+
+    def stream():
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            # FIX: use correct model string
+            with client.messages.stream(
+                model="claude-sonnet-4-5",
+                max_tokens=1500,
+                messages=messages,
+            ) as stream:
+                for event in stream:
+                    # Forward raw SSE events that the frontend expects
+                    if hasattr(event, 'type'):
+                        if event.type == "content_block_delta":
+                            data = {
+                                "type": "content_block_delta",
+                                "delta": {
+                                    "type": "text_delta",
+                                    "text": event.delta.text if hasattr(event.delta, 'text') else ""
+                                }
+                            }
+                            yield f"data: {json.dumps(data)}\n\n"
+                yield "data: [DONE]\n\n"
+        except Exception as e:
+            error_data = {"type": "error", "error": str(e)}
+            yield f"data: {json.dumps(error_data)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+# ── FIX: PDF export endpoint ──────────────────────────────────────────────────
+@app.post("/pdf/export")
+async def export_pdf(request: Request):
+    """
+    Generates a simple HTML-based PDF.
+    Uses WeasyPrint if available, otherwise returns HTML with print stylesheet.
+    """
+    body = await request.json()
+    data = body.get("data", {})
+    memo = body.get("memo", "")
+    ticker = data.get("ticker", "UNKNOWN")
+    company = data.get("company_name", ticker)
+    price = data.get("current_price", 0)
+    consensus = data.get("consensus", {})
+    km = data.get("key_metrics", {})
+
+    def fmt_val(v, t=""):
+        if v is None: return "—"
+        if t == "pct": return f"{float(v)*100:.1f}%"
+        if t == "x": return f"{float(v):.1f}x"
+        if t == "large":
+            a = abs(float(v))
+            if a >= 1e12: return f"${v/1e12:.2f}T"
+            if a >= 1e9:  return f"${v/1e9:.2f}B"
+            if a >= 1e6:  return f"${v/1e6:.2f}M"
+        return str(v)
+
+    verdict = consensus.get("overall_verdict", "N/A")
+    verdict_color = "#059669" if verdict == "Undervalued" else "#dc2626" if verdict == "Overvalued" else "#d97706"
+
+    valuations_html = ""
+    for v in (data.get("valuations") or []):
+        if not v.get("applicable"): continue
+        upside = v.get("upside_pct", 0)
+        color = "#059669" if upside > 0 else "#dc2626"
+        valuations_html += f"""
+        <tr>
+          <td>{v.get('model','')}</td>
+          <td>${v.get('intrinsic_value','')}</td>
+          <td style="color:{color}">{upside:+.1f}%</td>
+          <td>{v.get('verdict','')}</td>
+        </tr>"""
+
+    memo_html = ""
+    if memo:
+        import re
+        memo_escaped = memo.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        memo_escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', memo_escaped)
+        memo_escaped = re.sub(r'^## (.+)$', r'<h3>\1</h3>', memo_escaped, flags=re.MULTILINE)
+        memo_html = f"<div class='memo'>{memo_escaped.replace(chr(10),'<br>')}</div>"
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{ticker} — ValuEngine Report</title>
+<style>
+  body {{ font-family: Arial, sans-serif; color: #1e293b; margin: 40px; font-size: 13px; line-height: 1.6; }}
+  h1 {{ font-size: 22px; margin-bottom: 4px; }}
+  h2 {{ font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin: 24px 0 12px; }}
+  h3 {{ font-size: 13px; font-weight: 700; color: #2563eb; margin: 16px 0 6px; }}
+  .header {{ border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; }}
+  .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 12px; color: white; background: {verdict_color}; }}
+  table {{ width: 100%; border-collapse: collapse; margin: 12px 0; }}
+  th {{ background: #f8fafc; padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }}
+  td {{ padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }}
+  .kv {{ display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f1f5f9; }}
+  .kv-label {{ color: #64748b; }}
+  .kv-val {{ font-weight: 600; }}
+  .memo {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-top: 8px; }}
+  .footer {{ margin-top: 40px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }}
+  @media print {{ body {{ margin: 20px; }} }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>{company} ({ticker})</h1>
+    <div style="color:#64748b; font-size:12px">{data.get('sector','')} · {data.get('industry','')} · Generated {time.strftime('%d %b %Y')}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:24px; font-weight:800">${price:.2f}</div>
+    <span class="badge">{verdict}</span>
+    <div style="font-size:12px; color:#64748b; margin-top:4px">Intrinsic: ${consensus.get('average_intrinsic_value','N/A')} ({consensus.get('upside_pct','N/A')}%)</div>
+  </div>
+</div>
+
+<h2>Key Metrics</h2>
+<div class="grid">
+  <div>
+    <div class="kv"><span class="kv-label">P/E Ratio</span><span class="kv-val">{fmt_val(km.get('pe_ratio'),'x')}</span></div>
+    <div class="kv"><span class="kv-label">Forward P/E</span><span class="kv-val">{fmt_val(km.get('forward_pe'),'x')}</span></div>
+    <div class="kv"><span class="kv-label">P/B Ratio</span><span class="kv-val">{fmt_val(km.get('pb_ratio'),'x')}</span></div>
+    <div class="kv"><span class="kv-label">P/S Ratio</span><span class="kv-val">{fmt_val(km.get('ps_ratio'),'x')}</span></div>
+    <div class="kv"><span class="kv-label">EV/EBITDA</span><span class="kv-val">{fmt_val(km.get('ev_ebitda'),'x')}</span></div>
+    <div class="kv"><span class="kv-label">Beta</span><span class="kv-val">{fmt_val(km.get('beta'))}</span></div>
+  </div>
+  <div>
+    <div class="kv"><span class="kv-label">Revenue</span><span class="kv-val">{fmt_val(km.get('revenue'),'large')}</span></div>
+    <div class="kv"><span class="kv-label">Net Income</span><span class="kv-val">{fmt_val(km.get('net_income'),'large')}</span></div>
+    <div class="kv"><span class="kv-label">EBITDA</span><span class="kv-val">{fmt_val(km.get('ebitda'),'large')}</span></div>
+    <div class="kv"><span class="kv-label">Free Cash Flow</span><span class="kv-val">{fmt_val(km.get('free_cashflow'),'large')}</span></div>
+    <div class="kv"><span class="kv-label">ROE</span><span class="kv-val">{fmt_val(km.get('roe'),'pct')}</span></div>
+    <div class="kv"><span class="kv-label">Net Margin</span><span class="kv-val">{fmt_val(km.get('profit_margin'),'pct')}</span></div>
+  </div>
+</div>
+
+<h2>Valuation Models</h2>
+<table>
+  <thead><tr><th>Model</th><th>Intrinsic Value</th><th>Upside/Downside</th><th>Verdict</th></tr></thead>
+  <tbody>{valuations_html}</tbody>
+</table>
+
+{"<h2>AI Investment Memo</h2>" + memo_html if memo_html else ""}
+
+<div class="footer">ValuEngine — For informational purposes only. Not financial advice. Generated {time.strftime('%d %b %Y %H:%M UTC')}</div>
+</body>
+</html>"""
+
+    # Try WeasyPrint for real PDF, fall back to HTML download
+    try:
+        from weasyprint import HTML as WH
+        pdf_bytes = WH(string=html).write_pdf()
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={ticker}_ValuEngine.pdf"}
+        )
+    except ImportError:
+        # WeasyPrint not installed — return HTML which browser can print-to-PDF
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(
+            content=html,
+            headers={"Content-Disposition": f"attachment; filename={ticker}_ValuEngine.html"}
+        )
+
+
+# ── Keep old /thesis endpoint for backward compat ────────────────────────────
 @app.post("/thesis/{ticker}")
 def generate_thesis(ticker: str):
     ticker = ticker.upper().strip()
     cached = _get_cached(f"thesis:{ticker}")
     if cached:
         return cached
-
     raw = fetch_stock_data(ticker)
     if not raw or not raw.get("current_price"):
         raise HTTPException(status_code=404, detail="Ticker not found.")
     data = normalise(raw)
     valuation = run_valuation(ticker, data)
-
-    # Build context for Claude
     consensus = valuation.get("consensus", {})
     metrics = valuation.get("key_metrics", {})
     applicable = [v for v in valuation.get("valuations", []) if v.get("applicable")]
-
-    prompt = f"""You are a senior equity research analyst at a top-tier investment bank. 
-Write a concise but comprehensive investment memo for {data.get('name', ticker)} ({ticker}).
-
-COMPANY DATA:
-- Sector: {data.get('sector', 'N/A')} | Industry: {data.get('industry', 'N/A')}
-- Current Price: ${data.get('price', 'N/A')}
-- Market Cap: {f"${data['market_cap']:,.0f}" if data.get('market_cap') else 'N/A'}
-- Revenue: {f"${data['revenue']:,.0f}" if data.get('revenue') else 'N/A'}
-- EBITDA: {f"${data['ebitda']:,.0f}" if data.get('ebitda') else 'N/A'}
-- Net Income: {f"${data['net_income']:,.0f}" if data.get('net_income') else 'N/A'}
-- Free Cash Flow: {f"${data['free_cashflow']:,.0f}" if data.get('free_cashflow') else 'N/A'}
-
-KEY METRICS:
-- P/E: {metrics.get('pe_ratio', 'N/A')} | Forward P/E: {data.get('forward_pe', 'N/A')}
-- EV/EBITDA: {metrics.get('ev_ebitda', 'N/A')} | P/S: {metrics.get('ps_ratio', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')} | Profit Margin: {metrics.get('profit_margin', 'N/A')}
-- Revenue Growth: {metrics.get('revenue_growth', 'N/A')} | Beta: {metrics.get('beta', 'N/A')}
-- Debt/Equity: {data.get('debt_to_equity', 'N/A')}
-
-VALUATION MODELS APPLIED:
-{chr(10).join([f"- {v['model']}: ${v['intrinsic_value']} ({v['verdict']}, {v['upside_pct']}% upside)" for v in applicable])}
-
-CONSENSUS: {consensus.get('overall_verdict', 'N/A')} at ${consensus.get('average_intrinsic_value', 'N/A')} ({consensus.get('upside_pct', 'N/A')}% vs current)
-
-Write the memo in this exact structure:
-## Investment Thesis
-[2-3 sentence summary of the overall investment case]
-
-## Bull Case
-[3 key reasons the stock could outperform — be specific with numbers]
-
-## Bear Case  
-[3 key risks that could cause underperformance — be specific]
-
-## Valuation Assessment
-[Analysis of the valuation models applied and what they collectively suggest]
-
-## Recommendation
-[Clear BUY / HOLD / SELL with price target and key catalysts to watch]
-
-Be direct, analytical, and use specific financial data. Write like a professional analyst, not a chatbot."""
-
+    prompt = f"Write a brief investment memo for {data.get('name', ticker)} ({ticker}). Price: ${data.get('price')}. Consensus: {consensus.get('overall_verdict')} at ${consensus.get('average_intrinsic_value')}."
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        # FIX: correct model name
         message = client.messages.create(
-            model="claude-opus-4-5",
+            model="claude-sonnet-4-5",
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
         thesis_text = message.content[0].text
-        result = {
-            "ticker": ticker,
-            "company_name": data.get("name", ticker),
-            "thesis": thesis_text,
-            "consensus": consensus,
-            "generated_at": time.strftime("%Y-%m-%d %H:%M UTC"),
-        }
+        result = {"ticker": ticker, "company_name": data.get("name", ticker), "thesis": thesis_text, "consensus": consensus, "generated_at": time.strftime("%Y-%m-%d %H:%M UTC")}
         _set_cached(f"thesis:{ticker}", result)
         return result
     except Exception as e:
-        print(f"[thesis error] {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate thesis: {str(e)}")
 
 @app.get("/search/{query}")
