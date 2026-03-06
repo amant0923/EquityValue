@@ -167,6 +167,14 @@ def run_valuation(ticker: str, data: dict) -> dict:
 
     applicable = [r for r in results if r.get("applicable")]
 
+    # Compute ValuEngine price targets using market-based models only (exclude outliers)
+    OUTLIER_MODELS = {"Graham Number", "Gordon Growth Model (DDM)", "Residual Income", "Capitalization of Earnings"}
+    market_pool = [r for r in applicable if r.get("model") not in OUTLIER_MODELS]
+    target_pool = market_pool if market_pool else applicable
+    ve_target_mean = round(sum(r["intrinsic_value"] for r in target_pool) / len(target_pool), 2) if target_pool else None
+    ve_target_high = round(max(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
+    ve_target_low  = round(min(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
+
     consensus = None
     if applicable:
         price  = data["price"]
@@ -200,10 +208,10 @@ def run_valuation(ticker: str, data: dict) -> dict:
         "peer_comparison": peer_comparison(data),
         "confidence":    confidence_score(data, results),
         "analyst": {
-            "target_mean":          data.get("target_price"),
-            "target_high":          data.get("target_high"),
-            "target_low":           data.get("target_low"),
-            "target_median":        data.get("target_median"),
+            "target_mean":          ve_target_mean,
+            "target_high":          ve_target_high,
+            "target_low":           ve_target_low,
+            "target_median":        ve_target_mean,
             "recommendation":       data.get("recommendation"),
             "recommendation_mean":  data.get("recommendation_mean"),
             "analyst_count":        data.get("analyst_count"),

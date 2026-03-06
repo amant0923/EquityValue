@@ -202,11 +202,18 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
   const [rec,     setRec]     = useState(null);
   const abortRef = useRef(null);
 
-  // Extract recommendation from streamed text
+  // Extract recommendation from Conclusion/Recommendation section only
   useEffect(() => {
     if (!memo) return;
-    const match = memo.match(/\b(STRONG BUY|BUY|HOLD|UNDERPERFORM|SELL)\b/i);
-    if (match) setRec(match[1].toUpperCase());
+    // Look for the recommendation in the Conclusion or Recommendation section
+    const sectionMatch = memo.match(/(?:##\s*(?:Conclusion|Recommendation)[\s\S]*?)(STRONG BUY|BUY|HOLD|UNDERPERFORM|SELL)/i);
+    if (sectionMatch) {
+      setRec(sectionMatch[1].toUpperCase());
+      return;
+    }
+    // Fallback: find last occurrence (more likely to be the final verdict)
+    const allMatches = [...memo.matchAll(/(STRONG BUY|BUY|HOLD|UNDERPERFORM|SELL)/gi)];
+    if (allMatches.length > 0) setRec(allMatches[allMatches.length - 1][1].toUpperCase());
   }, [memo]);
 
   const generate = async () => {

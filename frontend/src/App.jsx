@@ -122,14 +122,15 @@ export default function App() {
               </div>
               <span className="disclaimer-logo-text">ValuEngine</span>
             </div>
-            <h2 className="disclaimer-title">Important Notice</h2>
+            <h2 className="disclaimer-title">Important Legal Notice</h2>
             <div className="disclaimer-body">
-              <p>ValuEngine is an analytical tool designed to assist in the research and study of equity valuation methodologies. It does not constitute financial advice, investment recommendations, or an offer to buy or sell any security.</p>
-              <p>Intrinsic value estimates are derived from publicly available financial data and standardised valuation models. They are inherently based on assumptions that may not reflect actual market conditions or future performance.</p>
-              <p>You should not make investment decisions based solely on this tool. Always conduct your own due diligence and consult a qualified financial adviser before investing.</p>
+              <p><strong>ValuEngine is not a registered financial adviser, broker, or investment firm.</strong> This platform is an independent analytical tool built for educational and research purposes only. It is not authorised or regulated by the FCA, SEC, or any other financial regulatory body.</p>
+              <p>Nothing on this platform constitutes financial advice, investment recommendations, a solicitation to buy or sell securities, or an offer of any kind. All intrinsic value estimates, valuation models, AI-generated memos, and price targets are illustrative only and are based on publicly available data and standardised assumptions that may not reflect actual market conditions or future performance.</p>
+              <p>Past performance and modelled estimates are not reliable indicators of future results. Equity investments carry risk, including the risk of total loss of capital. <strong>You should not make any investment decision based solely or partly on information provided by this tool.</strong></p>
+              <p>Always conduct your own independent research and consult a qualified, regulated financial adviser before making any investment decision.</p>
             </div>
             <button className="disclaimer-btn" onClick={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }}>
-              I understand — Continue to ValuEngine
+              I understand and accept — Continue to ValuEngine
             </button>
           </div>
         </div>

@@ -47,10 +47,8 @@ export default function AnalystPanel({ data }) {
   return (
     <div className="ap-wrap">
       <div className="ap-header">
-        <span className="ap-title">Wall Street Analyst Consensus</span>
-        {analyst_count && (
-          <span className="ap-count">{Math.round(analyst_count)} analysts</span>
-        )}
+        <span className="ap-title">ValuEngine Price Targets</span>
+        <span className="ap-count">Model-derived estimates</span>
       </div>
 
       <div className="ap-body">
@@ -77,7 +75,7 @@ export default function AnalystPanel({ data }) {
         <div className="ap-targets-col">
           <div className="ap-target-grid">
             <div className="ap-target-item">
-              <span className="ap-target-label">Mean Target</span>
+              <span className="ap-target-label">Consensus Target</span>
               <span className="ap-target-value">{fmtPrice(target_mean)}</span>
               {upside != null && (
                 <span className="ap-target-upside" style={{ color: upsideColor }}>
@@ -86,21 +84,21 @@ export default function AnalystPanel({ data }) {
               )}
             </div>
             <div className="ap-target-item">
-              <span className="ap-target-label">Median Target</span>
+              <span className="ap-target-label">Median Model</span>
               <span className="ap-target-value">{fmtPrice(target_median)}</span>
               <span className="ap-target-upside" style={{ color: "var(--text3)" }}>
                 {fmtPct(target_median, current_price)}
               </span>
             </div>
             <div className="ap-target-item">
-              <span className="ap-target-label">High Target</span>
+              <span className="ap-target-label">Bull Case</span>
               <span className="ap-target-value" style={{ color: "var(--green2)" }}>{fmtPrice(target_high)}</span>
               <span className="ap-target-upside" style={{ color: "var(--green2)" }}>
                 {fmtPct(target_high, current_price)}
               </span>
             </div>
             <div className="ap-target-item">
-              <span className="ap-target-label">Low Target</span>
+              <span className="ap-target-label">Bear Case</span>
               <span className="ap-target-value" style={{ color: "var(--red2)" }}>{fmtPrice(target_low)}</span>
               <span className="ap-target-upside" style={{ color: "var(--red2)" }}>
                 {fmtPct(target_low, current_price)}
@@ -113,7 +111,7 @@ export default function AnalystPanel({ data }) {
             <div className="ap-range-wrap">
               <div className="ap-range-labels">
                 <span>{fmtPrice(target_low)}</span>
-                <span className="ap-range-title">12-Month Price Target Range</span>
+                <span className="ap-range-title">Model-Derived Valuation Range</span>
                 <span>{fmtPrice(target_high)}</span>
               </div>
               <div className="ap-range-track">
@@ -126,7 +124,7 @@ export default function AnalystPanel({ data }) {
               </div>
               <div className="ap-range-legend">
                 <span><span className="ap-legend-dot ap-legend-dot--current" />Current Price</span>
-                <span><span className="ap-legend-dot ap-legend-dot--mean" />Mean Target</span>
+                <span><span className="ap-legend-dot ap-legend-dot--mean" />Consensus Target</span>
               </div>
             </div>
           )}
