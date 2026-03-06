@@ -228,11 +228,41 @@ def fetch_yfinance(ticker: str) -> dict:
     try:
         t    = yf.Ticker(ticker)
         info = t.info or {}
-        result["current_price"]  = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
-        result["forward_eps"]    = _safe_val(info.get("forwardEps"))
-        result["description"]    = info.get("longBusinessSummary", "")
-        result["sector"]         = info.get("sector", "Unknown")
-        result["industry"]       = info.get("industry", "Unknown")
+        result["current_price"]    = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
+        result["forward_eps"]      = _safe_val(info.get("forwardEps"))
+        result["forward_pe"]       = _safe_val(info.get("forwardPE"))
+        result["description"]      = info.get("longBusinessSummary", "")
+        result["sector"]           = info.get("sector", "Unknown")
+        result["industry"]         = info.get("industry", "Unknown")
+        result["ev_to_ebitda"]     = _safe_val(info.get("enterpriseToEbitda"))
+        result["ev_to_revenue"]    = _safe_val(info.get("enterpriseToRevenue"))
+        result["ebitda"]           = _safe_val(info.get("ebitda"))
+        result["gross_profit"]     = _safe_val(info.get("grossProfits"))
+        result["total_debt"]       = _safe_val(info.get("totalDebt"))
+        result["total_cash"]       = _safe_val(info.get("totalCash"))
+        result["enterprise_value"] = _safe_val(info.get("enterpriseValue"))
+        result["target_price"]     = _safe_val(info.get("targetMeanPrice"))
+        result["target_high"]      = _safe_val(info.get("targetHighPrice"))
+        result["target_low"]       = _safe_val(info.get("targetLowPrice"))
+        result["recommendation"]   = info.get("recommendationKey")
+        result["analyst_count"]    = _safe_val(info.get("numberOfAnalystOpinions"))
+        result["peg_ratio"]        = _safe_val(info.get("pegRatio"))
+        result["revenue_growth"]   = _safe_val(info.get("revenueGrowth"))
+        result["earnings_growth"]  = _safe_val(info.get("earningsGrowth"))
+        result["operating_margin"] = _safe_val(info.get("operatingMargins"))
+        result["profit_margin"]    = _safe_val(info.get("profitMargins"))
+        result["roe"]              = _safe_val(info.get("returnOnEquity"))
+        result["roa"]              = _safe_val(info.get("returnOnAssets"))
+        result["dividend_yield"]   = _safe_val(info.get("dividendYield"))
+        result["dividend_rate"]    = _safe_val(info.get("dividendRate"))
+        result["payout_ratio"]     = _safe_val(info.get("payoutRatio"))
+        result["debt_to_equity"]   = _safe_val(info.get("debtToEquity"))
+        result["current_ratio"]    = _safe_val(info.get("currentRatio"))
+        result["free_cashflow"]    = _safe_val(info.get("freeCashflow"))
+        result["book_value"]       = _safe_val(info.get("bookValue"))
+        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
+        result["52w_high"]         = _safe_val(info.get("fiftyTwoWeekHigh"))
+        result["52w_low"]          = _safe_val(info.get("fiftyTwoWeekLow"))
     except Exception as e:
         print(f"[yfinance] {e}")
     return result
@@ -251,7 +281,22 @@ def fetch_stock_data(ticker: str) -> dict:
     rapid_data = fetch_rapidapi(ticker)
     yf_data    = fetch_yfinance(ticker)
 
+    # Finnhub is primary for price/metrics, yfinance fills gaps
+    # Start with yfinance as base, then overlay Finnhub (which wins for fields it has)
     data = merge(fh_data, merge(rapid_data, yf_data))
+    
+    # For fields Finnhub free tier doesn't provide, explicitly use yfinance values
+    yf_priority = ["ev_to_ebitda", "ev_to_revenue", "ebitda", "gross_profit",
+                   "total_debt", "total_cash", "enterprise_value", "peg_ratio",
+                   "forward_pe", "target_price", "target_high", "target_low",
+                   "recommendation", "analyst_count", "free_cashflow",
+                   "revenue_growth", "earnings_growth", "operating_margin",
+                   "profit_margin", "roe", "roa", "dividend_yield", "dividend_rate",
+                   "payout_ratio", "debt_to_equity", "current_ratio", "book_value",
+                   "shares_outstanding", "52w_high", "52w_low"]
+    for field in yf_priority:
+        if data.get(field) is None and yf_data.get(field) is not None:
+            data[field] = yf_data[field]
     data["ticker"] = ticker
 
     price  = data.get("current_price")

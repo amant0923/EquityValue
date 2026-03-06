@@ -38,15 +38,24 @@ def normalise(data: dict) -> dict:
     # Cash
     if d.get("total_cash") and not d.get("cash"):
         d["cash"] = d["total_cash"]
+    # Map ev_to_ebitda -> ev_ebitda
+    if not d.get("ev_ebitda"):
+        d["ev_ebitda"] = d.get("ev_to_ebitda")
+
+    # Calculate ebitda_margin if missing
+    if not d.get("ebitda_margin"):
+        ebitda = d.get("ebitda")
+        rev    = d.get("revenue")
+        if ebitda and rev and rev > 0:
+            d["ebitda_margin"] = ebitda / rev
+
     # Fix percentage fields — Finnhub returns decimals (0.27) not percent (27)
     for field in ("profit_margin", "operating_margin", "roe", "roa",
                   "dividend_yield", "revenue_growth", "earnings_growth", "payout_ratio"):
         val = d.get(field)
         if val is not None:
-            # If value is clearly already a percentage (e.g. 159.0 for ROE), divide by 100
-            # Finnhub returns these as decimals (0.27) but sometimes as whole numbers
             fval = float(val)
-            if abs(fval) > 5:  # clearly a percentage already, normalise to decimal
+            if abs(fval) > 5:  # clearly already a percentage, normalise to decimal
                 d[field] = fval / 100
     return d
 
