@@ -96,8 +96,11 @@ function runLBO(params, data) {
   try { irr = calcIRR(cfs); } catch {}
 
   // Sensitivity table — IRR across entry/exit multiples
+  // Sensitivity: vary exit multiples (rows) and entry multiples (cols)
+  // Ensure exit multiples are always plausible vs entry to avoid all-null tables
   const sensEntries = [entryEVEBITDA - 2, entryEVEBITDA, entryEVEBITDA + 2];
-  const sensExits   = [exitEVEBITDA + 2, exitEVEBITDA, exitEVEBITDA - 2];
+  const baseExit = Math.max(exitEVEBITDA, entryEVEBITDA - 2);
+  const sensExits = [baseExit + 4, baseExit + 2, baseExit];
   const sensTable   = sensExits.map(exM =>
     sensEntries.map(enM => {
       const eEV  = enM * ebitda0;
@@ -142,7 +145,7 @@ export default function LBOModel({ data, onResultGenerated }) {
 
   const [params, setParams] = useState({
     entryEVEBITDA:           km.ev_ebitda ? parseFloat(km.ev_ebitda.toFixed(1)) : 12,
-    exitEVEBITDA:            10,
+    exitEVEBITDA:            km.ev_ebitda ? parseFloat((km.ev_ebitda + 2).toFixed(1)) : 14,
     holdingYears:            5,
     debtPct:                 0.60,
     debtCost:                0.07,

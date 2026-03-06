@@ -334,6 +334,20 @@ def fetch_stock_data(ticker: str) -> dict:
             if ev and data["ebitda"] > 0:
                 data["ev_to_ebitda"] = round(float(ev) / data["ebitda"], 2)
 
+    # Calculate ev_to_revenue if missing
+    if data.get('ev_to_revenue') is None:
+        ev  = data.get('enterprise_value')
+        rev = data.get('revenue')
+        if ev and rev and rev > 0:
+            data['ev_to_revenue'] = round(float(ev) / float(rev), 2)
+
+    # Calculate ebitda_margin if missing (ebitda / revenue)
+    if data.get('ebitda_margin') is None:
+        ebitda = data.get('ebitda')
+        rev    = data.get('revenue')
+        if ebitda and rev and rev > 0:
+            data['ebitda_margin'] = round(float(ebitda) / float(rev), 4)
+
     return data
 
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:

@@ -98,7 +98,7 @@ export default function PriceChart({ ticker, currentPrice }) {
               tick={{ fill: "var(--text3)", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={v => `$${v}`}
+              tickFormatter={v => `$${Number(v).toFixed(0)}`}
               width={55}
             />
             <Tooltip
