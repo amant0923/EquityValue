@@ -42,6 +42,20 @@ def normalise(data: dict) -> dict:
     if not d.get("ev_ebitda"):
         d["ev_ebitda"] = d.get("ev_to_ebitda")
 
+    # Calculate ev_ebitda from EV / EBITDA if still missing
+    if not d.get("ev_ebitda"):
+        ev     = d.get("enterprise_value")
+        ebitda = d.get("ebitda")
+        if ev and ebitda and float(ebitda) > 0:
+            d["ev_ebitda"] = round(float(ev) / float(ebitda), 2)
+
+    # Calculate ev_to_revenue from EV / Revenue if missing
+    if not d.get("ev_to_revenue"):
+        ev  = d.get("enterprise_value")
+        rev = d.get("revenue")
+        if ev and rev and float(rev) > 0:
+            d["ev_to_revenue"] = round(float(ev) / float(rev), 2)
+
     # Calculate ebitda_margin if missing
     if not d.get("ebitda_margin"):
         ebitda = d.get("ebitda")
