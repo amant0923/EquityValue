@@ -1,10 +1,9 @@
-from datetime import datetime
 from fastapi import FastAPI, HTTPException
-from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from data_fetcher import fetch_stock_data, fetch_price_history
 from valuation.router import run_valuation
 import time
+from datetime import datetime
 import os
 import anthropic
 
@@ -133,6 +132,9 @@ def get_comps(ticker: str):
                 "pb_ratio": pd.get("pb_ratio"),
                 "ps_ratio": pd.get("ps_ratio"),
                 "ev_ebitda": pd.get("ev_ebitda") or pd.get("ev_to_ebitda"),
+                "ev_revenue": pd.get("ev_to_revenue") or pd.get("ev_revenue"),
+                "ebitda_margin": pd.get("ebitda_margin"),
+                "forward_pe": pd.get("forward_pe"),
                 "revenue_growth": pd.get("revenue_growth"),
                 "profit_margin": pd.get("profit_margin"),
                 "roe": pd.get("roe"),
@@ -154,6 +156,9 @@ def get_comps(ticker: str):
         "pb_ratio": data.get("pb_ratio"),
         "ps_ratio": data.get("ps_ratio"),
         "ev_ebitda": data.get("ev_ebitda") or data.get("ev_to_ebitda"),
+        "ev_revenue": data.get("ev_to_revenue") or data.get("ev_revenue"),
+        "ebitda_margin": data.get("ebitda_margin"),
+        "forward_pe": data.get("forward_pe"),
         "revenue_growth": data.get("revenue_growth"),
         "profit_margin": data.get("profit_margin"),
         "roe": data.get("roe"),
@@ -265,16 +270,76 @@ def search(query: str):
             etype  = q.get("quoteType", "")
             exch   = q.get("exchDisp") or q.get("exchange", "")
             if symbol and etype in ("EQUITY", "ETF"):
-                results.append({
-                    "symbol": symbol,
-                    "name":   name,
-                    "type":   etype,
-                    "exchange": exch,
-                })
+                results.append({"symbol": symbol, "name": name, "type": etype, "exchange": exch})
         return {"results": results[:7]}
     except Exception as e:
         print(f"[search] {e}")
         return {"results": []}
+
+
+@app.post("/ai/thesis")
+async def ai_thesis_stream(request: Request):
+    from fastapi.responses import StreamingResponse
+    import anthropic, json
+    body = await request.json()
+    ticker  = body.get("ticker", "").upper().strip()
+    data    = body.get("data", {})
+    metrics = data.get("key_metrics", {})
+    consensus = data.get("consensus", {})
+    applicable = [v for v in data.get("valuations", []) if v.get("applicable")]
+
+    today = datetime.utcnow().strftime("%d %B %Y")
+    prompt = f"""You are a senior equity research analyst at a top-tier investment bank.
+Today's date is {today}. Use this exact date in the memo header.
+Write a concise but comprehensive investment memo for {data.get("company_name", ticker)} ({ticker}).
+
+COMPANY DATA:
+- Sector: {data.get("sector", "N/A")} | Industry: {data.get("industry", "N/A")}
+- Current Price: ${data.get("current_price", "N/A")}
+- Market Cap: {f"${data['market_cap']:,.0f}" if data.get("market_cap") else "N/A"}
+- Revenue: {f"${metrics.get('revenue'):,.0f}" if metrics.get("revenue") else "N/A"}
+- EBITDA: {f"${metrics.get('ebitda'):,.0f}" if metrics.get("ebitda") else "N/A"}
+- Net Income: {f"${metrics.get('net_income'):,.0f}" if metrics.get("net_income") else "N/A"}
+- Free Cash Flow: {f"${metrics.get('free_cashflow'):,.0f}" if metrics.get("free_cashflow") else "N/A"}
+
+KEY METRICS:
+- P/E: {metrics.get("pe_ratio", "N/A")} | Forward P/E: {metrics.get("forward_pe", "N/A")}
+- EV/EBITDA: {metrics.get("ev_ebitda", "N/A")} | P/S: {metrics.get("ps_ratio", "N/A")}
+- ROE: {metrics.get("roe", "N/A")} | Profit Margin: {metrics.get("profit_margin", "N/A")}
+- Revenue Growth: {metrics.get("revenue_growth", "N/A")} | Beta: {metrics.get("beta", "N/A")}
+- Debt/Equity: {metrics.get("debt_to_equity", "N/A")}
+
+VALUATION MODELS:
+{chr(10).join([f"- {v['model']}: ${v['intrinsic_value']} ({v['verdict']}, {v['upside_pct']}% upside)" for v in applicable]) if applicable else "N/A"}
+
+CONSENSUS: {consensus.get("overall_verdict", "N/A")} at ${consensus.get("average_intrinsic_value", "N/A")} ({consensus.get("upside_pct", "N/A")}% vs current)
+
+Write the memo in this exact structure:
+## Investment Thesis
+## Bull Case
+## Bear Case
+## Valuation Analysis
+## Risks
+## Conclusion
+End with a clear STRONG BUY / BUY / HOLD / SELL recommendation in bold on its own line."""
+
+    client = anthropic.Anthropic()
+
+    async def stream():
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-4-5",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            ) as s:
+                for text in s.text_stream:
+                    yield f"data: {json.dumps({'type':'content_block_delta','delta':{'type':'text_delta','text':text}})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type':'error','error':str(e)})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.get("/cache/clear")
 def clear_cache():
