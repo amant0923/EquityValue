@@ -72,7 +72,8 @@ def fetch_finnhub(ticker: str) -> dict:
         result["peg_ratio"]        = _safe_val(d.get("pegAnnual"))
         result["eps"]              = _safe_val(d.get("epsBasicExclExtraTTM") or d.get("epsTTM"))
         result["book_value"]       = _safe_val(d.get("bookValuePerShareAnnual") or d.get("bookValuePerShareQuarterly"))
-        result["dividend_yield"]   = _safe_val(d.get("dividendYieldIndicatedAnnual"))
+        raw_yield = _safe_val(d.get("dividendYieldIndicatedAnnual"))
+        result["dividend_yield"] = round(float(raw_yield) / 100, 6) if raw_yield is not None else None
         result["dividend_rate"]    = _safe_val(d.get("dividendPerShareAnnual"))
         result["payout_ratio"]     = _safe_val(d.get("payoutRatioAnnual") or d.get("payoutRatioTTM"))
         result["roe"]              = _safe_val(d.get("roeTTM") or d.get("roeRfy"))
@@ -227,43 +228,11 @@ def fetch_yfinance(ticker: str) -> dict:
     try:
         t    = yf.Ticker(ticker)
         info = t.info or {}
-        result["current_price"]      = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
-        result["forward_eps"]        = _safe_val(info.get("forwardEps"))
-        result["description"]        = info.get("longBusinessSummary", "")
-        result["sector"]             = info.get("sector", "Unknown")
-        result["industry"]           = info.get("industry", "Unknown")
-        result["ebitda"]             = _safe_val(info.get("ebitda"))
-        result["gross_profit"]       = _safe_val(info.get("grossProfits"))
-        result["total_debt"]         = _safe_val(info.get("totalDebt"))
-        result["total_cash"]         = _safe_val(info.get("totalCash"))
-        result["free_cashflow"]      = _safe_val(info.get("freeCashflow"))
-        result["operating_cashflow"] = _safe_val(info.get("operatingCashflow"))
-        result["revenue"]            = _safe_val(info.get("totalRevenue"))
-        result["net_income"]         = _safe_val(info.get("netIncomeToCommon"))
-        result["enterprise_value"]   = _safe_val(info.get("enterpriseValue"))
-        result["ev_to_ebitda"]       = _safe_val(info.get("enterpriseToEbitda"))
-        result["ev_to_revenue"]      = _safe_val(info.get("enterpriseToRevenue"))
-        result["forward_pe"]         = _safe_val(info.get("forwardPE"))
-        result["peg_ratio"]          = _safe_val(info.get("pegRatio"))
-        result["profit_margin"]      = _safe_val(info.get("profitMargins"))
-        result["operating_margin"]   = _safe_val(info.get("operatingMargins"))
-        result["revenue_growth"]     = _safe_val(info.get("revenueGrowth"))
-        result["earnings_growth"]    = _safe_val(info.get("earningsGrowth"))
-        result["roe"]               = _safe_val(info.get("returnOnEquity"))
-        result["roa"]               = _safe_val(info.get("returnOnAssets"))
-        result["current_ratio"]      = _safe_val(info.get("currentRatio"))
-        result["debt_to_equity"]     = _safe_val(info.get("debtToEquity"))
-        result["dividend_yield"]     = _safe_val(info.get("dividendYield"))
-        result["dividend_rate"]      = _safe_val(info.get("dividendRate"))
-        result["payout_ratio"]       = _safe_val(info.get("payoutRatio"))
-        result["book_value"]         = _safe_val(info.get("bookValue"))
-        result["52w_high"]           = _safe_val(info.get("fiftyTwoWeekHigh"))
-        result["52w_low"]            = _safe_val(info.get("fiftyTwoWeekLow"))
-        result["shares_outstanding"] = _safe_val(info.get("sharesOutstanding"))
-        result["target_price"]       = _safe_val(info.get("targetMeanPrice"))
-        result["target_high"]        = _safe_val(info.get("targetHighPrice"))
-        result["target_low"]         = _safe_val(info.get("targetLowPrice"))
-        result["analyst_count"]      = _safe_val(info.get("numberOfAnalystOpinions"))
+        result["current_price"]  = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
+        result["forward_eps"]    = _safe_val(info.get("forwardEps"))
+        result["description"]    = info.get("longBusinessSummary", "")
+        result["sector"]         = info.get("sector", "Unknown")
+        result["industry"]       = info.get("industry", "Unknown")
     except Exception as e:
         print(f"[yfinance] {e}")
     return result
@@ -282,21 +251,7 @@ def fetch_stock_data(ticker: str) -> dict:
     rapid_data = fetch_rapidapi(ticker)
     yf_data    = fetch_yfinance(ticker)
 
-    # Finnhub is primary for most fields, but yfinance fills gaps
     data = merge(fh_data, merge(rapid_data, yf_data))
-
-    # For fields Finnhub free tier doesn't return, explicitly use yfinance values
-    yf_fill_fields = [
-        'target_price', 'target_high', 'target_low', 'analyst_count',
-        'ebitda', 'gross_profit', 'total_debt', 'total_cash', 'free_cashflow',
-        'revenue', 'net_income', 'enterprise_value', 'ev_to_ebitda', 'ev_to_revenue',
-        'forward_pe', 'peg_ratio', 'profit_margin', 'operating_margin',
-        'revenue_growth', 'earnings_growth', 'roe', 'roa', 'current_ratio',
-        'debt_to_equity', 'dividend_yield', 'dividend_rate', 'payout_ratio',
-    ]
-    for field in yf_fill_fields:
-        if data.get(field) is None and yf_data.get(field) is not None:
-            data[field] = yf_data[field]
     data["ticker"] = ticker
 
     price  = data.get("current_price")
@@ -317,56 +272,12 @@ def fetch_stock_data(ticker: str) -> dict:
         if mc and debt is not None and cash is not None:
             data["enterprise_value"] = mc + debt - cash
 
-    # Calculate ev_to_ebitda if missing but we have the components
-    if data.get("ev_to_ebitda") is None:
-        ev    = data.get("enterprise_value")
-        ebitda = data.get("ebitda")
-        if ev and ebitda and ebitda > 0:
-            data["ev_to_ebitda"] = round(float(ev) / float(ebitda), 2)
-
-    # Calculate ebitda from operating margin + revenue if still missing
-    if data.get("ebitda") is None:
-        rev = data.get("revenue")
-        op_margin = data.get("operating_margin")
-        if rev and op_margin:
-            data["ebitda"] = rev * abs(float(op_margin))
-            ev = data.get("enterprise_value")
-            if ev and data["ebitda"] > 0:
-                data["ev_to_ebitda"] = round(float(ev) / data["ebitda"], 2)
-
-    # Calculate ev_to_revenue if missing
-    if data.get('ev_to_revenue') is None:
-        ev  = data.get('enterprise_value')
-        rev = data.get('revenue')
-        if ev and rev and rev > 0:
-            data['ev_to_revenue'] = round(float(ev) / float(rev), 2)
-
-    # Calculate ebitda_margin if missing (ebitda / revenue)
-    if data.get('ebitda_margin') is None:
-        ebitda = data.get('ebitda')
-        rev    = data.get('revenue')
-        if ebitda and rev and rev > 0:
-            data['ebitda_margin'] = round(float(ebitda) / float(rev), 4)
-
     return data
 
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
     ticker = ticker.upper()
 
-    # yfinance first — reliable, free, no API key needed
-    if USE_YFINANCE:
-        try:
-            hist = yf.Ticker(ticker).history(period=period)
-            if hist is not None and not hist.empty:
-                return {
-                    "dates":   [str(d.date()) for d in hist.index],
-                    "closes":  [round(float(c), 2) for c in hist["Close"]],
-                    "volumes": [int(v) for v in hist["Volume"]],
-                }
-        except Exception as e:
-            print(f"[yfinance history] {e}")
-
-    # Finnhub candles as fallback (free tier often returns no_data)
+    # Finnhub candles
     if FINNHUB_KEY:
         try:
             from datetime import datetime, timedelta
@@ -382,11 +293,23 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
             d = r.json()
             if d.get("s") == "ok":
                 from datetime import datetime as dt
-                dates   = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
-                closes  = [round(float(c), 2) for c in d["c"]]
+                dates  = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
+                closes = [round(float(c), 2) for c in d["c"]]
                 volumes = [int(v) for v in d.get("v", [0]*len(closes))]
                 return {"dates": dates, "closes": closes, "volumes": volumes}
         except Exception as e:
             print(f"[finnhub candles] {e}")
+
+    # yfinance fallback
+    if USE_YFINANCE:
+        try:
+            hist = yf.Ticker(ticker).history(period=period)
+            if hist is not None and not hist.empty:
+                return {
+                    "dates":   [str(d.date()) for d in hist.index],
+                    "closes":  [round(float(c), 2) for c in hist["Close"]],
+                    "volumes": [int(v) for v in hist["Volume"]],
+                }
+        except Exception: pass
 
     return {}
