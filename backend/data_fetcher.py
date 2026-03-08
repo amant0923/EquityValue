@@ -39,7 +39,7 @@ def fetch_supabase(ticker: str) -> dict:
         return {}
     result = {}
     try:
-        resp = supabase.table("fundamentals").select("*").eq("ticker", ticker).limit(1).execute()
+        resp = supabase.table("stock_fundamentals").select("*").eq("ticker", ticker).limit(1).execute()
         rows = resp.data
         if not rows:
             return {}
@@ -84,8 +84,8 @@ def fetch_supabase(ticker: str) -> dict:
             "operating_margin": "operating_margin",
             "current_ratio": "current_ratio",
             "debt_to_equity": "debt_to_equity",
-            "52w_high": "52w_high",
-            "52w_low": "52w_low",
+            "week_52_high": "52w_high",
+            "week_52_low": "52w_low",
             "target_price": "target_price",
             "target_high": "target_high",
             "target_low": "target_low",
