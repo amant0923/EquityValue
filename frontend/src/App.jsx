@@ -255,11 +255,13 @@ export default function App() {
                     body: JSON.stringify({ data: result, memo: memoText, monte_carlo: mcStats, lbo: lboStats }),
                   });
                   if (!res.ok) throw new Error("PDF generation failed");
-                  const html = await res.text();
-                  const blob = new Blob([html], { type: "text/html" });
+                  const blob = await res.blob();
                   const url  = URL.createObjectURL(blob);
-                  const win  = window.open(url, "_blank");
-                  if (win) win.onload = () => { win.focus(); win.print(); };
+                  const a    = document.createElement("a");
+                  a.href     = url;
+                  a.download = `${result.ticker}_ValuEngine.pdf`;
+                  a.click();
+                  URL.revokeObjectURL(url);
                 } catch(e) {
                   alert("PDF export failed: " + e.message);
                 }

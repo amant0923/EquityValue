@@ -261,7 +261,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         message = client.messages.create(
-            model="claude-opus-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -322,7 +322,7 @@ async def ai_thesis_stream(payload: ThesisRequest):
     async def stream():
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-5",
+                model="claude-sonnet-4-6",
                 max_tokens=1500,
                 messages=messages
             ) as s:
@@ -335,6 +335,29 @@ async def ai_thesis_stream(payload: ThesisRequest):
 
     return StreamingResponse(stream(), media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+class PDFRequest(BaseModel):
+    data: dict
+    memo: str = ""
+    monte_carlo: dict = None
+    lbo: dict = None
+
+@app.post("/pdf/export")
+def export_pdf(payload: PDFRequest):
+    from fastapi.responses import Response
+    from pdf_generator import generate_pdf
+    pdf_bytes = generate_pdf(
+        data=payload.data,
+        memo=payload.memo,
+        monte_carlo=payload.monte_carlo,
+        lbo=payload.lbo,
+    )
+    ticker = payload.data.get("ticker", "report")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{ticker}_ValuEngine.pdf"'},
+    )
 
 @app.get("/cache/clear")
 def clear_cache():
