@@ -84,6 +84,20 @@ def get_valuation(ticker: str):
     if cached:
         print(f"[cache hit] {ticker}")
         return cached
+    # Restrict to S&P 500 stocks only
+    try:
+        from supabase import create_client
+        sb = create_client(
+            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+        )
+        exists = sb.table("stock_fundamentals").select("ticker").eq("ticker", ticker).limit(1).execute().data
+        if not exists:
+            raise HTTPException(status_code=404, detail=f"'{ticker}' is not in the S&P 500. ValuEngine currently supports S&P 500 stocks only.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[sp500 check] {e}")
     raw = fetch_stock_data(ticker)
     if not raw or not raw.get("current_price"):
         raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' not found or no price data available.")
@@ -287,19 +301,36 @@ def search(query: str):
     if cached:
         return cached
     try:
-        import yfinance as yf
-        result = yf.Search(query, max_results=7)
-        quotes = result.quotes if hasattr(result, "quotes") else []
+        from supabase import create_client
+        import os
+        sb = create_client(
+            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+        )
+        q = query.upper()
+        # Search by ticker prefix first, then by name
+        by_ticker = sb.table("stock_fundamentals")\
+            .select("ticker,name,sector")\
+            .ilike("ticker", f"{q}%")\
+            .limit(5).execute().data
+        by_name = sb.table("stock_fundamentals")\
+            .select("ticker,name,sector")\
+            .ilike("name", f"%{query}%")\
+            .limit(5).execute().data
+        # Merge, deduplicate, prefer ticker matches first
+        seen = set()
         results = []
-        for q in quotes:
-            symbol = q.get("symbol", "")
-            name   = q.get("longname") or q.get("shortname") or symbol
-            etype  = q.get("quoteType", "")
-            exch   = q.get("exchDisp") or q.get("exchange", "")
-            if symbol and etype in ("EQUITY", "ETF"):
-                results.append({"symbol": symbol, "name": name, "type": etype, "exchange": exch})
+        for row in (by_ticker + by_name):
+            if row["ticker"] not in seen:
+                seen.add(row["ticker"])
+                results.append({
+                    "symbol":   row["ticker"],
+                    "name":     row.get("name", row["ticker"]),
+                    "type":     "EQUITY",
+                    "exchange": "S&P 500",
+                })
         out = {"results": results[:7]}
-        _set_cached(f"search:{query.upper()}", out)
+        _set_cached(f"search:{q}", out)
         return out
     except Exception as e:
         print(f"[search] {e}")

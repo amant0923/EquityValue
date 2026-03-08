@@ -44,7 +44,7 @@ const CATEGORY_META = {
 const STATS = [
   { value: "12", label: "Valuation Models" },
   { value: "3",  label: "Methodologies" },
-  { value: "Live", label: "Market Data" },
+  { value: "500", label: "S&P 500 Stocks" },
   { value: "~3s", label: "Per Analysis" },
 ];
 
@@ -170,7 +170,7 @@ export default function App() {
             <div className="landing-hero">
               <span className="hero-eyebrow">Institutional-Grade Equity Analysis</span>
               <h1 className="hero-title">Know what a stock is <span>actually worth</span></h1>
-              <p className="hero-sub">ValuEngine applies up to 12 valuation models simultaneously — spanning income, market and asset-based methodologies — synthesising them into a single consensus verdict in seconds.</p>
+              <p className="hero-sub">ValuEngine applies up to 12 valuation models simultaneously — spanning income, market and asset-based methodologies — synthesising them into a single consensus verdict in seconds. Coverage is limited to <strong>S&amp;P 500 stocks</strong>.</p>
               <div className="hero-stats">
                 {STATS.map((s, i) => (
                   <div key={i} className="hero-stat">

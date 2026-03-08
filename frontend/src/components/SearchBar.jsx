@@ -56,7 +56,7 @@ export default function SearchBar({ ticker, setTicker, onSearch, loading }) {
         <input
           className="sb-input"
           type="text"
-          placeholder="Search ticker or company name…"
+          placeholder="Search S&P 500 ticker or company name…"
           value={ticker}
           onChange={e => { setTicker(e.target.value.toUpperCase()); }}
           onKeyDown={handleKey}
