@@ -11,8 +11,17 @@ try:
 except ImportError:
     USE_YFINANCE = False
 
-FINNHUB_KEY  = os.environ.get("FINNHUB_KEY", "")
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
+try:
+    from supabase import create_client, Client
+    _SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
+    _SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt")
+    supabase: Client = create_client(_SUPABASE_URL, _SUPABASE_KEY)
+    USE_SUPABASE = True
+except Exception as _e:
+    print(f"[supabase init] {_e}")
+    USE_SUPABASE = False
+
+FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 
 def _safe_val(val, default=None):
     if val is None: return default
@@ -23,7 +32,100 @@ def _safe_val(val, default=None):
     except (TypeError, ValueError):
         return default
 
-# ── Finnhub ──────────────────────────────────────────────────────────────────
+
+# ── Supabase (fundamentals) ───────────────────────────────────────────────────
+def fetch_supabase(ticker: str) -> dict:
+    if not USE_SUPABASE:
+        return {}
+    result = {}
+    try:
+        resp = supabase.table("fundamentals").select("*").eq("ticker", ticker).limit(1).execute()
+        rows = resp.data
+        if not rows:
+            return {}
+        row = rows[0]
+        # Map Supabase columns → internal keys
+        field_map = {
+            "ticker": "ticker",
+            "name": "name",
+            "sector": "sector",
+            "industry": "industry",
+            "description": "description",
+            "website": "website",
+            "market_cap": "market_cap",
+            "shares_outstanding": "shares_outstanding",
+            "enterprise_value": "enterprise_value",
+            "revenue": "revenue",
+            "gross_profit": "gross_profit",
+            "ebitda": "ebitda",
+            "net_income": "net_income",
+            "total_debt": "total_debt",
+            "total_cash": "total_cash",
+            "free_cashflow": "free_cashflow",
+            "operating_cashflow": "operating_cashflow",
+            "eps": "eps",
+            "book_value": "book_value",
+            "pe_ratio": "pe_ratio",
+            "forward_pe": "forward_pe",
+            "pb_ratio": "pb_ratio",
+            "ps_ratio": "ps_ratio",
+            "peg_ratio": "peg_ratio",
+            "ev_to_ebitda": "ev_to_ebitda",
+            "ev_to_revenue": "ev_to_revenue",
+            "dividend_yield": "dividend_yield",
+            "dividend_rate": "dividend_rate",
+            "payout_ratio": "payout_ratio",
+            "beta": "beta",
+            "roe": "roe",
+            "roa": "roa",
+            "revenue_growth": "revenue_growth",
+            "earnings_growth": "earnings_growth",
+            "profit_margin": "profit_margin",
+            "operating_margin": "operating_margin",
+            "current_ratio": "current_ratio",
+            "debt_to_equity": "debt_to_equity",
+            "52w_high": "52w_high",
+            "52w_low": "52w_low",
+            "target_price": "target_price",
+            "target_high": "target_high",
+            "target_low": "target_low",
+            "recommendation": "recommendation",
+            "analyst_count": "analyst_count",
+        }
+        for col, key in field_map.items():
+            val = row.get(col)
+            if val is not None:
+                # String fields kept as-is; numeric fields validated
+                if key in ("name", "sector", "industry", "description", "website", "recommendation", "ticker"):
+                    result[key] = val
+                else:
+                    result[key] = _safe_val(val)
+    except Exception as e:
+        print(f"[supabase] {e}")
+    return result
+
+
+# ── Finnhub (live price only) ─────────────────────────────────────────────────
+def fetch_finnhub_price(ticker: str) -> dict:
+    if not FINNHUB_KEY:
+        return {}
+    result = {}
+    base = "https://finnhub.io/api/v1"
+    h = {"X-Finnhub-Token": FINNHUB_KEY}
+    try:
+        r = requests.get(f"{base}/quote", params={"symbol": ticker}, headers=h, timeout=10)
+        d = r.json()
+        price = _safe_val(d.get("c"))
+        if price:
+            result["current_price"] = price
+        result["52w_high"] = _safe_val(d.get("h"))
+        result["52w_low"]  = _safe_val(d.get("l"))
+    except Exception as e:
+        print(f"[finnhub price] {e}")
+    return result
+
+
+# ── Finnhub (full fundamentals fallback) ──────────────────────────────────────
 def fetch_finnhub(ticker: str) -> dict:
     if not FINNHUB_KEY:
         return {}
@@ -50,7 +152,7 @@ def fetch_finnhub(ticker: str) -> dict:
         result["industry"]           = d.get("finnhubIndustry", "Unknown")
         result["market_cap"]         = _safe_val(d.get("marketCapitalization"))
         if result["market_cap"]:
-            result["market_cap"] *= 1_000_000  # Finnhub returns in millions
+            result["market_cap"] *= 1_000_000
         result["shares_outstanding"] = _safe_val(d.get("shareOutstanding"))
         if result["shares_outstanding"]:
             result["shares_outstanding"] *= 1_000_000
@@ -92,27 +194,23 @@ def fetch_finnhub(ticker: str) -> dict:
         result["revenue"]          = _safe_val(d.get("revenueTTM") or d.get("revenueAnnual"))
         if result["revenue"] and result["revenue"] < 1_000_000:
             result["revenue"] *= 1_000_000
-        # EBITDA - Finnhub returns in millions for these
         ebitda_raw = _safe_val(d.get("ebitdaTTM") or d.get("ebitdaAnnual"))
         if ebitda_raw is not None:
             result["ebitda"] = ebitda_raw * 1_000_000 if abs(ebitda_raw) < 100_000 else ebitda_raw
-        # FCF - Finnhub returns in millions
         fcf_raw = _safe_val(d.get("freeCashFlowTTM") or d.get("freeCashFlowAnnual"))
         if fcf_raw is not None:
             result["free_cashflow"] = fcf_raw * 1_000_000 if abs(fcf_raw) < 100_000 else fcf_raw
-        # Debt - Finnhub returns in millions
         debt_raw = _safe_val(d.get("totalDebtAnnual") or d.get("totalDebtQuarterly") or d.get("netDebtAnnual"))
         if debt_raw is not None:
             result["total_debt"] = debt_raw * 1_000_000 if abs(debt_raw) < 100_000 else debt_raw
-        # Net income - Finnhub returns in millions
         ni_raw = _safe_val(d.get("netIncomeAnnual") or d.get("netIncomeTTM"))
         if ni_raw is not None:
             result["net_income"] = ni_raw * 1_000_000 if abs(ni_raw) < 100_000 else ni_raw
-        result["gross_profit"] = None  # not available directly from metrics
+        result["gross_profit"] = None
     except Exception as e:
         print(f"[finnhub metrics] {e}")
 
-    # Financials (income statement for full numbers)
+    # Financials (income statement)
     try:
         r = requests.get(f"{base}/stock/financials-reported",
                          params={"symbol": ticker, "freq": "annual"}, headers=h, timeout=15)
@@ -146,12 +244,9 @@ def fetch_finnhub(ticker: str) -> dict:
                 capex = find(cf, "capital expenditure", "purchase of property", "acquisition of property", "payments for acquisition")
                 if op and capex:
                     result["free_cashflow"] = op - abs(capex)
-
     except Exception as e:
         print(f"[finnhub financials] {e}")
 
-    # ── Fallback calculations from what we have ──────────────────────────────
-    # Calculate EBITDA from margins if still missing
     if not result.get("ebitda"):
         rev = result.get("revenue")
         op_margin = result.get("operating_margin")
@@ -161,7 +256,6 @@ def fetch_finnhub(ticker: str) -> dict:
         elif ni:
             result["ebitda"] = ni * 1.4
 
-    # Calculate FCF if still missing
     if not result.get("free_cashflow"):
         op = result.get("operating_cashflow")
         ni = result.get("net_income")
@@ -196,29 +290,6 @@ def fetch_finnhub(ticker: str) -> dict:
 
     return result
 
-# ── RapidAPI fallback for price ───────────────────────────────────────────────
-def fetch_rapidapi(ticker: str) -> dict:
-    if not RAPIDAPI_KEY:
-        return {}
-    result = {}
-    headers = {
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": "yahoo-finance15.p.rapidapi.com",
-    }
-    try:
-        r = requests.get(
-            "https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/quotes",
-            headers=headers, params={"ticker": ticker}, timeout=15,
-        )
-        body = r.json().get("body", [{}])
-        info = body[0] if isinstance(body, list) and body else body
-        result["current_price"]  = _safe_val(info.get("regularMarketPrice"))
-        result["forward_eps"]    = _safe_val(info.get("epsForward"))
-        result["52w_high"]       = _safe_val(info.get("fiftyTwoWeekHigh"))
-        result["52w_low"]        = _safe_val(info.get("fiftyTwoWeekLow"))
-    except Exception as e:
-        print(f"[rapidapi] {e}")
-    return result
 
 # ── yfinance fallback ─────────────────────────────────────────────────────────
 def fetch_yfinance(ticker: str) -> dict:
@@ -267,6 +338,7 @@ def fetch_yfinance(ticker: str) -> dict:
         print(f"[yfinance] {e}")
     return result
 
+
 def merge(primary: dict, fallback: dict) -> dict:
     merged = dict(fallback)
     for k, v in primary.items():
@@ -274,29 +346,36 @@ def merge(primary: dict, fallback: dict) -> dict:
             merged[k] = v
     return merged
 
+
 def fetch_stock_data(ticker: str) -> dict:
     ticker = ticker.upper().strip()
 
-    fh_data    = fetch_finnhub(ticker)
-    rapid_data = fetch_rapidapi(ticker)
-    yf_data    = fetch_yfinance(ticker)
+    # 1. Fundamentals: Supabase first, Finnhub as fallback
+    sb_data = fetch_supabase(ticker)
+    if sb_data:
+        print(f"[supabase] found fundamentals for {ticker}")
+        # Get live price from Finnhub to override any cached price in Supabase
+        price_data = fetch_finnhub_price(ticker)
+        data = merge(price_data, sb_data)
+    else:
+        print(f"[supabase] no data for {ticker}, falling back to Finnhub + yfinance")
+        fh_data = fetch_finnhub(ticker)
+        yf_data = fetch_yfinance(ticker)
+        data = merge(fh_data, yf_data)
 
-    # Finnhub is primary for price/metrics, yfinance fills gaps
-    # Start with yfinance as base, then overlay Finnhub (which wins for fields it has)
-    data = merge(fh_data, merge(rapid_data, yf_data))
-    
-    # For fields Finnhub free tier doesn't provide, explicitly use yfinance values
-    yf_priority = ["ev_to_ebitda", "ev_to_revenue", "ebitda", "gross_profit",
-                   "total_debt", "total_cash", "enterprise_value", "peg_ratio",
-                   "forward_pe", "target_price", "target_high", "target_low",
-                   "recommendation", "analyst_count", "free_cashflow",
-                   "revenue_growth", "earnings_growth", "operating_margin",
-                   "profit_margin", "roe", "roa", "dividend_yield", "dividend_rate",
-                   "payout_ratio", "debt_to_equity", "current_ratio", "book_value",
-                   "shares_outstanding", "52w_high", "52w_low"]
-    for field in yf_priority:
-        if data.get(field) is None and yf_data.get(field) is not None:
-            data[field] = yf_data[field]
+        # For fields Finnhub free tier doesn't provide, use yfinance values
+        yf_priority = ["ev_to_ebitda", "ev_to_revenue", "ebitda", "gross_profit",
+                       "total_debt", "total_cash", "enterprise_value", "peg_ratio",
+                       "forward_pe", "target_price", "target_high", "target_low",
+                       "recommendation", "analyst_count", "free_cashflow",
+                       "revenue_growth", "earnings_growth", "operating_margin",
+                       "profit_margin", "roe", "roa", "dividend_yield", "dividend_rate",
+                       "payout_ratio", "debt_to_equity", "current_ratio", "book_value",
+                       "shares_outstanding", "52w_high", "52w_low"]
+        for field in yf_priority:
+            if data.get(field) is None and yf_data.get(field) is not None:
+                data[field] = yf_data[field]
+
     data["ticker"] = ticker
 
     price  = data.get("current_price")
@@ -319,10 +398,25 @@ def fetch_stock_data(ticker: str) -> dict:
 
     return data
 
+
 def fetch_price_history(ticker: str, period: str = "1y") -> dict:
+    """Fetch price history from yfinance (primary) with Finnhub candles as fallback."""
     ticker = ticker.upper()
 
-    # Finnhub candles
+    # yfinance is the primary source for price history
+    if USE_YFINANCE:
+        try:
+            hist = yf.Ticker(ticker).history(period=period)
+            if hist is not None and not hist.empty:
+                return {
+                    "dates":   [str(d.date()) for d in hist.index],
+                    "closes":  [round(float(c), 2) for c in hist["Close"]],
+                    "volumes": [int(v) for v in hist["Volume"]],
+                }
+        except Exception as e:
+            print(f"[yfinance history] {e}")
+
+    # Finnhub candles as fallback
     if FINNHUB_KEY:
         try:
             from datetime import datetime, timedelta
@@ -338,23 +432,11 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
             d = r.json()
             if d.get("s") == "ok":
                 from datetime import datetime as dt
-                dates  = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
-                closes = [round(float(c), 2) for c in d["c"]]
+                dates   = [dt.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in d["t"]]
+                closes  = [round(float(c), 2) for c in d["c"]]
                 volumes = [int(v) for v in d.get("v", [0]*len(closes))]
                 return {"dates": dates, "closes": closes, "volumes": volumes}
         except Exception as e:
             print(f"[finnhub candles] {e}")
-
-    # yfinance fallback
-    if USE_YFINANCE:
-        try:
-            hist = yf.Ticker(ticker).history(period=period)
-            if hist is not None and not hist.empty:
-                return {
-                    "dates":   [str(d.date()) for d in hist.index],
-                    "closes":  [round(float(c), 2) for c in hist["Close"]],
-                    "volumes": [int(v) for v in hist["Volume"]],
-                }
-        except Exception: pass
 
     return {}
