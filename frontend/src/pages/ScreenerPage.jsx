@@ -30,9 +30,12 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
         const data = await res.json();
         setResults(data.results || []);
       } else {
+        const errText = await res.text();
+        console.error("Screener error:", errText);
         setResults([]);
       }
-    } catch {
+    } catch (e) {
+      console.error("Screener fetch error:", e);
       setResults([]);
     }
     setLoading(false);
@@ -79,16 +82,12 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
           </button>
         </div>
 
-        {/* Notice if screener endpoint not available */}
         {searched && results.length === 0 && !loading && (
-          <div className="sc-notice">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--yellow2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <div className="sc-empty">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <div>
-              <strong>Screener endpoint not available yet.</strong>
-              <p>The <code>/screener</code> backend endpoint needs to be added to enable filtered results. Use the Analysis page to look up individual stocks in the meantime.</p>
-            </div>
+            <p>No stocks found matching your criteria. Try a different sector or fewer filters.</p>
           </div>
         )}
 

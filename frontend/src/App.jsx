@@ -24,6 +24,7 @@ import CompsTable from "./components/CompsTable";
 import LandingPage from "./pages/LandingPage";
 import DashboardPage from "./pages/DashboardPage";
 import ScreenerPage from "./pages/ScreenerPage";
+import MobileNav from "./components/MobileNav";
 
 import "./App.css";
 
@@ -120,13 +121,20 @@ export default function App() {
       const res = await fetch(`${API}/pdf/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: result, memo: memoText, monte_carlo: mcStats, lbo: lboStats }),
+        body: JSON.stringify({ data: result, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null }),
       });
-      if (!res.ok) throw new Error("PDF generation failed");
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "PDF generation failed");
+      }
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
-      a.href = url; a.download = `${result.ticker}_ValuEngine.pdf`; a.click();
+      a.href     = url;
+      a.download = `${result.ticker}_ValuEngine.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch(e) { alert("PDF export failed: " + e.message); }
   };
@@ -189,7 +197,7 @@ export default function App() {
           onCollapseChange={setSidebarCollapsed}
         />
 
-        <div className="app-body" style={{ marginLeft: sidebarCollapsed ? 60 : 220 }}>
+        <div className={`app-body${sidebarCollapsed ? " app-body--collapsed" : ""}`}>
           {/* Top bar */}
           <header className="app-topbar">
             <div className="topbar-left">
@@ -223,6 +231,12 @@ export default function App() {
               </button>
             </div>
           </header>
+
+          {/* Mobile bottom nav */}
+          <MobileNav page={page} setPage={(p) => {
+            setPage(p);
+            if (p === "analysis" && !result) setError("");
+          }} />
 
           {/* Page content */}
           <main className="app-content">

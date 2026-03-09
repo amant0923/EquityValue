@@ -74,12 +74,15 @@
 
 .app-body {
   flex: 1;
-  margin-left: 220px; /* matches sidebar width, updated via JS if collapsed */
+  margin-left: 220px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-width: 0;
   transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.app-body--collapsed {
+  margin-left: 60px;
 }
 
 /* ── Top bar ── */
@@ -370,15 +373,23 @@ body.light .lp-header { background: rgba(240, 244, 248, 0.92); }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
-  .app-body { margin-left: 0; }
-  .sidebar { display: none; } /* hide sidebar on mobile for now */
-  .app-content { padding: 16px 16px 40px; }
+  /* Override sidebar-driven margin — sidebar is hidden on mobile */
+  .app-body,
+  .app-body--collapsed {
+    margin-left: 0 !important;
+  }
+  .sidebar { display: none !important; }
+  /* Add bottom padding so content isn't hidden behind the mobile nav */
+  .app-content { padding: 16px 16px 80px; }
   .app-topbar { padding: 0 16px; }
   .cards-grid { grid-template-columns: 1fr; }
   .na-grid { grid-template-columns: 1fr; }
   .lp-header { padding: 0 20px; }
   .lp-footer { padding: 16px 20px; }
   .topbar-search { max-width: 100%; }
+  /* Topbar: hide PDF export label on small screens, keep icon */
+  .topbar-pdf-btn { padding: 6px 10px; font-size: 0; gap: 0; }
+  .topbar-pdf-btn svg { margin: 0; }
 }
 
 @media (max-width: 480px) {

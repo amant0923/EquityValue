@@ -370,8 +370,8 @@ async def ai_thesis_stream(payload: ThesisRequest):
 class PDFRequest(BaseModel):
     data: dict
     memo: str = ""
-    monte_carlo: dict = None
-    lbo: dict = None
+    monte_carlo: dict | None = None
+    lbo: dict | None = None
 
 @app.post("/pdf/export")
 def export_pdf(payload: PDFRequest):
@@ -389,6 +389,40 @@ def export_pdf(payload: PDFRequest):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{ticker}_ValuEngine.pdf"'},
     )
+
+@app.get("/screener")
+def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
+             min_roe: float = None, min_rev_growth: float = None,
+             max_pb: float = None, limit: int = 200):
+    """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
+    try:
+        from supabase import create_client
+        sb = create_client(
+            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+        )
+        query = sb.table("stock_fundamentals").select(
+            "ticker,name,sector,current_price,market_cap,pe_ratio,pb_ratio,roe,revenue_growth,eps,debt_to_equity"
+        )
+        if sector and sector not in ("All Sectors", ""):
+            query = query.eq("sector", sector)
+        if min_pe is not None:
+            query = query.gte("pe_ratio", min_pe)
+        if max_pe is not None:
+            query = query.lte("pe_ratio", max_pe)
+        if min_roe is not None:
+            # roe stored as decimal (0.15 = 15%)
+            query = query.gte("roe", min_roe / 100)
+        if min_rev_growth is not None:
+            query = query.gte("revenue_growth", min_rev_growth / 100)
+        if max_pb is not None:
+            query = query.lte("pb_ratio", max_pb)
+
+        rows = query.order("market_cap", desc=True).limit(limit).execute().data
+        return {"results": rows, "count": len(rows)}
+    except Exception as e:
+        print(f"[screener] {e}")
+        raise HTTPException(status_code=500, detail=f"Screener error: {str(e)}")
 
 @app.get("/cache/clear")
 def clear_cache():
