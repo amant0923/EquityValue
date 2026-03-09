@@ -127,22 +127,24 @@ export function AuthProvider({ children }) {
 
   const getToken = async () => {
     if (!supabase) return null;
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data?.session?.access_token;
-      if (!token) return null;
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return null;
 
-      // Check if token is expired and try to refresh
-      const exp = data?.session?.expires_at;
-      if (exp && exp * 1000 < Date.now()) {
+    // Check if token is expired and try to refresh
+    const exp = data?.session?.expires_at;
+    if (exp && exp * 1000 < Date.now()) {
+      try {
         const { data: refreshed } = await supabase.auth.refreshSession();
         return refreshed?.session?.access_token || null;
+      } catch {
+        // Refresh token expired — force re-login
+        await signOut();
+        return null;
       }
-
-      return token;
-    } catch {
-      return null;
     }
+
+    return token;
   };
 
   const value = {

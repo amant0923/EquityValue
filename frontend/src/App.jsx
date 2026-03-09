@@ -126,8 +126,16 @@ function AppInner() {
     setPage("analysis");
     try {
       const token = await getToken();
+      if (!token) {
+        // Session dead — force re-login
+        setAuthMode("login");
+        setShowAuth(true);
+        setError("Your session expired. Please log in again.");
+        setLoading(false);
+        return;
+      }
       const res = await axios.get(`${API}/valuation/${sym}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
       setResult(res.data);
       setTicker(sym);
