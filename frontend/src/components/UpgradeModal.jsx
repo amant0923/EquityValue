@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 const PLANS = [
   {
     name: "Pro",
-    price: "$15",
+    price: "$30",
     period: "/month",
     limit: "5 analyses/day",
     features: ["5 analyses per day", "All 12 valuation models", "AI investment thesis", "Monte Carlo simulation", "LBO model", "PDF export", "Compare stocks", "Full screener"],

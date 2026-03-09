@@ -79,7 +79,7 @@ const PRICING = [
   },
   {
     name: "Pro",
-    price: "$15",
+    price: "$30",
     period: "/month",
     desc: "For active investors and researchers",
     cta: "Get Pro",

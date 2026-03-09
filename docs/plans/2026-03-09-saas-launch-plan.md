@@ -119,7 +119,7 @@ Run: `pip install stripe`
 **Step 2: Create Stripe products**
 
 In Stripe Dashboard (https://dashboard.stripe.com):
-1. Create Product "ValuEngine Pro" → Price: $15/month recurring
+1. Create Product "ValuEngine Pro" → Price: $30/month recurring
 2. Create Product "ValuEngine Max" → Price: $50/month recurring
 3. Copy the `price_id` for each (e.g. `price_xxx`)
 
