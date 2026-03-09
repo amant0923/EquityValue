@@ -247,7 +247,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
             <motion.div
               key={i}
               className={cn(
-                "relative backdrop-blur-lg rounded-2xl p-8 flex flex-col gap-1.5 w-full max-w-xs",
+                "relative backdrop-blur-lg rounded-2xl p-8 flex flex-col gap-1.5 w-full max-w-xs transition-all",
                 plan.ctaStyle === "primary" && "bg-white/[0.07] border-2 border-primary/30 ring-2 ring-primary/10 lg:scale-105 shadow-[0_0_40px_rgba(59,130,246,0.1)]",
                 plan.ctaStyle === "featured" && "bg-white/[0.04] border border-indigo/30",
                 plan.ctaStyle === "outline" && "bg-white/[0.04] border border-white/10",
@@ -313,7 +313,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
       >
         <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,rgba(59,130,246,0.08),transparent_70%)]" />
         <h2 className="text-[clamp(1.4rem,3vw,2rem)] font-bold text-text tracking-[-0.8px]">
-          Ready to see what the market is <span className="bg-gradient-to-r from-primary2 to-indigo2 bg-clip-text text-transparent">missing</span>?
+          <span className="bg-gradient-to-r from-primary2 to-indigo2 bg-clip-text text-transparent">Ready to see what the market is missing?</span>
         </h2>
         <p className="text-[0.92rem] text-text2">Run your first valuation in seconds. No sign-up required.</p>
         <button
