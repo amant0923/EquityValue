@@ -9,11 +9,16 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
+    "@tailwindcss/vite": "^4.2.1",
     "axios": "^1.6.8",
+    "clsx": "^2.1.1",
     "framer-motion": "^11.18.2",
+    "lucide-react": "^0.577.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.12.2"
+    "recharts": "^2.12.2",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
