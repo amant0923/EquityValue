@@ -127,8 +127,6 @@ function AppInner() {
       const res = await axios.get(`${API}/valuation/${sym}`);
       setResult(res.data);
       setTicker(sym);
-      // Record the analysis usage
-      await recordAnalysis();
       const wl = lsGet("ve_watchlist", []);
       if (!wl.includes(sym)) {
         const updated = [sym, ...wl].slice(0, 8);
@@ -140,6 +138,8 @@ function AppInner() {
     } finally {
       setLoading(false);
     }
+    // Record usage separately so it doesn't block the analysis
+    try { await recordAnalysis(); } catch (e) { console.warn("Usage tracking failed:", e); }
   };
 
   const enterApp = () => {
