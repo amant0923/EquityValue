@@ -151,7 +151,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         </motion.h1>
 
         <motion.p variants={fadeUp} className="lp-sub">
-          ValuEngine runs up to 12 institutional valuation models simultaneously — DCF, comparables,
+          Equity Valuation runs up to 12 institutional valuation models simultaneously — DCF, comparables,
           Graham Number, and more — synthesising them into a single consensus verdict in seconds.
         </motion.p>
 

@@ -29,7 +29,7 @@ def get(endpoint, params):
         r = requests.get(
             f"{FMP_BASE}/{endpoint}",
             params={"apikey": FMP_KEY, **params},
-            headers={"User-Agent": "ValuEngine/1.0"},
+            headers={"User-Agent": "EquityValuation/1.0"},
             timeout=15
         )
         if r.status_code == 429:

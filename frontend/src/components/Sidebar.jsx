@@ -52,7 +52,7 @@ export default function Sidebar({ page, setPage, onBackToLanding, onCollapseChan
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       {/* Logo */}
-      <div className="sb-logo" onClick={onBackToLanding} title="ValuEngine Home">
+      <div className="sb-logo" onClick={onBackToLanding} title="Equity Valuation Home">
         <div className="sb-logo-mark">
           <svg viewBox="0 0 16 16" fill="none">
             <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -67,7 +67,7 @@ export default function Sidebar({ page, setPage, onBackToLanding, onCollapseChan
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.18 }}
             >
-              ValuEngine
+              Equity Valuation
             </motion.span>
           )}
         </AnimatePresence>

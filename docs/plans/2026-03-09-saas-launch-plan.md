@@ -166,8 +166,8 @@ async def create_checkout(request: Request, user: dict = Depends(get_current_use
         user_id=user["sub"],
         user_email=user.get("email", ""),
         price_id=price_id,
-        success_url="https://valuengine.vercel.app?payment=success",
-        cancel_url="https://valuengine.vercel.app?payment=cancelled",
+        success_url="https://equityvalue.ai?payment=success",
+        cancel_url="https://equityvalue.ai?payment=cancelled",
     )
     return {"checkout_url": session.url}
 
@@ -248,7 +248,7 @@ Go to https://resend.com → Sign up (free tier: 3,000 emails/month)
 
 **Step 2: Add and verify a domain (optional but recommended)**
 
-Resend Dashboard → Domains → Add domain → `valuengine.com` (or your domain)
+Resend Dashboard → Domains → Add domain → `equityvalue.ai` (or your domain)
 Add the DNS records Resend provides (DKIM, SPF, DMARC)
 
 **Step 3: Create an API key in Resend**
@@ -263,7 +263,7 @@ Supabase Dashboard → Settings → Authentication → SMTP Settings → Enable 
 - Username: `resend`
 - Password: (your Resend API key)
 - Sender name: `ValuEngine`
-- Sender email: `no-reply@valuengine.com` (or `no-reply@resend.dev` if no custom domain)
+- Sender email: `no-reply@equityvalue.ai` (or `no-reply@resend.dev` if no custom domain)
 
 **Step 5: Customize email templates**
 
@@ -340,18 +340,18 @@ git commit -m "feat: enforce feature gating UI for free tier users"
 
 **Step 1: Purchase domain**
 
-Buy `valuengine.com` (or similar) from Namecheap, Cloudflare, or Google Domains (~$10-15/year)
+Buy `equityvalue.ai` (or similar) from Namecheap, Cloudflare, or Google Domains (~$10-15/year)
 
 **Step 2: Configure Vercel custom domain**
 
-Vercel → Project Settings → Domains → Add `valuengine.com`
+Vercel → Project Settings → Domains → Add `equityvalue.ai`
 Add the DNS records Vercel provides (A record + CNAME)
 
 **Step 3: Configure Supabase redirect URLs**
 
 Supabase Dashboard → Authentication → URL Configuration:
-- Site URL: `https://valuengine.com`
-- Redirect URLs: add `https://valuengine.com`
+- Site URL: `https://equityvalue.ai`
+- Redirect URLs: add `https://equityvalue.ai`
 
 **Step 4: Update Stripe success/cancel URLs**
 
@@ -359,7 +359,7 @@ In `stripe_handler.py`, update URLs to use the custom domain.
 
 **Step 5: Update frontend references**
 
-Search for `valuengine.vercel.app` and replace with `valuengine.com`.
+Search for `equityvalue.ai` and replace with `equityvalue.ai`.
 
 ---
 
@@ -411,7 +411,7 @@ sentry_sdk.init(dsn="your-dsn-here")
 
 ```python
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["valuengine-api.onrender.com", "valuengine.com"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["valuengine-api.onrender.com", "equityvalue.ai"])
 ```
 
 **Step 5: Restrict CORS to known origins**
@@ -419,7 +419,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["valuengine-api.onrende
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://valuengine.vercel.app", "https://valuengine.com"],
+    allow_origins=["https://equityvalue.ai", "https://equityvalue.ai"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -457,7 +457,7 @@ async def create_portal(request: Request, user: dict = Depends(get_current_user)
     profile = await get_user_profile(user["sub"])
     session = stripe.billing_portal.Session.create(
         customer=profile.get("stripe_customer_id"),
-        return_url="https://valuengine.com/account",
+        return_url="https://equityvalue.ai/account",
     )
     return {"portal_url": session.url}
 ```

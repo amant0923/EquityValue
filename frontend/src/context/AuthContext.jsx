@@ -125,6 +125,12 @@ export function AuthProvider({ children }) {
     setProfile(null);
   };
 
+  const getToken = async () => {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || null;
+  };
+
   const value = {
     user,
     profile: profile ? getEffectiveProfile(profile) : null,
@@ -135,6 +141,7 @@ export function AuthProvider({ children }) {
     recordAnalysis,
     canAnalyse,
     isFeatureUnlocked,
+    getToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

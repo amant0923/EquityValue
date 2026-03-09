@@ -23,6 +23,7 @@ import MonteCarlo from "./components/MonteCarlo";
 import LBOModel from "./components/LBOModel";
 import InvestmentThesis from "./components/InvestmentThesis";
 import CompsTable from "./components/CompsTable";
+import LockedFeatureCard from "./components/LockedFeatureCard";
 
 import LandingPage from "./pages/LandingPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -67,7 +68,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked } = useAuth();
+  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked, getToken } = useAuth();
 
   // App shell state
   const [appMode, setAppMode]       = useState("landing"); // "landing" | "app"
@@ -124,7 +125,10 @@ function AppInner() {
     setLoading(true); setError(""); setResult(null);
     setPage("analysis");
     try {
-      const res = await axios.get(`${API}/valuation/${sym}`);
+      const token = await getToken();
+      const res = await axios.get(`${API}/valuation/${sym}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setResult(res.data);
       setTicker(sym);
       const wl = lsGet("ve_watchlist", []);
@@ -154,9 +158,13 @@ function AppInner() {
 
   const exportPDF = async () => {
     try {
+      const token = await getToken();
       const res = await fetch(`${API}/pdf/export`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ data: result, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null }),
       });
       if (!res.ok) {
@@ -167,7 +175,7 @@ function AppInner() {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
       a.href     = url;
-      a.download = `${result.ticker}_ValuEngine.pdf`;
+      a.download = `${result.ticker}_EquityValuation.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -192,7 +200,7 @@ function AppInner() {
                   <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <span className="lp-logo-text">ValuEngine</span>
+              <span className="lp-logo-text">Equity Valuation</span>
             </div>
             <div className="lp-header-right">
               <button className="lp-nav-btn" onClick={toggleTheme} aria-label="Toggle theme">
@@ -230,7 +238,7 @@ function AppInner() {
           </main>
 
           <footer className="lp-footer">
-            <p>For informational purposes only. Not financial advice. ValuEngine does not constitute investment advice or a solicitation to buy or sell any security.</p>
+            <p>For informational purposes only. Not financial advice. Equity Valuation does not constitute investment advice or a solicitation to buy or sell any security.</p>
           </footer>
         </div>
       </>
@@ -266,7 +274,7 @@ function AppInner() {
               )}
               {page !== "analysis" && (
                 <div className="topbar-breadcrumb">
-                  <span className="topbar-breadcrumb-home" onClick={() => setAppMode("landing")}>ValuEngine</span>
+                  <span className="topbar-breadcrumb-home" onClick={() => setAppMode("landing")}>Equity Valuation</span>
                   <span className="topbar-breadcrumb-sep">/</span>
                   <span className="topbar-breadcrumb-current">
                     {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare" }[page] || page}
@@ -275,7 +283,7 @@ function AppInner() {
               )}
             </div>
             <div className="topbar-right">
-              {result && page === "analysis" && (
+              {result && page === "analysis" && isFeatureUnlocked("pdf_export") && (
                 <button className="topbar-pdf-btn" onClick={exportPDF} title="Export PDF" aria-label="Export PDF report">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -356,6 +364,8 @@ function AppInner() {
                       onMemoGenerated={setMemoText}
                       onMcStats={setMcStats}
                       onLboStats={setLboStats}
+                      isFeatureUnlocked={isFeatureUnlocked}
+                      onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }}
                     />
                   )}
                 </motion.div>
@@ -369,7 +379,13 @@ function AppInner() {
 
               {page === "compare" && (
                 <motion.div key="compare" {...pageTransition}>
-                  <ComparePage onSearch={handleSearch} />
+                  {isFeatureUnlocked("compare") ? (
+                    <ComparePage onSearch={handleSearch} />
+                  ) : (
+                    <div style={{ padding: "60px 20px", maxWidth: 500, margin: "0 auto" }}>
+                      <LockedFeatureCard title="Compare Stocks" plan="Pro" onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }} />
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -400,16 +416,16 @@ function DisclaimerModal({ onAccept }) {
               <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="disclaimer-logo-text">ValuEngine</span>
+          <span className="disclaimer-logo-text">Equity Valuation</span>
         </div>
         <h2 className="disclaimer-title">Important Legal Notice</h2>
         <div className="disclaimer-body">
-          <p><strong>ValuEngine is not a registered financial adviser, broker, or investment firm.</strong> This platform is an independent analytical tool built for educational and research purposes only.</p>
+          <p><strong>Equity Valuation is not a registered financial adviser, broker, or investment firm.</strong> This platform is an independent analytical tool built for educational and research purposes only.</p>
           <p>Nothing on this platform constitutes financial advice, investment recommendations, or an offer of any kind. All intrinsic value estimates are illustrative only.</p>
           <p><strong>You should not make any investment decision based solely or partly on information provided by this tool.</strong> Always consult a qualified financial adviser.</p>
         </div>
         <button className="disclaimer-btn" onClick={onAccept}>
-          I understand — Continue to ValuEngine
+          I understand — Continue to Equity Valuation
         </button>
       </motion.div>
     </motion.div>
@@ -437,9 +453,10 @@ function AnalysisEmpty({ onSearch, ticker, setTicker, loading }) {
   );
 }
 
-function AnalysisResults({ result, applicable, notApplicable, unusedModels, onMemoGenerated, onMcStats, onLboStats }) {
+function AnalysisResults({ result, applicable, notApplicable, unusedModels, onMemoGenerated, onMcStats, onLboStats, isFeatureUnlocked, onUpgrade }) {
   const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
   const fadeUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: "easeOut" } } };
+  const unlocked = isFeatureUnlocked || (() => true);
 
   return (
     <motion.div className="results" initial="hidden" animate="visible" variants={stagger}>
@@ -460,10 +477,32 @@ function AnalysisResults({ result, applicable, notApplicable, unusedModels, onMe
       )}
 
       <motion.div variants={fadeUp}><ThreeStatementModel data={result} /></motion.div>
-      <motion.div variants={fadeUp}><MonteCarlo data={result} onStatsGenerated={onMcStats} /></motion.div>
-      <motion.div variants={fadeUp}><LBOModel data={result} onResultGenerated={onLboStats} /></motion.div>
+
+      <motion.div variants={fadeUp}>
+        {unlocked("monte_carlo") ? (
+          <MonteCarlo data={result} onStatsGenerated={onMcStats} />
+        ) : (
+          <LockedFeatureCard title="Monte Carlo Simulation" plan="Pro" onUpgrade={onUpgrade} />
+        )}
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        {unlocked("lbo") ? (
+          <LBOModel data={result} onResultGenerated={onLboStats} />
+        ) : (
+          <LockedFeatureCard title="LBO Model" plan="Pro" onUpgrade={onUpgrade} />
+        )}
+      </motion.div>
+
       <motion.div variants={fadeUp}><CompsTable ticker={result.ticker} /></motion.div>
-      <motion.div variants={fadeUp}><InvestmentThesis data={result} onMemoGenerated={onMemoGenerated} /></motion.div>
+
+      <motion.div variants={fadeUp}>
+        {unlocked("ai_thesis") ? (
+          <InvestmentThesis data={result} onMemoGenerated={onMemoGenerated} />
+        ) : (
+          <LockedFeatureCard title="AI Investment Thesis" plan="Pro" onUpgrade={onUpgrade} />
+        )}
+      </motion.div>
 
       {/* Model results */}
       <motion.section variants={fadeUp} className="valuations-section">

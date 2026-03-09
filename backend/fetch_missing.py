@@ -33,7 +33,7 @@ def _safe(val):
         return None
 
 def fetch_fmp(ticker):
-    h   = {"User-Agent": "ValuEngine/1.0"}
+    h   = {"User-Agent": "EquityValuation/1.0"}
     p   = {"symbol": ticker, "apikey": FMP_KEY}
     row = {"ticker": ticker}
 

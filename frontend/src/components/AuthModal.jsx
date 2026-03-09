@@ -68,7 +68,7 @@ export default function AuthModal({ onClose, initialMode = "login" }) {
               <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="auth-logo-text">ValuEngine</span>
+          <span className="auth-logo-text">Equity Valuation</span>
         </div>
 
         <h2 className="auth-title">{mode === "login" ? "Welcome back" : "Create your account"}</h2>
@@ -127,7 +127,7 @@ export default function AuthModal({ onClose, initialMode = "login" }) {
                   onChange={e => setDisclaimer(e.target.checked)}
                 />
                 <span className="auth-disclaimer-text">
-                  I understand that ValuEngine is <strong>not a registered financial adviser</strong> and does not provide financial advice.
+                  I understand that Equity Valuation is <strong>not a registered financial adviser</strong> and does not provide financial advice.
                   All valuations are for <strong>educational and research purposes only</strong>.
                   I will not make investment decisions based solely on this tool.
                 </span>

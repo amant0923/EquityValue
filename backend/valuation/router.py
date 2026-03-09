@@ -167,7 +167,7 @@ def run_valuation(ticker: str, data: dict) -> dict:
 
     applicable = [r for r in results if r.get("applicable")]
 
-    # Compute ValuEngine price targets using market-based models only (exclude outliers)
+    # Compute Equity Valuation price targets using market-based models only (exclude outliers)
     OUTLIER_MODELS = {"Graham Number", "Gordon Growth Model (DDM)", "Residual Income", "Capitalization of Earnings"}
     market_pool = [r for r in applicable if r.get("model") not in OUTLIER_MODELS]
     target_pool = market_pool if market_pool else applicable

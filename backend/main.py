@@ -1,8 +1,11 @@
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from data_fetcher import fetch_stock_data, fetch_price_history
 from valuation.router import run_valuation
+from auth import get_current_user, get_user_profile
+from stripe_handler import create_checkout_session, handle_webhook_event, price_id_to_plan
+import stripe
 import time
 from datetime import datetime
 import os
@@ -75,11 +78,21 @@ def normalise(data: dict) -> dict:
 
 @app.get("/")
 def root():
-    return {"message": "ValuEngine API v2"}
+    return {"message": "Equity Valuation API v2"}
 
 @app.get("/valuation/{ticker}")
-def get_valuation(ticker: str):
+async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
     ticker = ticker.upper().strip()
+
+    # Check plan limits
+    profile = await get_user_profile(user["sub"])
+    plan = profile.get("plan", "free")
+    analyses_today = profile.get("analyses_today", 0)
+    PLAN_LIMITS = {"free": 1, "pro": 5, "max": 999999}
+    limit = PLAN_LIMITS.get(plan, 1)
+    if analyses_today >= limit:
+        raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
+
     cached = _get_cached(f"val:{ticker}")
     if cached:
         print(f"[cache hit] {ticker}")
@@ -93,7 +106,7 @@ def get_valuation(ticker: str):
         )
         exists = sb.table("stock_fundamentals").select("ticker").eq("ticker", ticker).limit(1).execute().data
         if not exists:
-            raise HTTPException(status_code=404, detail=f"'{ticker}' is not in the S&P 500. ValuEngine currently supports S&P 500 stocks only.")
+            raise HTTPException(status_code=404, detail=f"'{ticker}' is not in the S&P 500. Equity Valuation currently supports S&P 500 stocks only.")
     except HTTPException:
         raise
     except Exception as e:
@@ -387,7 +400,7 @@ def export_pdf(payload: PDFRequest):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{ticker}_ValuEngine.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{ticker}_EquityValuation.pdf"'},
     )
 
 @app.get("/screener")
@@ -423,6 +436,63 @@ def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
     except Exception as e:
         print(f"[screener] {e}")
         raise HTTPException(status_code=500, detail=f"Screener error: {str(e)}")
+
+@app.post("/stripe/create-checkout")
+async def create_checkout(request: Request, user: dict = Depends(get_current_user)):
+    body = await request.json()
+    plan = body.get("plan", "pro")
+    try:
+        session = create_checkout_session(
+            user_id=user["sub"],
+            user_email=user.get("email", ""),
+            plan=plan,
+            success_url="https://equityvalue.ai?payment=success",
+            cancel_url="https://equityvalue.ai?payment=cancelled",
+        )
+        return {"checkout_url": session.url}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[stripe checkout error] {e}")
+        raise HTTPException(status_code=500, detail="Could not create checkout session")
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = handle_webhook_event(payload, sig)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Webhook error: {str(e)}")
+
+    try:
+        from supabase import create_client
+        sb = create_client(
+            os.environ.get("SUPABASE_URL", ""),
+            os.environ.get("SUPABASE_KEY", ""),
+        )
+
+        if event["type"] == "checkout.session.completed":
+            session_obj = event["data"]["object"]
+            user_id = session_obj["metadata"]["user_id"]
+            subscription = stripe.Subscription.retrieve(session_obj["subscription"])
+            price_id = subscription["items"]["data"][0]["price"]["id"]
+            plan = price_id_to_plan(price_id)
+            sb.table("user_profiles").update({
+                "plan": plan,
+                "stripe_customer_id": session_obj.get("customer", ""),
+            }).eq("id", user_id).execute()
+
+        elif event["type"] == "customer.subscription.deleted":
+            sub_obj = event["data"]["object"]
+            customer_id = sub_obj.get("customer")
+            if customer_id:
+                sb.table("user_profiles").update({"plan": "free"}).eq("stripe_customer_id", customer_id).execute()
+
+    except Exception as e:
+        print(f"[stripe webhook processing error] {e}")
+
+    return {"status": "ok"}
 
 @app.get("/cache/clear")
 def clear_cache():

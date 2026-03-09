@@ -47,7 +47,7 @@ export default function AnalystPanel({ data }) {
   return (
     <div className="ap-wrap">
       <div className="ap-header">
-        <span className="ap-title">ValuEngine Price Targets</span>
+        <span className="ap-title">Equity Valuation Price Targets</span>
         <span className="ap-count">Model-derived estimates</span>
       </div>
 
@@ -131,7 +131,7 @@ export default function AnalystPanel({ data }) {
         </div>
       </div>
 
-      {/* Comparison vs ValuEngine consensus — rendered by parent via props if passed */}
+      {/* Comparison vs Equity Valuation consensus — rendered by parent via props if passed */}
 
       <style>{`
         .ap-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px 24px; display: flex; flex-direction: column; gap: 20px; }

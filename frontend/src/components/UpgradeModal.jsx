@@ -1,4 +1,8 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const PLANS = [
   {
@@ -6,6 +10,7 @@ const PLANS = [
     price: "$30",
     period: "/month",
     limit: "5 analyses/day",
+    priceEnv: "pro",
     features: ["5 analyses per day", "All 12 valuation models", "AI investment thesis", "Monte Carlo simulation", "LBO model", "PDF export", "Compare stocks", "Full screener"],
     cta: "Upgrade to Pro",
     color: "var(--primary)",
@@ -15,6 +20,7 @@ const PLANS = [
     price: "$50",
     period: "/month",
     limit: "Unlimited",
+    priceEnv: "max",
     features: ["Unlimited analyses", "Everything in Pro", "Priority data refresh", "Early access to new features"],
     cta: "Upgrade to Max",
     color: "var(--indigo)",
@@ -23,6 +29,33 @@ const PLANS = [
 ];
 
 export default function UpgradeModal({ onClose, reason = "limit" }) {
+  const { getToken } = useAuth();
+  const [upgrading, setUpgrading] = useState(false);
+
+  const handleUpgrade = async (planKey) => {
+    setUpgrading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API}/stripe/create-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ plan: planKey }),
+      });
+      const data = await res.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        alert(data.detail || "Could not start checkout. Please try again.");
+        setUpgrading(false);
+      }
+    } catch {
+      alert("Could not connect to payment server. Please try again.");
+      setUpgrading(false);
+    }
+  };
   return (
     <motion.div
       className="upg-overlay"
@@ -73,14 +106,19 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
                   </li>
                 ))}
               </ul>
-              <button className="upg-plan-cta" style={{ background: plan.color }}>
-                {plan.cta}
+              <button
+                className="upg-plan-cta"
+                style={{ background: plan.color }}
+                onClick={() => handleUpgrade(plan.priceEnv)}
+                disabled={upgrading}
+              >
+                {upgrading ? "Redirecting..." : plan.cta}
               </button>
             </div>
           ))}
         </div>
 
-        <p className="upg-note">Payment integration coming soon. Contact us for early access.</p>
+        <p className="upg-note">Secure payment via Stripe. Cancel anytime.</p>
       </motion.div>
 
       <style>{`
