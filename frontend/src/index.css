@@ -1,5 +1,47 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-surface3: var(--surface3);
+  --color-glass: var(--glass);
+  --color-glass2: var(--glass2);
+
+  --color-border-default: var(--border);
+  --color-border2: var(--border2);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border2: var(--glass-border2);
+
+  --color-primary: var(--primary);
+  --color-primary2: var(--primary2);
+  --color-primary-glow: var(--primary-glow);
+  --color-primary-glow2: var(--primary-glow2);
+  --color-indigo: var(--indigo);
+  --color-indigo2: var(--indigo2);
+  --color-accent: var(--accent);
+
+  --color-green: var(--green);
+  --color-green2: var(--green2);
+  --color-green-glow: var(--green-glow);
+  --color-red: var(--red);
+  --color-red2: var(--red2);
+  --color-yellow: var(--yellow);
+  --color-yellow2: var(--yellow2);
+
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-text3: var(--text3);
+  --color-muted: var(--muted);
+
+  --font-sans: "DM Sans", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
