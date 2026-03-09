@@ -402,14 +402,14 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           background: transparent;
           border: 1px solid var(--border2);
           color: var(--text2);
-          padding: 5px 12px;
+          padding: 6px 14px;
           border-radius: 6px;
           cursor: pointer;
           font-size: 0.78rem;
-          font-weight: 600;
-          font-family: inherit;
+          font-weight: 700;
+          font-family: "JetBrains Mono", monospace;
           letter-spacing: 0.5px;
-          transition: all 0.15s;
+          transition: all 0.2s;
         }
         .lp-ticker-btn:hover {
           background: var(--surface2);

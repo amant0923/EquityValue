@@ -229,7 +229,10 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
           display: flex;
           flex-direction: column;
           gap: 6px;
+          cursor: default;
+          transition: border-color 0.2s, background 0.2s;
         }
+        .db-sector-card:hover { background: var(--surface2); }
         .db-sector--positive { border-left: 3px solid var(--green2); }
         .db-sector--negative { border-left: 3px solid var(--red2); }
         .db-sector-name { font-size: 0.78rem; color: var(--text2); font-weight: 500; }

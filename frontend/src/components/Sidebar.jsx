@@ -120,6 +120,7 @@ export default function Sidebar({ page, setPage, onBackToLanding, onCollapseChan
             if (onCollapseChange) onCollapseChange(next);
           }}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <svg
             width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -148,12 +149,20 @@ export default function Sidebar({ page, setPage, onBackToLanding, onCollapseChan
           position: fixed;
           left: 0; top: 0; bottom: 0;
           background: var(--surface);
-          border-right: 1px solid var(--border);
+          border-right: 1px solid var(--glass-border);
           display: flex;
           flex-direction: column;
           z-index: 200;
           overflow: hidden;
           will-change: width;
+        }
+        .sidebar::after {
+          content: '';
+          position: absolute;
+          top: 0; right: 0; bottom: 0;
+          width: 1px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent 50%, rgba(255,255,255,0.03));
+          pointer-events: none;
         }
 
         .sb-logo {

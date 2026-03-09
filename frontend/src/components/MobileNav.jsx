@@ -89,14 +89,16 @@ export default function MobileNav({ page, setPage }) {
             flex-direction: column;
             align-items: center;
             gap: 4px;
-            padding: 6px 4px;
+            padding: 8px 4px;
+            min-height: 52px;
             background: none;
             border: none;
             cursor: pointer;
             font-family: inherit;
             color: var(--text3);
             position: relative;
-            transition: color 0.15s;
+            transition: color 0.2s;
+            -webkit-tap-highlight-color: transparent;
           }
           .mobile-nav-item--active {
             color: var(--primary2);
