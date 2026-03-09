@@ -3,6 +3,10 @@ import { motion } from "framer-motion";
 import { Activity, Clock, Star, LayoutGrid, BarChart3, FileText, Check, X, ArrowRight } from "lucide-react";
 import { cn } from "../lib/utils";
 import SearchBar from "../components/SearchBar";
+import { ShaderAnimation } from "../components/ui/shader-animation";
+import { GlowingEffect } from "../components/ui/glowing-effect";
+import { SplineScene } from "../components/ui/splite";
+import { Spotlight } from "../components/ui/spotlight";
 
 const FEATURES = [
   { icon: <Activity className="w-5 h-5" />, title: "12 Valuation Models", desc: "DCF, comparables, Graham Number, DDM — all run simultaneously and synthesised into one verdict." },
@@ -80,12 +84,17 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
   return (
     <div className="relative max-w-[1100px] mx-auto px-8 pb-20 flex flex-col gap-24 md:gap-28">
 
+      {/* Shader background */}
+      <div className="fixed inset-0 z-0 opacity-40">
+        <ShaderAnimation />
+      </div>
+
       {/* Radial glow */}
       <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-[radial-gradient(ellipse_50%_50%_at_50%_30%,rgba(59,130,246,0.12),transparent_70%)]" />
 
       {/* ── Hero ── */}
       <motion.section
-        className="flex flex-col items-center text-center pt-20 gap-0"
+        className="relative z-10 flex flex-col items-center text-center pt-20 gap-0"
         initial="hidden"
         animate="visible"
         variants={stagger}
@@ -142,8 +151,33 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         </motion.div>
       </motion.section>
 
+      {/* ── Personal Equity Analyst ── */}
+      <section className="relative z-10 w-full h-[500px] bg-black/40 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
+        <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="white" />
+
+        <div className="flex h-full">
+          {/* Left content */}
+          <div className="flex-1 p-8 md:p-12 relative z-10 flex flex-col justify-center">
+            <h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary2 to-indigo2">
+              Your Personal<br />Equity Analyst
+            </h2>
+            <p className="mt-4 text-text2 max-w-md leading-relaxed">
+              Powered by institutional-grade models and AI, delivering the same depth of analysis that hedge funds pay millions for.
+            </p>
+          </div>
+
+          {/* Right content - 3D scene */}
+          <div className="flex-1 relative">
+            <SplineScene
+              scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+              className="w-full h-full"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* ── Methodology — Bento Grid ── */}
-      <section>
+      <section className="relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Institutional methodology, democratised</h2>
           <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">
@@ -209,7 +243,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
       </section>
 
       {/* ── Features ── */}
-      <section>
+      <section className="relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Everything you need for serious equity research</h2>
           <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Built for investors who want institutional rigour without the institutional cost.</p>
@@ -219,24 +253,34 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           {FEATURES.map((f, i) => (
             <motion.div
               key={i}
-              className="backdrop-blur-lg bg-white/[0.04] border border-white/10 rounded-xl p-6 flex flex-col gap-3 transition-all hover:scale-[1.02] hover:border-white/20"
+              className="relative rounded-xl p-0.5 md:p-1"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.35, delay: i * 0.07 }}
             >
-              <div className="w-10 h-10 rounded-lg bg-white/[0.08] border border-white/10 flex items-center justify-center text-primary2">
-                {f.icon}
+              <GlowingEffect
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+              />
+              <div className="relative backdrop-blur-lg bg-white/[0.04] border border-white/10 rounded-xl p-6 flex flex-col gap-3 h-full">
+                <div className="w-10 h-10 rounded-lg bg-white/[0.08] border border-white/10 flex items-center justify-center text-primary2">
+                  {f.icon}
+                </div>
+                <h3 className="text-[0.92rem] font-bold text-text tracking-[-0.2px]">{f.title}</h3>
+                <p className="text-[0.8rem] text-text2 leading-[1.65]">{f.desc}</p>
               </div>
-              <h3 className="text-[0.92rem] font-bold text-text tracking-[-0.2px]">{f.title}</h3>
-              <p className="text-[0.8rem] text-text2 leading-[1.65]">{f.desc}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing">
+      <section id="pricing" className="relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Simple, transparent pricing</h2>
           <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start free. Upgrade when you need the full suite.</p>
@@ -305,7 +349,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
 
       {/* ── CTA Banner ── */}
       <motion.section
-        className="relative text-center flex flex-col items-center gap-4 py-20 max-w-3xl mx-auto"
+        className="relative z-10 text-center flex flex-col items-center gap-4 py-20 max-w-3xl mx-auto"
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
