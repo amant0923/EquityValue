@@ -210,6 +210,25 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
+/* ── Spotlight animation ── */
+@keyframes spotlight {
+  0% { opacity: 0; transform: translate(-72%, -62%) scale(0.5); }
+  100% { opacity: 1; transform: translate(-50%, -40%) scale(1); }
+}
+.animate-spotlight {
+  animation: spotlight 2s ease 0.75s 1 forwards;
+}
+
+/* ── Glow effect ── */
+.glow {
+  position: absolute;
+  inset: 0;
+}
+.glow::after {
+  position: absolute;
+  content: "";
+}
+
 /* ── Accessibility: reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

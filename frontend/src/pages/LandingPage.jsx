@@ -206,7 +206,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
             <motion.div
               key={i}
               className={cn(
-                "backdrop-blur-lg bg-white/[0.04] border border-white/10 rounded-xl p-7 flex flex-col gap-4 transition-all hover:-translate-y-1 hover:border-white/20 shadow-[0_-20px_80px_-20px_rgba(255,255,255,0.03)_inset]",
+                "relative rounded-xl p-0.5 md:p-1",
                 cat.span && "lg:row-span-2"
               )}
               initial={{ opacity: 0, y: 24 }}
@@ -214,6 +214,15 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: i * 0.1 }}
             >
+              <GlowingEffect
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+              />
+              <div className="relative backdrop-blur-lg bg-white/[0.04] border border-white/10 rounded-xl p-7 flex flex-col gap-4 h-full shadow-[0_-20px_80px_-20px_rgba(255,255,255,0.03)_inset]">
               <div className="flex justify-between items-center">
                 <span className={cn(
                   "text-[0.68rem] font-bold px-2.5 py-0.5 rounded-full tracking-[0.5px] uppercase border",
@@ -224,7 +233,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
                 <span className="text-[0.7rem] text-text3 font-medium">{cat.models} models</span>
               </div>
               <p className="text-[0.83rem] text-text2 leading-[1.65]">{cat.desc}</p>
-              <ul className="flex flex-col gap-[7px] list-none">
+              <ul className="flex flex-col gap-[7px] list-none mt-auto">
                 {cat.models_list.map((m, j) => (
                   <li key={j} className="flex items-center gap-2 text-[0.8rem] text-text3">
                     <span className={cn(
@@ -237,6 +246,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
                   </li>
                 ))}
               </ul>
+              </div>
             </motion.div>
           ))}
         </div>
