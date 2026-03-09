@@ -17,15 +17,27 @@ const SECTORS = [
   { name: "Utilities", change: "+0.12%", positive: true },
 ];
 
-const stagger = { visible: { transition: { staggerChildren: 0.07 } } };
-const fadeUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } } };
+const blurReveal = {
+  hidden: { opacity: 0, filter: "blur(12px)", y: 20 },
+  visible: {
+    opacity: 1,
+    filter: "blur(0px)",
+    y: 0,
+    transition: { duration: 0.6, ease: "easeOut" },
+  },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
 
 export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
   return (
     <div className="db-wrap">
-      <motion.div initial="hidden" animate="visible" variants={stagger}>
+      <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
         {/* Header */}
-        <motion.div variants={fadeUp} className="db-header">
+        <motion.div variants={blurReveal} className="db-header">
           <div>
             <h1 className="db-title">Dashboard</h1>
             <p className="db-sub">S&amp;P 500 market overview and your recent analyses</p>
@@ -40,7 +52,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
 
         {/* Watchlist */}
         {watchlist.length > 0 && (
-          <motion.section variants={fadeUp} className="db-section">
+          <motion.section variants={blurReveal} className="db-section">
             <h2 className="db-section-title">Recent Analyses</h2>
             <div className="db-watchlist-grid">
               {watchlist.map((sym, i) => (
@@ -64,7 +76,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
         )}
 
         {/* Market movers */}
-        <motion.section variants={fadeUp} className="db-section">
+        <motion.section variants={blurReveal} className="db-section">
           <h2 className="db-section-title">Market Movers</h2>
           <div className="db-movers-card">
             {MARKET_MOVERS.map((m, i) => (
@@ -84,7 +96,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
         </motion.section>
 
         {/* Sector performance */}
-        <motion.section variants={fadeUp} className="db-section">
+        <motion.section variants={blurReveal} className="db-section">
           <h2 className="db-section-title">Sector Performance</h2>
           <div className="db-sectors-grid">
             {SECTORS.map((s, i) => (
@@ -98,7 +110,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
 
         {/* Quick start */}
         {watchlist.length === 0 && (
-          <motion.section variants={fadeUp} className="db-empty">
+          <motion.section variants={blurReveal} className="db-empty">
             <div className="db-empty-icon">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
