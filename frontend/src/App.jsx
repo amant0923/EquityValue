@@ -109,15 +109,8 @@ function AppInner() {
     const sym = (t || ticker).trim().toUpperCase();
     if (!sym) return;
 
-    // Check if user is logged in
-    if (!user) {
-      setAuthMode("login");
-      setShowAuth(true);
-      return;
-    }
-
-    // Check daily limit
-    if (!canAnalyse()) {
+    // Check daily limit (only if logged in)
+    if (user && !canAnalyse()) {
       setUpgradeReason("limit");
       setShowUpgrade(true);
       return;

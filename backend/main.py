@@ -84,14 +84,15 @@ def root():
 async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
     ticker = ticker.upper().strip()
 
-    # Check plan limits
-    profile = await get_user_profile(user["sub"])
-    plan = profile.get("plan", "free")
-    analyses_today = profile.get("analyses_today", 0)
-    PLAN_LIMITS = {"free": 1, "pro": 5, "max": 999999}
-    limit = PLAN_LIMITS.get(plan, 1)
-    if analyses_today >= limit:
-        raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
+    # Check plan limits (skip for anonymous users)
+    if user.get("sub") != "anonymous":
+        profile = await get_user_profile(user["sub"])
+        plan = profile.get("plan", "free")
+        analyses_today = profile.get("analyses_today", 0)
+        PLAN_LIMITS = {"free": 1, "pro": 5, "max": 999999}
+        limit = PLAN_LIMITS.get(plan, 1)
+        if analyses_today >= limit:
+            raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
 
     cached = _get_cached(f"val:{ticker}")
     if cached:

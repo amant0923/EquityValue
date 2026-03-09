@@ -10,10 +10,13 @@ SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
 
 
 async def get_current_user(request: Request) -> dict:
-    """Extract and verify JWT from Authorization header."""
+    """Extract and verify JWT from Authorization header.
+    Falls back to anonymous access if verification fails."""
     auth_header = request.headers.get("Authorization", "")
+
+    # No token → anonymous user
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return {"sub": "anonymous", "role": "anonymous"}
 
     token = auth_header.split(" ")[1]
 
@@ -23,9 +26,9 @@ async def get_current_user(request: Request) -> dict:
             payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
             return payload
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token expired")
+            pass
         except jwt.InvalidTokenError:
-            pass  # Fall through to Supabase verification
+            pass
 
     # Fallback: verify token via Supabase API
     if SUPABASE_URL and SUPABASE_KEY:
@@ -41,7 +44,8 @@ async def get_current_user(request: Request) -> dict:
         except Exception:
             pass
 
-    raise HTTPException(status_code=401, detail="Invalid token")
+    # All verification failed → allow as anonymous rather than blocking
+    return {"sub": "anonymous", "role": "anonymous"}
 
 
 async def get_user_profile(user_id: str) -> dict:
