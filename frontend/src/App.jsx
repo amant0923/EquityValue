@@ -225,6 +225,7 @@ function AppInner() {
                     <span className="lp-user-email">{user.email?.split("@")[0]}</span>
                     <span className={`lp-user-plan lp-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
                   </div>
+                  <button className="lp-nav-btn" onClick={signOut}>Log Out</button>
                 </>
               ) : (
                 <>
