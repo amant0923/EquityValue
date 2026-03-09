@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+
 import SearchBar from "./components/SearchBar";
+import Sidebar from "./components/Sidebar";
+import AnalysisSkeleton from "./components/SkeletonLoader";
 import CompanyHeader from "./components/CompanyHeader";
 import ConsensusCard from "./components/ConsensusCard";
 import ValuationCard from "./components/ValuationCard";
@@ -16,56 +20,59 @@ import MonteCarlo from "./components/MonteCarlo";
 import LBOModel from "./components/LBOModel";
 import InvestmentThesis from "./components/InvestmentThesis";
 import CompsTable from "./components/CompsTable";
+
+import LandingPage from "./pages/LandingPage";
+import DashboardPage from "./pages/DashboardPage";
+import ScreenerPage from "./pages/ScreenerPage";
+
 import "./App.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const ALL_MODELS = [
-  { name: "DCF (Discounted Cash Flow)",    category: "Income-Based",  color: "blue",   desc: "Projects future Free Cash Flows and discounts them to present value using a risk-adjusted WACC. Widely regarded as the most rigorous fundamental valuation method.", best: "Profitable companies with stable, growing free cash flow" },
-  { name: "Capitalization of Earnings",     category: "Income-Based",  color: "blue",   desc: "Divides normalised annual earnings by a sector-appropriate capitalisation rate. Reliable for companies with predictable earnings streams.", best: "Stable, mature companies with consistent earnings" },
-  { name: "Gordon Growth Model (DDM)",      category: "Income-Based",  color: "blue",   desc: "Values equity as the present value of an infinite stream of dividends growing at a constant rate. A cornerstone of equity income analysis.", best: "Dividend-paying companies with consistent payout histories" },
-  { name: "Residual Income",                category: "Income-Based",  color: "blue",   desc: "Values a company as book value plus the present value of all future earnings in excess of the required equity return.", best: "Companies where earnings consistently exceed the cost of equity" },
-  { name: "EV/EBITDA Comparables",          category: "Market-Based",  color: "purple", desc: "Applies the sector median EV/EBITDA multiple to the company's EBITDA, adjusting for net debt to arrive at intrinsic equity value per share.", best: "Capital-intensive businesses; cross-sector M&A comparisons" },
-  { name: "EV/EBIT Comparables",            category: "Market-Based",  color: "purple", desc: "Like EV/EBITDA but excludes depreciation and amortisation — a cleaner operational profitability measure for asset-light businesses.", best: "Asset-light companies where D&A materially distorts EBITDA" },
-  { name: "EV/Sales Comparables",           category: "Market-Based",  color: "purple", desc: "Applies the sector median EV/Revenue multiple. Valuable when earnings are negative but the company demonstrates meaningful revenue.", best: "High-growth or pre-profit companies" },
-  { name: "P/E Comparables",                category: "Market-Based",  color: "purple", desc: "Multiplies trailing EPS by the sector median P/E ratio. The most widely cited equity valuation metric in institutional research.", best: "Profitable companies in well-covered public markets" },
-  { name: "P/S Comparables",                category: "Market-Based",  color: "purple", desc: "Multiplies revenue per share by the sector median Price/Sales ratio. Cuts through earnings distortions to focus on top-line value.", best: "High-revenue businesses, early-stage and loss-making companies" },
-  { name: "PEG Ratio",                      category: "Market-Based",  color: "purple", desc: "Adjusts the P/E ratio by the earnings growth rate. A PEG of 1.0 implies fair value — below 1.0 suggests undervaluation relative to growth.", best: "High-growth companies where a static P/E overstates valuation" },
-  { name: "Price-to-Book (P/B)",            category: "Asset-Based",   color: "green",  desc: "Calculates a theoretically justified P/B multiple using ROE relative to cost of equity, applied to book value per share.", best: "Banks, insurers and asset-heavy financial companies" },
-  { name: "Graham Number",                  category: "Asset-Based",   color: "green",  desc: "Benjamin Graham's formula: the geometric mean of 15x earnings and 1.5x book value. A conservative margin-of-safety benchmark.", best: "Value investors seeking a conservative floor estimate" },
+  { name: "DCF (Discounted Cash Flow)",    category: "Income-Based",  color: "blue" },
+  { name: "Capitalization of Earnings",     category: "Income-Based",  color: "blue" },
+  { name: "Gordon Growth Model (DDM)",      category: "Income-Based",  color: "blue" },
+  { name: "Residual Income",                category: "Income-Based",  color: "blue" },
+  { name: "EV/EBITDA Comparables",          category: "Market-Based",  color: "purple" },
+  { name: "EV/EBIT Comparables",            category: "Market-Based",  color: "purple" },
+  { name: "EV/Sales Comparables",           category: "Market-Based",  color: "purple" },
+  { name: "P/E Comparables",                category: "Market-Based",  color: "purple" },
+  { name: "P/S Comparables",                category: "Market-Based",  color: "purple" },
+  { name: "PEG Ratio",                      category: "Market-Based",  color: "purple" },
+  { name: "Price-to-Book (P/B)",            category: "Asset-Based",   color: "green" },
+  { name: "Graham Number",                  category: "Asset-Based",   color: "green" },
 ];
 
-const CATEGORY_META = {
-  "Income-Based":  { color: "blue",   desc: "Values a company by its capacity to generate future earnings or cash flows, discounted to a present value using an appropriate risk-adjusted rate." },
-  "Market-Based":  { color: "purple", desc: "Compares the company against sector peers using standardised market multiples — reflecting what the market currently pays for similar businesses." },
-  "Asset-Based":   { color: "green",  desc: "Values the company on the basis of its net asset position — what it owns minus what it owes — adjusted for market or replacement value." },
-};
-
-const STATS = [
-  { value: "12", label: "Valuation Models" },
-  { value: "3",  label: "Methodologies" },
-  { value: "500", label: "S&P 500 Stocks" },
-  { value: "~3s", label: "Per Analysis" },
-];
-
-// FIX: safe localStorage helpers — won't crash if storage is unavailable
 const lsGet = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 const lsSet = (key, val)      => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
 
+const pageTransition = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -8 },
+  transition: { duration: 0.28, ease: "easeOut" },
+};
+
 export default function App() {
-  const [ticker, setTicker]         = useState("");
-  const [result, setResult]         = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState("");
+  // App shell state
+  const [appMode, setAppMode]       = useState("landing"); // "landing" | "app"
+  const [page, setPage]             = useState("dashboard"); // "dashboard"|"analysis"|"screener"|"compare"
   const [theme, setTheme]           = useState("dark");
   const [disclaimer, setDisclaimer] = useState(false);
-  const [memoText, setMemoText] = useState("");
-  const [mcStats, setMcStats] = useState(null);
-  const [lboStats, setLboStats] = useState(null);
   const [watchlist, setWatchlist]   = useState([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Analysis state
+  const [ticker, setTicker]     = useState("");
+  const [result, setResult]     = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [memoText, setMemoText] = useState("");
+  const [mcStats, setMcStats]   = useState(null);
+  const [lboStats, setLboStats] = useState(null);
 
   useEffect(() => {
-    // FIX: wrapped in try/catch via lsGet
     if (!lsGet("ve_disclaimer", null)) setDisclaimer(true);
     setWatchlist(lsGet("ve_watchlist", []));
   }, []);
@@ -80,9 +87,11 @@ export default function App() {
     const sym = (t || ticker).trim().toUpperCase();
     if (!sym) return;
     setLoading(true); setError(""); setResult(null);
+    setPage("analysis");
     try {
       const res = await axios.get(`${API}/valuation/${sym}`);
       setResult(res.data);
+      setTicker(sym);
       const wl = lsGet("ve_watchlist", []);
       if (!wl.includes(sym)) {
         const updated = [sym, ...wl].slice(0, 8);
@@ -96,260 +105,358 @@ export default function App() {
     }
   };
 
-  const removeFromWatchlist = (sym, e) => {
-    e.stopPropagation();
-    const updated = watchlist.filter(s => s !== sym);
-    lsSet("ve_watchlist", updated);
-    setWatchlist(updated);
+  const enterApp = () => {
+    setAppMode("app");
+    setPage("analysis");
   };
 
-  const exportPDF = () => window.print();
-
-  // FIX: guard against null valuations array
   const applicable    = result?.valuations?.filter(v => v?.applicable) || [];
   const notApplicable = result?.valuations?.filter(v => v && !v.applicable) || [];
   const usedNames     = result?.valuations?.map(v => v?.model).filter(Boolean) || [];
   const unusedModels  = ALL_MODELS.filter(m => !usedNames.includes(m.name));
 
-  return (
-    <div className="app">
-      {disclaimer && (
-        <div className="disclaimer-overlay">
-          <div className="disclaimer-modal">
-            <div className="disclaimer-logo">
-              <div className="disclaimer-logo-mark">
-                <svg viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  const exportPDF = async () => {
+    try {
+      const res = await fetch(`${API}/pdf/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: result, memo: memoText, monte_carlo: mcStats, lbo: lboStats }),
+      });
+      if (!res.ok) throw new Error("PDF generation failed");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = `${result.ticker}_ValuEngine.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } catch(e) { alert("PDF export failed: " + e.message); }
+  };
+
+  // ── Landing page ──────────────────────────────────────────────────────────
+  if (appMode === "landing") {
+    return (
+      <>
+        {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
+
+        <div className="lp-shell">
+          {/* Minimal landing header */}
+          <header className="lp-header">
+            <div className="lp-header-logo">
+              <div className="lp-logo-mark">
+                <svg viewBox="0 0 16 16" fill="none">
+                  <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <span className="disclaimer-logo-text">ValuEngine</span>
+              <span className="lp-logo-text">ValuEngine</span>
             </div>
-            <h2 className="disclaimer-title">Important Legal Notice</h2>
-            <div className="disclaimer-body">
-              <p><strong>ValuEngine is not a registered financial adviser, broker, or investment firm.</strong> This platform is an independent analytical tool built for educational and research purposes only. It is not authorised or regulated by the FCA, SEC, or any other financial regulatory body.</p>
-              <p>Nothing on this platform constitutes financial advice, investment recommendations, a solicitation to buy or sell securities, or an offer of any kind. All intrinsic value estimates, valuation models, AI-generated memos, and price targets are illustrative only and are based on publicly available data and standardised assumptions that may not reflect actual market conditions or future performance.</p>
-              <p>Past performance and modelled estimates are not reliable indicators of future results. Equity investments carry risk, including the risk of total loss of capital. <strong>You should not make any investment decision based solely or partly on information provided by this tool.</strong></p>
-              <p>Always conduct your own independent research and consult a qualified, regulated financial adviser before making any investment decision.</p>
+            <div className="lp-header-right">
+              <button className="lp-nav-btn" onClick={toggleTheme}>{theme === "dark" ? "☀" : "☾"}</button>
+              <button className="lp-nav-btn" onClick={() => { setAppMode("app"); setPage("dashboard"); }}>Dashboard</button>
+              <button className="lp-nav-cta" onClick={enterApp}>Get Started →</button>
             </div>
-            <button className="disclaimer-btn" onClick={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }}>
-              I understand and accept — Continue to ValuEngine
-            </button>
-          </div>
+          </header>
+
+          <main>
+            <LandingPage
+              ticker={ticker}
+              setTicker={setTicker}
+              onSearch={handleSearch}
+              loading={loading}
+              onEnterApp={enterApp}
+            />
+          </main>
+
+          <footer className="lp-footer">
+            <p>For informational purposes only. Not financial advice. ValuEngine does not constitute investment advice or a solicitation to buy or sell any security.</p>
+          </footer>
         </div>
+      </>
+    );
+  }
+
+  // ── App shell (with sidebar) ───────────────────────────────────────────────
+  return (
+    <>
+      {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
+
+      <div className="app-shell">
+        <Sidebar
+          page={page}
+          setPage={(p) => {
+            setPage(p);
+            if (p === "analysis" && !result) setError("");
+          }}
+          onBackToLanding={() => setAppMode("landing")}
+          onCollapseChange={setSidebarCollapsed}
+        />
+
+        <div className="app-body" style={{ marginLeft: sidebarCollapsed ? 60 : 220 }}>
+          {/* Top bar */}
+          <header className="app-topbar">
+            <div className="topbar-left">
+              {page === "analysis" && (
+                <div className="topbar-search">
+                  <SearchBar ticker={ticker} setTicker={setTicker} onSearch={handleSearch} loading={loading} />
+                </div>
+              )}
+              {page !== "analysis" && (
+                <div className="topbar-breadcrumb">
+                  <span className="topbar-breadcrumb-home" onClick={() => setAppMode("landing")}>ValuEngine</span>
+                  <span className="topbar-breadcrumb-sep">/</span>
+                  <span className="topbar-breadcrumb-current">
+                    {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare" }[page] || page}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="topbar-right">
+              {result && page === "analysis" && (
+                <button className="topbar-pdf-btn" onClick={exportPDF} title="Export PDF">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Export PDF
+                </button>
+              )}
+              <button className="topbar-theme-btn" onClick={toggleTheme} title="Toggle theme">
+                {theme === "dark" ? "☀" : "☾"}
+              </button>
+            </div>
+          </header>
+
+          {/* Page content */}
+          <main className="app-content">
+            <AnimatePresence mode="wait">
+              {page === "dashboard" && (
+                <motion.div key="dashboard" {...pageTransition}>
+                  <DashboardPage
+                    watchlist={watchlist}
+                    onSearch={handleSearch}
+                    onGoAnalysis={() => setPage("analysis")}
+                  />
+                </motion.div>
+              )}
+
+              {page === "analysis" && (
+                <motion.div key="analysis" {...pageTransition} className="analysis-page">
+                  {!loading && !result && !error && (
+                    <AnalysisEmpty onSearch={handleSearch} ticker={ticker} setTicker={setTicker} loading={loading} />
+                  )}
+                  {error && (
+                    <div className="error-box">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      {error}
+                    </div>
+                  )}
+                  {loading && <AnalysisSkeleton />}
+                  {result && !loading && (
+                    <AnalysisResults
+                      result={result}
+                      applicable={applicable}
+                      notApplicable={notApplicable}
+                      unusedModels={unusedModels}
+                      onMemoGenerated={setMemoText}
+                      onMcStats={setMcStats}
+                      onLboStats={setLboStats}
+                    />
+                  )}
+                </motion.div>
+              )}
+
+              {page === "screener" && (
+                <motion.div key="screener" {...pageTransition}>
+                  <ScreenerPage onSearch={handleSearch} onGoAnalysis={() => setPage("analysis")} />
+                </motion.div>
+              )}
+
+              {page === "compare" && (
+                <motion.div key="compare" {...pageTransition}>
+                  <ComparePage onSearch={handleSearch} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </main>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function DisclaimerModal({ onAccept }) {
+  return (
+    <motion.div
+      className="disclaimer-overlay"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+    >
+      <motion.div
+        className="disclaimer-modal"
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+        <div className="disclaimer-logo">
+          <div className="disclaimer-logo-mark">
+            <svg viewBox="0 0 16 16" fill="none">
+              <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <span className="disclaimer-logo-text">ValuEngine</span>
+        </div>
+        <h2 className="disclaimer-title">Important Legal Notice</h2>
+        <div className="disclaimer-body">
+          <p><strong>ValuEngine is not a registered financial adviser, broker, or investment firm.</strong> This platform is an independent analytical tool built for educational and research purposes only.</p>
+          <p>Nothing on this platform constitutes financial advice, investment recommendations, or an offer of any kind. All intrinsic value estimates are illustrative only.</p>
+          <p><strong>You should not make any investment decision based solely or partly on information provided by this tool.</strong> Always consult a qualified financial adviser.</p>
+        </div>
+        <button className="disclaimer-btn" onClick={onAccept}>
+          I understand — Continue to ValuEngine
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function AnalysisEmpty({ onSearch, ticker, setTicker, loading }) {
+  const TICKERS = ["AAPL", "NVDA", "TSLA", "KO", "JPM", "MSFT"];
+  return (
+    <div className="ae-wrap">
+      <div className="ae-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <h2 className="ae-title">Search for an S&amp;P 500 stock</h2>
+      <p className="ae-sub">Enter a ticker or company name in the search bar above to run full institutional-grade analysis.</p>
+      <div className="ae-tickers">
+        <span className="ae-tickers-label">Quick picks:</span>
+        {TICKERS.map(t => (
+          <button key={t} className="ae-ticker-btn" onClick={() => { setTicker(t); onSearch(t); }}>{t}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnalysisResults({ result, applicable, notApplicable, unusedModels, onMemoGenerated, onMcStats, onLboStats }) {
+  const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
+  const fadeUp = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: "easeOut" } } };
+
+  return (
+    <motion.div className="results" initial="hidden" animate="visible" variants={stagger}>
+      <motion.div variants={fadeUp}><CompanyHeader data={result} /></motion.div>
+      <motion.div variants={fadeUp}><PriceChart ticker={result.ticker} currentPrice={result.current_price} /></motion.div>
+
+      {result.consensus && (
+        <motion.div variants={fadeUp}><ConsensusCard data={result.consensus} /></motion.div>
       )}
 
-      <header className="app-header">
-        <div className="header-left">
-          <div className="logo-mark">
-            <svg viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
-          </div>
-          <span className="logo-text">ValuEngine</span>
-          <div className="logo-divider" />
-          <span className="logo-sub">Equity Valuation Platform</span>
-        </div>
-        <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <button className="theme-toggle" onClick={toggleTheme}>{theme === "dark" ? "Light Mode" : "Dark Mode"}</button>
-          <span style={{ fontSize: "0.72rem", color: "var(--text3)" }}>For informational purposes only</span>
-        </div>
-      </header>
+      {applicable.length > 0 && (
+        <motion.div variants={fadeUp}><ValuationChart valuations={applicable} currentPrice={result.current_price} /></motion.div>
+      )}
+      {applicable.length > 0 && (
+        <motion.div variants={fadeUp}>
+          <FootballField valuations={applicable} currentPrice={result.current_price} consensus={result.consensus} />
+        </motion.div>
+      )}
 
-      <main className="app-main">
+      <motion.div variants={fadeUp}><ThreeStatementModel data={result} /></motion.div>
+      <motion.div variants={fadeUp}><MonteCarlo data={result} onStatsGenerated={onMcStats} /></motion.div>
+      <motion.div variants={fadeUp}><LBOModel data={result} onResultGenerated={onLboStats} /></motion.div>
+      <motion.div variants={fadeUp}><CompsTable ticker={result.ticker} /></motion.div>
+      <motion.div variants={fadeUp}><InvestmentThesis data={result} onMemoGenerated={onMemoGenerated} /></motion.div>
 
-        {watchlist.length > 0 && (
-          <div className="watchlist" style={{ marginBottom: "24px" }}>
-            <span className="watchlist-label">Recent</span>
-            {watchlist.map(sym => (
-              <div key={sym} className="watchlist-item" onClick={() => { setTicker(sym); handleSearch(sym); }}>
-                {sym}
-                <button className="watchlist-remove" onClick={e => removeFromWatchlist(sym, e)}>×</button>
+      {/* Model results */}
+      <motion.section variants={fadeUp} className="valuations-section">
+        <div className="results-header">
+          <h2 className="section-title">Model Results</h2>
+          <span className="results-count">{applicable.length} models applied</span>
+        </div>
+        <div className="cards-grid">
+          {applicable.map((v, i) => <ValuationCard key={i} data={v} />)}
+        </div>
+      </motion.section>
+
+      {result.dcf_sensitivity && (
+        <motion.div variants={fadeUp}><SensitivityTable data={result.dcf_sensitivity} currentPrice={result.current_price} /></motion.div>
+      )}
+      {result.peer_comparison?.length > 0 && (
+        <motion.div variants={fadeUp}><PeerComparison data={result.peer_comparison} /></motion.div>
+      )}
+      {result.analyst && (
+        <motion.div variants={fadeUp}><AnalystPanel data={result.analyst} /></motion.div>
+      )}
+      <motion.div variants={fadeUp}><FundamentalsPanel data={result} /></motion.div>
+
+      {notApplicable.length > 0 && (
+        <motion.section variants={fadeUp} className="valuations-section">
+          <h2 className="section-title muted-title">Not Applicable</h2>
+          <div className="na-grid">
+            {notApplicable.map((v, i) => (
+              <div key={i} className="na-card">
+                <div className="na-card-name">{v.model}</div>
+                <div className="na-card-reason">{v.reason}</div>
+                {v.description && <div className="na-card-desc">{v.description}</div>}
               </div>
             ))}
           </div>
-        )}
+        </motion.section>
+      )}
 
-        {!result && !loading && (
-          <div className="landing">
-            <div className="landing-hero">
-              <span className="hero-eyebrow">Institutional-Grade Equity Analysis</span>
-              <h1 className="hero-title">Know what a stock is <span>actually worth</span></h1>
-              <p className="hero-sub">ValuEngine applies up to 12 valuation models simultaneously — spanning income, market and asset-based methodologies — synthesising them into a single consensus verdict in seconds. Coverage is limited to <strong>S&amp;P 500 stocks</strong>.</p>
-              <div className="hero-stats">
-                {STATS.map((s, i) => (
-                  <div key={i} className="hero-stat">
-                    <span className="hero-stat-value">{s.value}</span>
-                    <span className="hero-stat-label">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="search-wrap">
-              <SearchBar ticker={ticker} setTicker={setTicker} onSearch={handleSearch} loading={loading} />
-              <div className="example-tickers">
-                {["AAPL","NVDA","TSLA","KO","JPM","MSFT"].map(t => (
-                  <button key={t} className="ticker-pill" onClick={() => { setTicker(t); handleSearch(t); }}>{t}</button>
-                ))}
-              </div>
-            </div>
-
-            <div className="methodology-section">
-              <h2 className="section-heading">Three Methodologies. One Consensus.</h2>
-              <p className="section-sub">Each category captures a distinct dimension of value. Professionals triangulate across all three to establish a defensible valuation range.</p>
-              <div className="method-cards">
-                {Object.entries(CATEGORY_META).map(([cat, meta], i) => {
-                  const models = ALL_MODELS.filter(m => m.category === cat);
-                  return (
-                    <div key={i} className="method-card">
-                      <div className="method-card-header">
-                        <span className={`method-badge method-badge--${meta.color}`}>{cat}</span>
-                        <span className="method-count">{models.length} models</span>
-                      </div>
-                      <p className="method-desc">{meta.desc}</p>
-                      <ul className="method-model-list">
-                        {models.map((m, j) => (
-                          <li key={j}><div className={`method-model-dot method-model-dot--${meta.color}`} />{m.name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="all-models-section">
-              <h2 className="section-heading">All 12 Valuation Models</h2>
-              <p className="section-sub">Models are selected automatically based on each company's sector, profitability profile and available financial data.</p>
-              <div className="model-detail-grid">
-                {ALL_MODELS.map((m, i) => (
-                  <div key={i} className="model-detail-card">
-                    <div className="mdc-top">
-                      <span className="mdc-number">{String(i + 1).padStart(2, "0")}</span>
-                      <span className={`method-badge method-badge--${m.color} method-badge--sm`}>{m.category}</span>
-                    </div>
-                    <h3 className="mdc-name">{m.name}</h3>
-                    <p className="mdc-desc">{m.desc}</p>
-                    <div className="mdc-best"><span className="mdc-best-label">Best for: </span>{m.best}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="expert-tip">
-              <div>
-                <div className="expert-tip-label">Expert Note</div>
-                <strong>Triangulate, do not isolate</strong>
-                <p>In M&A and institutional investment contexts, no single model is treated as definitive. Income-based, market-based and asset-based methods each carry different assumptions. ValuEngine's consensus score aggregates all applicable models to produce a more robust, defensible estimate of intrinsic value.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {(result || loading || error) && (
-          <div className="search-wrap search-wrap--compact" style={{position:"relative"}}>
-            <button
-              className="pdf-export-btn"
-              title="Export PDF Report"
-              onClick={async () => {
-                try {
-                  const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/pdf/export`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ data: result, memo: memoText, monte_carlo: mcStats, lbo: lboStats }),
-                  });
-                  if (!res.ok) throw new Error("PDF generation failed");
-                  const blob = await res.blob();
-                  const url  = URL.createObjectURL(blob);
-                  const a    = document.createElement("a");
-                  a.href     = url;
-                  a.download = `${result.ticker}_ValuEngine.pdf`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch(e) {
-                  alert("PDF export failed: " + e.message);
-                }
-              }}
-            >
-              ↓ Export PDF
-            </button>
-            <SearchBar ticker={ticker} setTicker={setTicker} onSearch={handleSearch} loading={loading} />
-          </div>
-        )}
-
-        {error   && <div className="error-box">{error}</div>}
-        {loading && <div className="loading-box"><div className="spinner" /><span>Fetching data and running valuation models</span></div>}
-
-        {result && !loading && (
-          <div className="results">
-            <CompanyHeader data={result} />
-            <PriceChart ticker={result.ticker} currentPrice={result.current_price} />
-            {result.consensus && <ConsensusCard data={result.consensus} />}
-            {applicable.length > 0 && <ValuationChart valuations={applicable} currentPrice={result.current_price} />}
-
-            {applicable.length > 0 && (
-              <FootballField
-                valuations={applicable}
-                currentPrice={result.current_price}
-                consensus={result.consensus}
-              />
-            )}
-            <ThreeStatementModel data={result} />
-            <MonteCarlo data={result} onStatsGenerated={setMcStats} />
-            <LBOModel data={result} onResultGenerated={setLboStats} />
-            <CompsTable ticker={result.ticker} />
-            <InvestmentThesis data={result} onMemoGenerated={setMemoText} />
-
-            <section className="valuations-section">
-              <div className="results-header">
-                <h2 className="section-title">Model Results</h2>
-                <button className="export-btn" onClick={exportPDF}>Export PDF</button>
-              </div>
-              <div className="cards-grid">
-                {applicable.map((v, i) => <ValuationCard key={i} data={v} />)}
-              </div>
-            </section>
-
-            {result.dcf_sensitivity && <SensitivityTable data={result.dcf_sensitivity} currentPrice={result.current_price} />}
-            {result.peer_comparison?.length > 0 && <PeerComparison data={result.peer_comparison} />}
-            {result.analyst && <AnalystPanel data={result.analyst} />}
-            <FundamentalsPanel data={result} />
-
-            {notApplicable.length > 0 && (
-              <section className="valuations-section">
-                <h2 className="section-title muted-title">Not Applicable</h2>
-                <div className="na-grid">
-                  {notApplicable.map((v, i) => (
-                    <div key={i} className="na-card">
-                      <div className="na-card-name">{v.model}</div>
-                      <div className="na-card-reason">{v.reason}</div>
-                      {v.description && <div className="na-card-desc">{v.description}</div>}
-                    </div>
-                  ))}
+      {unusedModels.length > 0 && (
+        <motion.section variants={fadeUp} className="valuations-section">
+          <h2 className="section-title muted-title">Not Selected for This Profile</h2>
+          <div className="na-grid">
+            {unusedModels.map((m, i) => (
+              <div key={i} className="na-card">
+                <div className="na-card-top">
+                  <span className="na-card-name">{m.name}</span>
+                  <span className={`method-badge method-badge--${m.color} method-badge--sm`}>{m.category}</span>
                 </div>
-              </section>
-            )}
-
-            {unusedModels.length > 0 && (
-              <section className="valuations-section">
-                <h2 className="section-title muted-title">Not Selected for This Profile</h2>
-                <div className="na-grid">
-                  {unusedModels.map((m, i) => (
-                    <div key={i} className="na-card">
-                      <div className="na-card-top">
-                        <span className="na-card-name">{m.name}</span>
-                        <span className={`method-badge method-badge--${m.color} method-badge--sm`}>{m.category}</span>
-                      </div>
-                      <div className="na-card-desc">{m.desc}</div>
-                      <div className="na-card-best"><span className="mdc-best-label">Best for: </span>{m.best}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+              </div>
+            ))}
           </div>
-        )}
-      </main>
+        </motion.section>
+      )}
+    </motion.div>
+  );
+}
 
-      <footer className="app-footer">
-        <p>For informational purposes only. Not financial advice. ValuEngine does not constitute investment advice or a solicitation to buy or sell any security.</p>
-      </footer>
+function ComparePage() {
+  return (
+    <div className="cmp-wrap">
+      <h1 className="cmp-title">Compare Stocks</h1>
+      <p className="cmp-sub">Side-by-side comparison of up to 4 S&amp;P 500 stocks. Coming soon.</p>
+      <div className="cmp-coming-soon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <p>The comparison tool will allow you to compare valuation metrics, charts, and fundamentals across multiple stocks simultaneously.</p>
+      </div>
+      <style>{`
+        .cmp-wrap { max-width: 700px; }
+        .cmp-title { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.8px; margin-bottom: 6px; }
+        .cmp-sub { font-size: 0.85rem; color: var(--text2); margin-bottom: 40px; }
+        .cmp-coming-soon {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-xl);
+          padding: 60px 40px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+          text-align: center;
+          color: var(--text3);
+          font-size: 0.85rem;
+          max-width: 440px;
+          line-height: 1.7;
+        }
+      `}</style>
     </div>
   );
 }

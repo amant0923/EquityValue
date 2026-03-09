@@ -1,31 +1,198 @@
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 
-const COLORS = { "Undervalued": "var(--green2)", "Overvalued": "var(--red2)", "Fairly Valued": "var(--yellow2)" };
+const VERDICT_CONFIG = {
+  "Undervalued":   { color: "var(--green2)",  glow: "var(--green-glow)",  bg: "rgba(16,185,129,0.06)", border: "rgba(16,185,129,0.2)",  icon: "↑", score: 80 },
+  "Overvalued":    { color: "var(--red2)",    glow: "var(--red-glow)",    bg: "rgba(239,68,68,0.06)",  border: "rgba(239,68,68,0.2)",   icon: "↓", score: 25 },
+  "Fairly Valued": { color: "var(--yellow2)", glow: "var(--yellow-glow)", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.2)",  icon: "→", score: 52 },
+};
+
+function useCountUp(target, duration = 900, decimals = 2) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const step = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3); // cubic ease out
+      setVal(parseFloat((target * ease).toFixed(decimals)));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target]);
+  return val;
+}
+
+function ScoreRing({ score, color, size = 90 }) {
+  const r = (size - 12) / 2;
+  const circ = 2 * Math.PI * r;
+  const [dash, setDash] = useState(circ);
+
+  useEffect(() => {
+    const target = circ * (1 - score / 100);
+    const timeout = setTimeout(() => setDash(target), 100);
+    return () => clearTimeout(timeout);
+  }, [score, circ]);
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
+      <circle
+        cx={size/2} cy={size/2} r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={dash}
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)", filter: `drop-shadow(0 0 6px ${color})` }}
+      />
+      <text x={size/2} y={size/2 + 5} textAnchor="middle" fill={color} fontSize="16" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {score}
+      </text>
+    </svg>
+  );
+}
 
 export default function ConsensusCard({ data }) {
-  const color = COLORS[data.overall_verdict] || "var(--text2)";
-  const sign  = data.upside_pct > 0 ? "+" : "";
+  const cfg = VERDICT_CONFIG[data.overall_verdict] || VERDICT_CONFIG["Fairly Valued"];
+  const sign = data.upside_pct > 0 ? "+" : "";
+  const animatedPrice = useCountUp(parseFloat(data.average_intrinsic_value) || 0, 1000);
+  const animatedUpside = useCountUp(Math.abs(parseFloat(data.upside_pct) || 0), 800, 1);
+
   return (
-    <div className="cc-wrap" style={{ borderColor: color + "33" }}>
+    <motion.div
+      className="cc-wrap"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      style={{ borderColor: cfg.border, background: cfg.bg }}
+    >
+      {/* Left: verdict + details */}
       <div className="cc-left">
-        <p className="cc-eyebrow">Consensus Valuation — {data.models_used} models</p>
-        <p className="cc-verdict" style={{ color }}>{data.overall_verdict}</p>
-        <p className="cc-sub">Arithmetic mean of all applicable model intrinsic values</p>
+        <div className="cc-eyebrow-row">
+          <span className="cc-eyebrow">Consensus Verdict</span>
+          <span className="cc-models-badge">{data.models_used} models</span>
+        </div>
+
+        <div className="cc-verdict-row">
+          <span className="cc-verdict-icon" style={{ color: cfg.color }}>{cfg.icon}</span>
+          <h2 className="cc-verdict" style={{ color: cfg.color }}>{data.overall_verdict}</h2>
+        </div>
+
+        <p className="cc-sub">
+          Arithmetic mean of {data.models_used} applicable valuation models
+        </p>
+
+        <div className="cc-meta-row">
+          {data.confidence && (
+            <span className="cc-conf-badge" style={{ color: cfg.color, borderColor: cfg.border, background: cfg.bg }}>
+              {data.confidence} Confidence
+            </span>
+          )}
+          <span className="cc-margin-note">
+            Margin of safety: {Math.abs(data.upside_pct)}%
+          </span>
+        </div>
       </div>
+
+      {/* Centre: score ring */}
+      <div className="cc-centre">
+        <ScoreRing score={cfg.score} color={cfg.color} size={88} />
+        <span className="cc-score-label">Score</span>
+      </div>
+
+      {/* Right: prices */}
       <div className="cc-right">
-        <p className="cc-value">${data.average_intrinsic_value}</p>
-        <p className="cc-upside" style={{ color }}>{sign}{data.upside_pct}%</p>
-        <p className="cc-current">vs current ${data.current_price}</p>
+        <div className="cc-price-block">
+          <span className="cc-price-label">Intrinsic Value</span>
+          <span className="cc-price mono" style={{ textShadow: `0 0 20px ${cfg.color}44` }}>
+            ${animatedPrice.toFixed(2)}
+          </span>
+        </div>
+        <div className="cc-upside-block">
+          <span className="cc-upside mono" style={{ color: cfg.color }}>
+            {sign}{animatedUpside.toFixed(1)}%
+          </span>
+          <span className="cc-current">vs ${data.current_price}</span>
+        </div>
       </div>
+
       <style>{`
-        .cc-wrap { background: var(--surface); border: 1px solid; border-radius: var(--radius-lg); padding: 22px 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
-        .cc-eyebrow { font-size: 0.68rem; color: var(--text3); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px; }
-        .cc-verdict { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
-        .cc-sub { font-size: 0.75rem; color: var(--text2); }
+        .cc-wrap {
+          border: 1px solid;
+          border-radius: var(--radius-lg);
+          padding: 28px 32px;
+          display: flex;
+          align-items: center;
+          gap: 32px;
+          flex-wrap: wrap;
+          position: relative;
+          overflow: hidden;
+        }
+        .cc-wrap::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse 60% 80% at 0% 50%, rgba(255,255,255,0.015), transparent);
+          pointer-events: none;
+        }
+
+        .cc-left { flex: 1; min-width: 200px; }
+        .cc-eyebrow-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .cc-eyebrow {
+          font-size: 0.68rem; font-weight: 600; letter-spacing: 1.2px;
+          text-transform: uppercase; color: var(--text3);
+        }
+        .cc-models-badge {
+          font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px;
+          text-transform: uppercase; color: var(--text3);
+          background: var(--surface2); border: 1px solid var(--border);
+          padding: 2px 8px; border-radius: 20px;
+        }
+        .cc-verdict-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .cc-verdict-icon { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .cc-verdict {
+          font-size: 2rem; font-weight: 800; letter-spacing: -1px;
+          line-height: 1;
+        }
+        .cc-sub { font-size: 0.78rem; color: var(--text3); margin-bottom: 14px; }
+        .cc-meta-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .cc-conf-badge {
+          font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px;
+          text-transform: uppercase; padding: 3px 10px; border-radius: 20px;
+          border: 1px solid;
+        }
+        .cc-margin-note { font-size: 0.72rem; color: var(--text3); }
+
+        .cc-centre { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .cc-score-label {
+          font-size: 0.65rem; font-weight: 600; letter-spacing: 1px;
+          text-transform: uppercase; color: var(--text3);
+        }
+
         .cc-right { text-align: right; }
-        .cc-value { font-size: 2rem; font-weight: 700; letter-spacing: -1px; color: var(--text); }
-        .cc-upside { font-size: 1.1rem; font-weight: 600; }
-        .cc-current { font-size: 0.75rem; color: var(--text2); }
+        .cc-price-block { margin-bottom: 12px; }
+        .cc-price-label {
+          display: block; font-size: 0.65rem; font-weight: 600;
+          letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px;
+        }
+        .cc-price {
+          display: block; font-size: 2.6rem; font-weight: 700;
+          letter-spacing: -2px; color: var(--text); line-height: 1;
+        }
+        .cc-upside-block { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+        .cc-upside { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; }
+        .cc-current { font-size: 0.75rem; color: var(--text3); }
+
+        @media (max-width: 640px) {
+          .cc-wrap { padding: 20px; gap: 20px; }
+          .cc-verdict { font-size: 1.5rem; }
+          .cc-price { font-size: 2rem; }
+          .cc-centre { display: none; }
+        }
       `}</style>
-    </div>
+    </motion.div>
   );
 }
