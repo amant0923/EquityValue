@@ -64,6 +64,33 @@
 }
 .lp-nav-cta:hover { opacity: 0.88; transform: translateY(-1px); }
 
+.lp-user-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.lp-user-email {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text2);
+}
+.lp-user-plan {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.lp-user-plan--free { color: var(--text3); border-color: var(--border2); }
+.lp-user-plan--pro { color: var(--primary2); border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.08); }
+.lp-user-plan--max { color: var(--indigo2); border-color: rgba(129,140,248,0.3); background: rgba(129,140,248,0.08); }
+
 .lp-footer {
   border-top: 1px solid var(--border);
   padding: 20px 40px;
@@ -162,6 +189,59 @@
   transition: all 0.2s;
 }
 .topbar-theme-btn:hover { border-color: var(--primary); color: var(--primary2); }
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-user-usage {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text3);
+}
+.topbar-user-plan {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.topbar-user-plan--free { color: var(--text3); border-color: var(--border2); background: transparent; }
+.topbar-user-plan--pro { color: var(--primary2); border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.08); }
+.topbar-user-plan--max { color: var(--indigo2); border-color: rgba(129,140,248,0.3); background: rgba(129,140,248,0.08); }
+.topbar-user-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text3);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.topbar-user-btn:hover { color: var(--red2); border-color: rgba(239,68,68,0.3); }
+.topbar-login-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.topbar-login-btn:hover { opacity: 0.85; }
 
 /* ── Main content ── */
 .app-content {

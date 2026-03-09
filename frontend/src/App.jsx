@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import AuthModal from "./components/AuthModal";
+import UpgradeModal from "./components/UpgradeModal";
 import SearchBar from "./components/SearchBar";
 import Sidebar from "./components/Sidebar";
 import AnalysisSkeleton from "./components/SkeletonLoader";
@@ -56,6 +59,16 @@ const pageTransition = {
 };
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}
+
+function AppInner() {
+  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked } = useAuth();
+
   // App shell state
   const [appMode, setAppMode]       = useState("landing"); // "landing" | "app"
   const [page, setPage]             = useState("dashboard"); // "dashboard"|"analysis"|"screener"|"compare"
@@ -63,6 +76,12 @@ export default function App() {
   const [disclaimer, setDisclaimer] = useState(false);
   const [watchlist, setWatchlist]   = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Auth modals
+  const [showAuth, setShowAuth]         = useState(false);
+  const [authMode, setAuthMode]         = useState("login");
+  const [showUpgrade, setShowUpgrade]   = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState("limit");
 
   // Analysis state
   const [ticker, setTicker]     = useState("");
@@ -87,12 +106,29 @@ export default function App() {
   const handleSearch = async (t) => {
     const sym = (t || ticker).trim().toUpperCase();
     if (!sym) return;
+
+    // Check if user is logged in
+    if (!user) {
+      setAuthMode("login");
+      setShowAuth(true);
+      return;
+    }
+
+    // Check daily limit
+    if (!canAnalyse()) {
+      setUpgradeReason("limit");
+      setShowUpgrade(true);
+      return;
+    }
+
     setLoading(true); setError(""); setResult(null);
     setPage("analysis");
     try {
       const res = await axios.get(`${API}/valuation/${sym}`);
       setResult(res.data);
       setTicker(sym);
+      // Record the analysis usage
+      await recordAnalysis();
       const wl = lsGet("ve_watchlist", []);
       if (!wl.includes(sym)) {
         const updated = [sym, ...wl].slice(0, 8);
@@ -144,6 +180,8 @@ export default function App() {
     return (
       <>
         {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
+        <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
+        <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
 
         <div className="lp-shell">
           {/* Minimal landing header */}
@@ -164,8 +202,20 @@ export default function App() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
                 )}
               </button>
-              <button className="lp-nav-btn" onClick={() => { setAppMode("app"); setPage("dashboard"); }}>Dashboard</button>
-              <button className="lp-nav-cta" onClick={enterApp}>Get Started →</button>
+              {user ? (
+                <>
+                  <button className="lp-nav-btn" onClick={() => { setAppMode("app"); setPage("dashboard"); }}>Dashboard</button>
+                  <div className="lp-user-menu">
+                    <span className="lp-user-email">{user.email?.split("@")[0]}</span>
+                    <span className={`lp-user-plan lp-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button className="lp-nav-btn" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Log In</button>
+                  <button className="lp-nav-cta" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Sign Up Free</button>
+                </>
+              )}
             </div>
           </header>
 
@@ -191,6 +241,8 @@ export default function App() {
   return (
     <>
       {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
+      <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
+      <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
 
       <div className="app-shell">
         <Sidebar
@@ -239,6 +291,26 @@ export default function App() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
                 )}
               </button>
+              {user ? (
+                <div className="topbar-user">
+                  <span className="topbar-user-usage mono">
+                    {profile?.limit === Infinity ? "∞" : `${profile?.analyses_today || 0}/${profile?.limit || 1}`}
+                  </span>
+                  <span className={`topbar-user-plan topbar-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
+                  <button className="topbar-user-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <button className="topbar-login-btn" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Sign In
+                </button>
+              )}
             </div>
           </header>
 

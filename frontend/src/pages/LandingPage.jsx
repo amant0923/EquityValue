@@ -66,36 +66,50 @@ const PRICING = [
     name: "Free",
     price: "$0",
     period: "",
-    desc: "Get started with core valuation tools",
-    cta: "Start Analysing",
+    desc: "Try the platform with limited access",
+    cta: "Sign Up Free",
     ctaStyle: "outline",
     features: [
-      "5 analyses per day",
+      "1 analysis per day",
       "8 valuation models",
       "Price chart & fundamentals",
       "Peer comparison table",
-      "S&P 500 stocks only",
     ],
-    notIncluded: ["AI investment thesis", "Monte Carlo simulation", "LBO model", "PDF export"],
+    notIncluded: ["AI investment thesis", "Monte Carlo & LBO", "PDF export", "Compare & full screener"],
   },
   {
     name: "Pro",
-    price: "$19",
+    price: "$15",
     period: "/month",
-    desc: "Full institutional-grade analysis suite",
-    cta: "Start Free Trial",
+    desc: "For active investors and researchers",
+    cta: "Get Pro",
     ctaStyle: "primary",
     badge: "Most Popular",
     features: [
-      "Unlimited analyses",
+      "5 analyses per day",
       "All 12 valuation models",
       "AI investment thesis (Claude)",
       "Monte Carlo simulation",
       "LBO return modelling",
       "PDF report export",
+      "Compare stocks",
+      "Full screener filters",
+    ],
+  },
+  {
+    name: "Max",
+    price: "$50",
+    period: "/month",
+    desc: "Unlimited access for professionals",
+    cta: "Get Max",
+    ctaStyle: "featured",
+    features: [
+      "Unlimited analyses",
+      "Everything in Pro",
+      "Priority data refresh",
       "DCF sensitivity table",
       "Three-statement projections",
-      "Priority data refresh",
+      "Early access to new features",
     ],
   },
 ];
@@ -265,7 +279,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           {PRICING.map((plan, i) => (
             <motion.div
               key={i}
-              className={`lp-pricing-card${plan.ctaStyle === "primary" ? " lp-pricing-card--featured" : ""}`}
+              className={`lp-pricing-card${plan.ctaStyle === "primary" ? " lp-pricing-card--featured" : plan.ctaStyle === "featured" ? " lp-pricing-card--max" : ""}`}
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -538,9 +552,9 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         /* ── Pricing ── */
         .lp-pricing-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 20px;
-          max-width: 780px;
+          max-width: 960px;
           margin: 0 auto;
         }
         .lp-pricing-card {
@@ -557,6 +571,10 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           border-color: rgba(59,130,246,0.35);
           background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(129,140,248,0.04));
           box-shadow: 0 0 40px rgba(59,130,246,0.1);
+        }
+        .lp-pricing-card--max {
+          border-color: rgba(129,140,248,0.3);
+          background: linear-gradient(135deg, rgba(129,140,248,0.06), rgba(124,58,237,0.04));
         }
         .lp-pricing-badge {
           position: absolute;
@@ -620,6 +638,13 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           border: 1px solid var(--border2);
         }
         .lp-pricing-cta--outline:hover { border-color: var(--primary); color: var(--primary2); }
+        .lp-pricing-cta--featured {
+          background: linear-gradient(135deg, var(--indigo), #7c3aed);
+          color: #fff;
+          border: none;
+          box-shadow: 0 4px 24px rgba(129,140,248,0.25);
+        }
+        .lp-pricing-cta--featured:hover { opacity: 0.9; transform: translateY(-1px); }
         .lp-pricing-features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
         .lp-pricing-feature {
           display: flex;
@@ -681,7 +706,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           .lp-stats { flex-wrap: wrap; }
           .lp-stat { flex: 1 1 40%; padding: 12px 16px; }
           .lp-features-grid { grid-template-columns: 1fr; }
-          .lp-pricing-grid { grid-template-columns: 1fr; }
+          .lp-pricing-grid { grid-template-columns: 1fr !important; }
           .lp-cta-banner { padding: 36px 24px; }
         }
       `}</style>
