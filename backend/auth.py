@@ -52,6 +52,9 @@ async def get_user_profile(user_id: str) -> dict:
     """Fetch user profile from Supabase to check plan and limits."""
     if not SUPABASE_URL or not SUPABASE_KEY:
         return {"plan": "free", "analyses_today": 0}
-    sb = create_client(SUPABASE_URL, SUPABASE_KEY)
-    result = sb.table("user_profiles").select("*").eq("id", user_id).single().execute()
-    return result.data if result.data else {"plan": "free", "analyses_today": 0}
+    try:
+        sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+        result = sb.table("user_profiles").select("*").eq("id", user_id).single().execute()
+        return result.data if result.data else {"plan": "free", "analyses_today": 0}
+    except Exception:
+        return {"plan": "free", "analyses_today": 0}
