@@ -48,6 +48,7 @@ def fetch_supabase(ticker: str) -> dict:
         field_map = {
             "ticker": "ticker",
             "name": "name",
+            "current_price": "current_price",
             "sector": "sector",
             "industry": "industry",
             "description": "description",
