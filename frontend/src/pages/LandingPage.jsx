@@ -85,7 +85,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
     <div className="relative max-w-[1100px] mx-auto px-8 pb-20 flex flex-col gap-24 md:gap-28">
 
       {/* Shader background */}
-      <div className="fixed inset-0 z-0 opacity-40">
+      <div className="fixed inset-0 z-0 opacity-40 pointer-events-none">
         <ShaderAnimation />
       </div>
 
@@ -206,7 +206,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
             <motion.div
               key={i}
               className={cn(
-                "relative rounded-xl p-0.5 md:p-1",
+                "relative rounded-xl p-0.5 md:p-1 h-full",
                 cat.span && "lg:row-span-2"
               )}
               initial={{ opacity: 0, y: 24 }}
