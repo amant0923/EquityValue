@@ -16,13 +16,32 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     token = auth_header.split(" ")[1]
-    try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Try local JWT verification first (fast path)
+    if SUPABASE_JWT_SECRET:
+        try:
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            pass  # Fall through to Supabase verification
+
+    # Fallback: verify token via Supabase API
+    if SUPABASE_URL and SUPABASE_KEY:
+        try:
+            sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+            res = sb.auth.get_user(token)
+            if res and res.user:
+                return {
+                    "sub": res.user.id,
+                    "email": res.user.email,
+                    "role": "authenticated",
+                }
+        except Exception:
+            pass
+
+    raise HTTPException(status_code=401, detail="Invalid token")
 
 
 async def get_user_profile(user_id: str) -> dict:
