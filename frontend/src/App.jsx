@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
 import UpgradeModal from "./components/UpgradeModal";
 import SearchBar from "./components/SearchBar";
@@ -138,7 +139,40 @@ function AppInner() {
         setWatchlist(updated);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to fetch data. Check the ticker and try again.");
+      const detail = err.response?.data?.detail;
+      // If token was rejected, force a session refresh and retry once
+      if (detail === "Invalid token" || detail === "Token expired" || detail === "Not authenticated") {
+        try {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const newToken = refreshed?.session?.access_token;
+          if (newToken) {
+            const res = await axios.get(`${API}/valuation/${sym}`, {
+              headers: { Authorization: `Bearer ${newToken}` },
+            });
+            setResult(res.data);
+            setTicker(sym);
+            const wl = lsGet("ve_watchlist", []);
+            if (!wl.includes(sym)) {
+              const updated = [sym, ...wl].slice(0, 8);
+              lsSet("ve_watchlist", updated);
+              setWatchlist(updated);
+            }
+          } else {
+            // Session fully expired — force re-login
+            await signOut();
+            setAuthMode("login");
+            setShowAuth(true);
+            setError("Your session expired. Please log in again.");
+          }
+        } catch {
+          await signOut();
+          setAuthMode("login");
+          setShowAuth(true);
+          setError("Your session expired. Please log in again.");
+        }
+      } else {
+        setError(detail || "Failed to fetch data. Check the ticker and try again.");
+      }
     } finally {
       setLoading(false);
     }
