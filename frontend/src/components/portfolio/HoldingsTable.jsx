@@ -121,7 +121,7 @@ export default function HoldingsTable({ holdings, onEdit, onDelete }) {
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={() => onEdit(h)} className="btn-secondary" style={{ flex: 1, padding: "6px 0", fontSize: 13 }}>Edit</button>
-              <button onClick={() => onDelete(h)} style={{ flex: 1, padding: "6px 0", fontSize: 13, background: "transparent", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, cursor: "pointer" }}>Remove</button>
+              <button onClick={() => onDelete(h)} className="btn-danger" style={{ flex: 1, padding: "6px 0", fontSize: 13 }}>Remove</button>
             </div>
           </div>
         );

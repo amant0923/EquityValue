@@ -16,18 +16,7 @@ export default function PortfolioHeader({ name, liveData, onDelete }) {
             Cost basis: ${fmt(totalCost)}
           </p>
         </div>
-        <button
-          onClick={onDelete}
-          style={{
-            background: "transparent",
-            border: "1px solid var(--red)",
-            color: "var(--red)",
-            padding: "6px 14px",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontSize: 13,
-          }}
-        >
+        <button onClick={onDelete} className="btn-danger">
           Delete Portfolio
         </button>
       </div>

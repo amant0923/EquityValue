@@ -169,6 +169,113 @@ body::before {
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
+/* ── Buttons ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--indigo) 100%);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.35), 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  filter: brightness(0.95);
+  transform: translateY(0);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2), 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.5);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--glass-border2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface3);
+  color: var(--text);
+  border-color: var(--border2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+  background: var(--surface2);
+}
+.btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--red2);
+  background: transparent;
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.btn-danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: var(--red2);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
+}
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, var(--primary2) 0%, var(--indigo2) 100%);
