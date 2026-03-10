@@ -1,0 +1,29 @@
+name: Quarterly Data Refresh
+
+on:
+  schedule:
+    - cron: '0 6 8 1,4,7,10 *'  # 8th of Jan/Apr/Jul/Oct, 6am UTC
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install requests supabase
+
+      - name: Run quarterly refresh
+        working-directory: backend
+        env:
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 refresh_quarterly.py

@@ -160,6 +160,15 @@ body::before {
   -webkit-backdrop-filter: blur(24px) saturate(200%);
 }
 
+/* Glass card — used by 21+ components */
+.glass-card {
+  background: var(--glass2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, var(--primary2) 0%, var(--indigo2) 100%);

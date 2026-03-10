@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "./lib/api";
 
@@ -6,7 +7,6 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import AuthModal from "./components/AuthModal";
 import UpgradeModal from "./components/UpgradeModal";
 import SearchBar from "./components/SearchBar";
-import Sidebar from "./components/Sidebar";
 import AnalysisSkeleton from "./components/SkeletonLoader";
 import CompanyHeader from "./components/CompanyHeader";
 import ConsensusCard from "./components/ConsensusCard";
@@ -28,7 +28,12 @@ import LockedFeatureCard from "./components/LockedFeatureCard";
 import LandingPage from "./pages/LandingPage";
 import DashboardPage from "./pages/DashboardPage";
 import ScreenerPage from "./pages/ScreenerPage";
-import MobileNav from "./components/MobileNav";
+import CompanyPage from "./pages/CompanyPage";
+import CompanyFinancialsPage from "./pages/CompanyFinancialsPage";
+import CompanyIntelligencePage from "./pages/CompanyIntelligencePage";
+import CompanyValuationPage from "./pages/CompanyValuationPage";
+
+import AppLayout from "./layouts/AppLayout";
 
 import "./App.css";
 
@@ -51,13 +56,6 @@ const ALL_MODELS = [
 const lsGet = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 const lsSet = (key, val)      => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
 
-const pageTransition = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit:    { opacity: 0, y: -8 },
-  transition: { duration: 0.28, ease: "easeOut" },
-};
-
 export default function App() {
   return (
     <AuthProvider>
@@ -67,15 +65,13 @@ export default function App() {
 }
 
 function AppInner() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked } = useAuth();
 
-  // App shell state
-  const [appMode, setAppMode]       = useState("landing"); // "landing" | "app"
-  const [page, setPage]             = useState("dashboard"); // "dashboard"|"analysis"|"screener"|"compare"
   const [theme, setTheme]           = useState("dark");
   const [disclaimer, setDisclaimer] = useState(false);
-  const [watchlist, setWatchlist]   = useState([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [watchlist, setWatchlist]    = useState([]);
 
   // Auth modals
   const [showAuth, setShowAuth]         = useState(false);
@@ -107,14 +103,12 @@ function AppInner() {
     const sym = (t || ticker).trim().toUpperCase();
     if (!sym) return;
 
-    // Require login
     if (!user) {
       setAuthMode("login");
       setShowAuth(true);
       return;
     }
 
-    // Check daily limit
     if (!canAnalyse()) {
       setUpgradeReason("limit");
       setShowUpgrade(true);
@@ -122,7 +116,8 @@ function AppInner() {
     }
 
     setLoading(true); setError(""); setResult(null);
-    setPage("analysis");
+    // Navigate to company page
+    navigate(`/company/${sym}`);
     try {
       const res = await api.get(`/valuation/${sym}`);
       setResult(res.data);
@@ -144,13 +139,7 @@ function AppInner() {
     } finally {
       setLoading(false);
     }
-    // Record usage separately so it doesn't block the analysis
     try { await recordAnalysis(); } catch (e) { console.warn("Usage tracking failed:", e); }
-  };
-
-  const enterApp = () => {
-    setAppMode("app");
-    setPage("analysis");
   };
 
   const applicable    = result?.valuations?.filter(v => v?.applicable) || [];
@@ -176,217 +165,216 @@ function AppInner() {
     } catch(e) { alert("PDF export failed: " + e.message); }
   };
 
-  // ── Landing page ──────────────────────────────────────────────────────────
-  if (appMode === "landing") {
-    return (
-      <>
-        {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
-        <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
-        <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
+  // Determine if we're on the landing page
+  const isLanding = location.pathname === "/";
 
-        <div className="lp-shell">
-          {/* Minimal landing header */}
-          <header className="lp-header">
-            <div className="lp-header-logo">
-              <div className="lp-logo-mark">
-                <svg viewBox="0 0 16 16" fill="none">
-                  <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span className="lp-logo-text">Equity Valuation</span>
-            </div>
-            <div className="lp-header-right">
-              <button className="lp-nav-btn" onClick={toggleTheme} aria-label="Toggle theme">
-                {theme === "dark" ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-                )}
-              </button>
-              {user ? (
-                <>
-                  <button className="lp-nav-btn" onClick={() => { setAppMode("app"); setPage("dashboard"); }}>Dashboard</button>
-                  <div className="lp-user-menu">
-                    <span className="lp-user-email">{user.email?.split("@")[0]}</span>
-                    <span className={`lp-user-plan lp-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
-                  </div>
-                  <button className="lp-nav-btn" onClick={signOut}>Log Out</button>
-                </>
-              ) : (
-                <>
-                  <button className="lp-nav-btn" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Log In</button>
-                  <button className="lp-nav-cta" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Sign Up Free</button>
-                </>
-              )}
-            </div>
-          </header>
-
-          <main>
-            <LandingPage
-              ticker={ticker}
-              setTicker={setTicker}
-              onSearch={handleSearch}
-              loading={loading}
-              onEnterApp={enterApp}
-            />
-          </main>
-
-          <footer className="lp-footer">
-            <p>For informational purposes only. Not financial advice. Equity Valuation does not constitute investment advice or a solicitation to buy or sell any security.</p>
-          </footer>
-        </div>
-      </>
-    );
-  }
-
-  // ── App shell (with sidebar) ───────────────────────────────────────────────
   return (
     <>
       {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
       <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
 
-      <div className="app-shell">
-        <Sidebar
-          page={page}
-          setPage={(p) => {
-            setPage(p);
-            if (p === "analysis" && !result) setError("");
-          }}
-          onBackToLanding={() => setAppMode("landing")}
-          onCollapseChange={setSidebarCollapsed}
-        />
+      <Routes>
+        {/* Landing page */}
+        <Route path="/" element={
+          <LandingPageWrapper
+            user={user}
+            profile={profile}
+            signOut={signOut}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            ticker={ticker}
+            setTicker={setTicker}
+            handleSearch={handleSearch}
+            loading={loading}
+            setShowAuth={setShowAuth}
+            setAuthMode={setAuthMode}
+          />
+        } />
 
-        <div className={`app-body${sidebarCollapsed ? " app-body--collapsed" : ""}`}>
-          {/* Top bar */}
-          <header className="app-topbar">
-            <div className="topbar-left">
-              {page === "analysis" && (
-                <div className="topbar-search">
-                  <SearchBar ticker={ticker} setTicker={setTicker} onSearch={handleSearch} loading={loading} />
-                </div>
-              )}
-              {page !== "analysis" && (
-                <div className="topbar-breadcrumb">
-                  <span className="topbar-breadcrumb-home" onClick={() => setAppMode("landing")}>Equity Valuation</span>
-                  <span className="topbar-breadcrumb-sep">/</span>
-                  <span className="topbar-breadcrumb-current">
-                    {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare" }[page] || page}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="topbar-right">
-              {result && page === "analysis" && isFeatureUnlocked("pdf_export") && (
-                <button className="topbar-pdf-btn" onClick={exportPDF} title="Export PDF" aria-label="Export PDF report">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  Export PDF
-                </button>
-              )}
-              <button className="topbar-theme-btn" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
-                {theme === "dark" ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-                )}
-              </button>
-              {user ? (
-                <div className="topbar-user">
-                  <span className="topbar-user-usage mono">
-                    {profile?.limit === Infinity ? "∞" : `${profile?.analyses_today || 0}/${profile?.limit || 1}`}
-                  </span>
-                  <span className={`topbar-user-plan topbar-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
-                  <button className="topbar-user-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
-                  </button>
-                </div>
-              ) : (
-                <button className="topbar-login-btn" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  Sign In
-                </button>
-              )}
-            </div>
-          </header>
+        {/* App shell routes */}
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={
+            <DashboardPage
+              watchlist={watchlist}
+              onSearch={handleSearch}
+              onGoAnalysis={() => navigate("/analysis")}
+            />
+          } />
 
-          {/* Mobile bottom nav */}
-          <MobileNav page={page} setPage={(p) => {
-            setPage(p);
-            if (p === "analysis" && !result) setError("");
-          }} />
+          <Route path="/screener" element={
+            <ScreenerPage onSearch={handleSearch} onGoAnalysis={() => navigate("/analysis")} />
+          } />
 
-          {/* Page content */}
-          <main className="app-content">
-            <AnimatePresence mode="wait">
-              {page === "dashboard" && (
-                <motion.div key="dashboard" {...pageTransition}>
-                  <DashboardPage
-                    watchlist={watchlist}
-                    onSearch={handleSearch}
-                    onGoAnalysis={() => setPage("analysis")}
-                  />
-                </motion.div>
-              )}
+          <Route path="/analysis" element={
+            <AnalysisPage
+              ticker={ticker}
+              setTicker={setTicker}
+              handleSearch={handleSearch}
+              loading={loading}
+              result={result}
+              error={error}
+              applicable={applicable}
+              notApplicable={notApplicable}
+              unusedModels={unusedModels}
+              setMemoText={setMemoText}
+              setMcStats={setMcStats}
+              setLboStats={setLboStats}
+              isFeatureUnlocked={isFeatureUnlocked}
+              setUpgradeReason={setUpgradeReason}
+              setShowUpgrade={setShowUpgrade}
+              exportPDF={exportPDF}
+            />
+          } />
 
-              {page === "analysis" && (
-                <motion.div key="analysis" {...pageTransition} className="analysis-page">
-                  {!loading && !result && !error && (
-                    <AnalysisEmpty onSearch={handleSearch} ticker={ticker} setTicker={setTicker} loading={loading} />
-                  )}
-                  {error && (
-                    <div className="error-box">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                      </svg>
-                      {error}
-                    </div>
-                  )}
-                  {loading && <AnalysisSkeleton />}
-                  {result && !loading && (
-                    <AnalysisResults
-                      result={result}
-                      applicable={applicable}
-                      notApplicable={notApplicable}
-                      unusedModels={unusedModels}
-                      onMemoGenerated={setMemoText}
-                      onMcStats={setMcStats}
-                      onLboStats={setLboStats}
-                      isFeatureUnlocked={isFeatureUnlocked}
-                      onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }}
-                    />
-                  )}
-                </motion.div>
-              )}
+          <Route path="/company/:ticker/financials" element={
+            <CompanyFinancialsPage />
+          } />
 
-              {page === "screener" && (
-                <motion.div key="screener" {...pageTransition}>
-                  <ScreenerPage onSearch={handleSearch} onGoAnalysis={() => setPage("analysis")} />
-                </motion.div>
-              )}
+          <Route path="/company/:ticker/intelligence" element={
+            <CompanyIntelligencePage />
+          } />
 
-              {page === "compare" && (
-                <motion.div key="compare" {...pageTransition}>
-                  {isFeatureUnlocked("compare") ? (
-                    <ComparePage onSearch={handleSearch} />
-                  ) : (
-                    <div style={{ padding: "60px 20px", maxWidth: 500, margin: "0 auto" }}>
-                      <LockedFeatureCard title="Compare Stocks" plan="Pro" onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }} />
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </main>
-        </div>
-      </div>
+          <Route path="/company/:ticker/valuation" element={
+            <CompanyValuationPage />
+          } />
+
+          <Route path="/company/:ticker" element={
+            <CompanyPage />
+          } />
+
+          <Route path="/compare" element={
+            isFeatureUnlocked("compare") ? (
+              <ComparePage />
+            ) : (
+              <div style={{ padding: "60px 20px", maxWidth: 500, margin: "0 auto" }}>
+                <LockedFeatureCard title="Compare Stocks" plan="Pro" onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }} />
+              </div>
+            )
+          } />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
     </>
+  );
+}
+
+// ── Landing page wrapper ──────────────────────────────────────────────────────
+
+function LandingPageWrapper({ user, profile, signOut, theme, toggleTheme, ticker, setTicker, handleSearch, loading, setShowAuth, setAuthMode }) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="lp-shell">
+      <header className="lp-header">
+        <div className="lp-header-logo">
+          <div className="lp-logo-mark">
+            <svg viewBox="0 0 16 16" fill="none">
+              <polyline points="1,12 5,7 9,10 15,3" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <span className="lp-logo-text">Equity Valuation</span>
+        </div>
+        <div className="lp-header-right">
+          <button className="lp-nav-btn" onClick={toggleTheme} aria-label="Toggle theme">
+            {theme === "dark" ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            )}
+          </button>
+          {user ? (
+            <>
+              <button className="lp-nav-btn" onClick={() => navigate("/dashboard")}>Dashboard</button>
+              <div className="lp-user-menu">
+                <span className="lp-user-email">{user.email?.split("@")[0]}</span>
+                <span className={`lp-user-plan lp-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
+              </div>
+              <button className="lp-nav-btn" onClick={signOut}>Log Out</button>
+            </>
+          ) : (
+            <>
+              <button className="lp-nav-btn" onClick={() => { setAuthMode("login"); setShowAuth(true); }}>Log In</button>
+              <button className="lp-nav-cta" onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Sign Up Free</button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <main>
+        <LandingPage
+          ticker={ticker}
+          setTicker={setTicker}
+          onSearch={handleSearch}
+          loading={loading}
+          onEnterApp={() => navigate("/dashboard")}
+        />
+      </main>
+
+      <footer className="lp-footer">
+        <p>For informational purposes only. Not financial advice. Equity Valuation does not constitute investment advice or a solicitation to buy or sell any security.</p>
+      </footer>
+    </div>
+  );
+}
+
+// ── Analysis page ─────────────────────────────────────────────────────────────
+
+function AnalysisPage({ ticker, setTicker, handleSearch, loading, result, error, applicable, notApplicable, unusedModels, setMemoText, setMcStats, setLboStats, isFeatureUnlocked, setUpgradeReason, setShowUpgrade, exportPDF }) {
+  const pageTransition = {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    exit:    { opacity: 0, y: -8 },
+    transition: { duration: 0.28, ease: "easeOut" },
+  };
+
+  return (
+    <motion.div key="analysis" {...pageTransition} className="analysis-page">
+      {/* Search bar for analysis page */}
+      <div className="topbar-search" style={{ marginBottom: 16 }}>
+        <SearchBar ticker={ticker} setTicker={setTicker} onSearch={handleSearch} loading={loading} />
+      </div>
+
+      {!loading && !result && !error && (
+        <AnalysisEmpty onSearch={handleSearch} ticker={ticker} setTicker={setTicker} loading={loading} />
+      )}
+      {error && (
+        <div className="error-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {error}
+        </div>
+      )}
+      {loading && <AnalysisSkeleton />}
+      {result && !loading && (
+        <>
+          {isFeatureUnlocked("pdf_export") && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="topbar-pdf-btn" onClick={exportPDF} title="Export PDF" aria-label="Export PDF report">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export PDF
+              </button>
+            </div>
+          )}
+          <AnalysisResults
+            result={result}
+            applicable={applicable}
+            notApplicable={notApplicable}
+            unusedModels={unusedModels}
+            onMemoGenerated={setMemoText}
+            onMcStats={setMcStats}
+            onLboStats={setLboStats}
+            isFeatureUnlocked={isFeatureUnlocked}
+            onUpgrade={() => { setUpgradeReason("feature"); setShowUpgrade(true); }}
+          />
+        </>
+      )}
+    </motion.div>
   );
 }
 
@@ -609,7 +597,6 @@ function ComparePage() {
     { label: "Beta",          get: d => fmtNum(d.key_metrics?.beta) },
   ];
 
-  // For visual comparison bars
   const BAR_METRICS = [
     { label: "P/E Ratio",  get: d => d.key_metrics?.pe_ratio,       fmt: v => fmtNum(v), lower_better: true },
     { label: "ROE",         get: d => d.key_metrics?.roe ? d.key_metrics.roe * 100 : null, fmt: v => `${v?.toFixed(1)}%` },
@@ -618,7 +605,6 @@ function ComparePage() {
   ];
 
   const SLOT_COLORS = ["var(--primary2)", "var(--green2)", "var(--yellow2)", "var(--indigo2)"];
-  const SLOT_BG = ["rgba(59,130,246,0.12)", "rgba(16,185,129,0.12)", "rgba(245,158,11,0.12)", "rgba(129,140,248,0.12)"];
 
   return (
     <div className="cmp-wrap">
@@ -688,8 +674,6 @@ function ComparePage() {
         {/* Results */}
         {loaded.length >= 2 && (
           <motion.div className="cmp-results" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-
-            {/* Company header row */}
             <div className="cmp-table-wrap">
               <table className="cmp-table">
                 <thead>
@@ -707,7 +691,6 @@ function ComparePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Price & Market Cap */}
                   <tr className="cmp-row cmp-row--highlight">
                     <td className="cmp-label">Price</td>
                     {data.map((d, i) => d && (
@@ -720,8 +703,6 @@ function ComparePage() {
                       <td key={i} className="cmp-val mono">{fmtMktCap(d.market_cap)}</td>
                     ))}
                   </tr>
-
-                  {/* Verdict */}
                   <tr className="cmp-row cmp-row--verdict">
                     <td className="cmp-label">Verdict</td>
                     {data.map((d, i) => d && (
@@ -756,11 +737,7 @@ function ComparePage() {
                       <td key={i} className="cmp-val mono">{d.consensus?.models_used || 0}</td>
                     ))}
                   </tr>
-
-                  {/* Separator */}
                   <tr className="cmp-separator"><td colSpan={loaded.length + 1}><div className="cmp-sep-line" /></td></tr>
-
-                  {/* Key Metrics */}
                   {METRICS.map((m, mi) => (
                     <tr key={mi} className="cmp-row">
                       <td className="cmp-label">{m.label}</td>

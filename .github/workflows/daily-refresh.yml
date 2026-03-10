@@ -1,0 +1,29 @@
+name: Daily Data Refresh
+
+on:
+  schedule:
+    - cron: '0 2 * * 1-5'  # Mon-Fri 2am UTC (9pm ET)
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install requests supabase
+
+      - name: Run daily refresh
+        working-directory: backend
+        env:
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 refresh_daily.py

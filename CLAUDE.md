@@ -54,19 +54,66 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `GET /comps/{ticker}` | Sector peer comparison |
 | `POST /thesis/{ticker}` | Claude AI investment memo (cached) |
 | `POST /ai/thesis` | Streaming Claude response (SSE) |
-| `GET /search/{query}` | Ticker autocomplete via yfinance |
+| `GET /search/{query}` | Ticker autocomplete via Supabase |
 | `POST /pdf/export` | Generate PDF report via reportlab |
 | `GET /cache/clear` | Flush in-memory cache |
+| `GET /summary/{ticker}` | Combined summary (fundamentals + metrics + analyst + scores + growth) |
+| `GET /financials/{ticker}?period=annual\|quarterly` | All 3 financial statements |
+| `GET /financials/{ticker}/growth` | Growth metrics |
+| `GET /metrics/{ticker}?period=annual\|quarterly` | Key metrics (valuation ratios, efficiency) |
+| `GET /segments/{ticker}` | Revenue segments (product + geographic) |
+| `GET /analyst/{ticker}` | Analyst ratings, price targets, recent grades |
+| `GET /insider/{ticker}` | Insider trades + senate trades |
+| `GET /earnings/{ticker}` | Earnings history (EPS actual vs estimate) |
+| `GET /dividends/{ticker}` | Dividends history |
+| `GET /scores/{ticker}` | Financial scores (Altman Z, Piotroski, DCF values) |
 
 ### Supabase schema
-Table: `stock_fundamentals`. Key column name differences from internal field names:
-- DB `week_52_high` / `week_52_low` → internal `52w_high` / `52w_low`
-- DB `current_price` is a cached snapshot; always overridden by live Finnhub price
+**Core table:** `stock_fundamentals` — S&P 500 company basics (cached from FMP).
+
+**Company deep dive tables** (populated by refresh scripts via FMP API):
+| Table | Key Fields | Refresh |
+|-------|-----------|---------|
+| `financial_statements` | ticker, period_date, period_type, statement_type + all line items | Quarterly |
+| `key_metrics` | ticker, period_date, period_type + 60+ valuation/efficiency ratios | Weekly |
+| `growth_metrics` | ticker, period_date, period_type + revenue/EPS/FCF growth rates | Weekly |
+| `analyst_data` | ticker + ratings, price targets, recent_grades (JSONB) | Daily |
+| `insider_trades` | ticker, filing_date, reporter_name, shares_traded, price | Daily |
+| `earnings_history` | ticker, date, eps_actual, eps_estimate, eps_surprise | Quarterly |
+| `dividends_history` | ticker, ex_date, amount, yield, frequency | Weekly |
+| `revenue_segments` | ticker, period_date, segment_type, segment_name, revenue | Weekly |
+| `company_scores` | ticker, altman_z_score, piotroski_score, dcf_value | Daily |
+| `senate_trades` | ticker, senator_name, party, transaction_type, amount_range | Daily |
+
+### FMP data refresh pipeline
+Three Python scripts in `backend/` fetch from FMP API and upsert to Supabase:
+- `refresh_quarterly.py` — financial statements + earnings (runs quarterly via GitHub Actions)
+- `refresh_weekly.py` — key metrics, growth, dividends, segments (runs weekly)
+- `refresh_daily.py` — analyst, insider, senate, scores (runs daily Mon-Fri)
+
+All use `fmp_client.py` (shared rate-limited FMP client). GitHub Actions workflows in `.github/workflows/`.
+
+### Frontend routing
+React Router v6 (`react-router-dom`). Routes defined in `App.jsx`:
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | LandingPage | Marketing landing page |
+| `/dashboard` | DashboardPage | User dashboard with watchlist |
+| `/screener` | ScreenerPage | S&P 500 stock screener |
+| `/analysis` | AnalysisPage | Legacy analysis view (search + results) |
+| `/company/:ticker` | CompanyPage | Company summary (deep dive landing) |
+| `/company/:ticker/financials` | CompanyFinancialsPage | Financial statements + charts |
+| `/company/:ticker/intelligence` | CompanyIntelligencePage | Analyst, insider, earnings data |
+| `/company/:ticker/valuation` | CompanyValuationPage | Valuation models + DCF comparison |
+| `/compare` | ComparePage | Side-by-side stock comparison (Pro) |
+
+App shell layout in `layouts/AppLayout.jsx`. Company tab navigation in `components/company/CompanyNav.jsx`.
 
 ### Required environment variables
 - `FINNHUB_KEY` — live price, candles, fundamentals fallback
 - `ANTHROPIC_API_KEY` — AI memo generation (`/thesis` and `/ai/thesis` endpoints)
 - `SUPABASE_URL` / `SUPABASE_KEY` — default to hardcoded values in `data_fetcher.py` if not set
+- `FMP_KEY` — FMP API key (used by refresh scripts and GitHub Actions only)
 
 ### Deployment
 - Frontend → Vercel (root: `frontend`). `VITE_API_URL` in `.env.production` points to the Render backend URL.

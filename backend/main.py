@@ -11,16 +11,24 @@ import time
 from datetime import datetime
 import os
 import anthropic
+from routes.financials import router as financials_router
+from routes.intelligence import router as intelligence_router
+from routes.summary import router as summary_router
 
 ALLOWED_ORIGINS = [
     "https://equityvalue.ai",
     "https://www.equityvalue.ai",
     "http://localhost:5173",
+    "http://localhost:4173",
     "http://localhost:3000",
 ]
 
 app = FastAPI(title="Stock Valuation API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+app.include_router(financials_router)
+app.include_router(intelligence_router)
+app.include_router(summary_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")

@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
   const isFeatureUnlocked = (feature) => {
     if (!supabase || !user) return true; // No auth = allow all
     const plan = profile?.plan || "free";
-    const FREE_BLOCKED = ["ai_thesis", "monte_carlo", "lbo", "pdf_export", "compare", "screener_full"];
+    const FREE_BLOCKED = ["ai_thesis", "monte_carlo", "lbo", "pdf_export", "compare", "screener_full", "intelligence_full", "financials_quarterly"];
     if (plan === "free" && FREE_BLOCKED.includes(feature)) return false;
     return true;
   };
