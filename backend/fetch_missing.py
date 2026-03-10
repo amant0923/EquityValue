@@ -5,8 +5,8 @@ Usage:  FMP_KEY=your_key python3 fetch_missing.py
 import os, requests, time, math
 from supabase import create_client
 
-SUPABASE_URL = "https://efbtgnplotlshrwbotfp.supabase.co"
-SUPABASE_KEY = "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I")
 FMP_KEY      = os.environ.get("FMP_KEY", "")
 FMP_BASE     = "https://financialmodelingprep.com/stable"
 

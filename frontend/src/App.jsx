@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import api from "./lib/api";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import AuthModal from "./components/AuthModal";
@@ -32,7 +32,6 @@ import MobileNav from "./components/MobileNav";
 
 import "./App.css";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const ALL_MODELS = [
   { name: "DCF (Discounted Cash Flow)",    category: "Income-Based",  color: "blue" },
@@ -68,7 +67,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked, getToken } = useAuth();
+  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked } = useAuth();
 
   // App shell state
   const [appMode, setAppMode]       = useState("landing"); // "landing" | "app"
@@ -125,18 +124,7 @@ function AppInner() {
     setLoading(true); setError(""); setResult(null);
     setPage("analysis");
     try {
-      const token = await getToken();
-      if (!token) {
-        // Session dead — force re-login
-        setAuthMode("login");
-        setShowAuth(true);
-        setError("Your session expired. Please log in again.");
-        setLoading(false);
-        return;
-      }
-      const res = await axios.get(`${API}/valuation/${sym}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/valuation/${sym}`);
       setResult(res.data);
       setTicker(sym);
       const wl = lsGet("ve_watchlist", []);
@@ -146,7 +134,13 @@ function AppInner() {
         setWatchlist(updated);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to fetch data. Check the ticker and try again.");
+      if (err.response?.status === 401) {
+        setAuthMode("login");
+        setShowAuth(true);
+        setError("Your session expired. Please log in again.");
+      } else {
+        setError(err.response?.data?.detail || "Failed to fetch data. Check the ticker and try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -166,20 +160,11 @@ function AppInner() {
 
   const exportPDF = async () => {
     try {
-      const token = await getToken();
-      const res = await fetch(`${API}/pdf/export`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ data: result, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null }),
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || "PDF generation failed");
-      }
-      const blob = await res.blob();
+      const res = await api.post("/pdf/export",
+        { data: result, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null },
+        { responseType: "blob" }
+      );
+      const blob = res.data;
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
       a.href     = url;
@@ -582,7 +567,7 @@ function ComparePage() {
     setLoadingSlot(prev => { const n = [...prev]; n[idx] = true; return n; });
     setErrors(prev => { const n = [...prev]; n[idx] = ""; return n; });
     try {
-      const res = await axios.get(`${API}/valuation/${sym}`);
+      const res = await api.get(`/valuation/${sym}`);
       setData(prev => { const n = [...prev]; n[idx] = res.data; return n; });
       setSlots(prev => { const n = [...prev]; n[idx] = sym; return n; });
     } catch (err) {

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";
 
 function buildPrompt(data) {
@@ -224,10 +226,18 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
     abortRef.current = new AbortController();
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/ai/thesis`, {
+      const headers = { "Content-Type": "application/json" };
+      if (supabase) {
+        try {
+          const { data: sess } = await supabase.auth.getSession();
+          const token = sess?.session?.access_token;
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+      const response = await fetch(`${API_URL}/ai/thesis`, {
         method: "POST",
         signal: abortRef.current.signal,
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           messages: [{ role: "user", content: buildPrompt(data) }],
         }),

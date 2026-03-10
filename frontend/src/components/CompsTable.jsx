@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import api from "../lib/api";
 
 const fmt = (v, type) => {
   if (v == null || isNaN(v)) return <span style={{color:"var(--text3)"}}>—</span>;
@@ -78,7 +76,7 @@ export default function CompsTable({ ticker }) {
   const load = () => {
     setLoading(true);
     setError("");
-    axios.get(`${API}/comps/${ticker}`)
+    api.get(`/comps/${ticker}`)
       .then(r => { setData(r.data); setFetched(true); })
       .catch(() => setError("Failed to load comparable company data."))
       .finally(() => setLoading(false));

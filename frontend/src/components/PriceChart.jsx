@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import axios from "axios";
-
-// FIX: was hardcoded to localhost:8000 — use env var so it works on Vercel
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import api from "../lib/api";
 
 export default function PriceChart({ ticker, currentPrice }) {
   const [data, setData]       = useState([]);
@@ -15,7 +12,7 @@ export default function PriceChart({ ticker, currentPrice }) {
     if (!ticker) return;
     setLoading(true);
     setError(false);
-    axios.get(`${API}/history/${ticker}?period=${period}`)
+    api.get(`/history/${ticker}?period=${period}`)
       .then(r => {
         const prices = r.data.prices;
         // FIX: backend now always returns prices object (never 404)

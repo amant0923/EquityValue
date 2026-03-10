@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useAuth } from "../context/AuthContext";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import api from "../lib/api";
 
 const PLANS = [
   {
@@ -29,26 +27,16 @@ const PLANS = [
 ];
 
 export default function UpgradeModal({ onClose, reason = "limit" }) {
-  const { getToken } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
 
   const handleUpgrade = async (planKey) => {
     setUpgrading(true);
     try {
-      const token = await getToken();
-      const res = await fetch(`${API}/stripe/create-checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ plan: planKey }),
-      });
-      const data = await res.json();
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
+      const res = await api.post("/stripe/create-checkout", { plan: planKey });
+      if (res.data.checkout_url) {
+        window.location.href = res.data.checkout_url;
       } else {
-        alert(data.detail || "Could not start checkout. Please try again.");
+        alert(res.data?.detail || "Could not start checkout. Please try again.");
         setUpgrading(false);
       }
     } catch {

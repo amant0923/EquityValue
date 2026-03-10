@@ -14,7 +14,7 @@ except ImportError:
 try:
     from supabase import create_client, Client
     _SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
-    _SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt")
+    _SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I")
     supabase: Client = create_client(_SUPABASE_URL, _SUPABASE_KEY)
     USE_SUPABASE = True
 except Exception as _e:

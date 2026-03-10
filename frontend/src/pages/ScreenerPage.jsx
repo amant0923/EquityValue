@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import api from "../lib/api";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const SECTORS = ["All Sectors", "Technology", "Healthcare", "Financials", "Consumer Discretionary", "Consumer Staples", "Energy", "Industrials", "Materials", "Real Estate", "Utilities", "Communication Services"];
+const SECTORS = ["All Sectors", "Technology", "Healthcare", "Financial Services", "Consumer Cyclical", "Consumer Defensive", "Energy", "Industrials", "Basic Materials", "Real Estate", "Utilities", "Communication Services"];
 
 const FILTERS = [
   { key: "pe_ratio",      label: "P/E Ratio",    type: "range", min: 0,   max: 100,  step: 1   },
@@ -25,15 +24,8 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
     try {
       const params = new URLSearchParams();
       if (sector !== "All Sectors") params.set("sector", sector);
-      const res = await fetch(`${API}/screener?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setResults(data.results || []);
-      } else {
-        const errText = await res.text();
-        console.error("Screener error:", errText);
-        setResults([]);
-      }
+      const res = await api.get(`/screener?${params}`);
+      setResults(res.data.results || []);
     } catch (e) {
       console.error("Screener fetch error:", e);
       setResults([]);

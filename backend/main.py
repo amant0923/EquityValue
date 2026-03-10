@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, field_validator
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from data_fetcher import fetch_stock_data, fetch_price_history
@@ -11,12 +12,29 @@ from datetime import datetime
 import os
 import anthropic
 
-app = FastAPI(title="Stock Valuation API", version="2.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+ALLOWED_ORIGINS = [
+    "https://equityvalue.ai",
+    "https://www.equityvalue.ai",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
 
-# ── In-memory cache (1 hour TTL) ─────────────────────────────────────────────
+app = FastAPI(title="Stock Valuation API", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# ── Ticker validation ────────────────────────────────────────────────────────
+TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
+
+def _validate_ticker(ticker: str) -> str:
+    t = ticker.upper().strip()
+    if not TICKER_RE.match(t):
+        raise HTTPException(status_code=400, detail="Invalid ticker format.")
+    return t
+
+# ── In-memory cache (1 hour TTL, max 2000 entries) ──────────────────────────
 _cache = {}
 CACHE_TTL = 3600
+CACHE_MAX = 2000
 
 def _get_cached(key):
     entry = _cache.get(key)
@@ -25,6 +43,9 @@ def _get_cached(key):
     return None
 
 def _set_cached(key, data):
+    if len(_cache) >= CACHE_MAX:
+        oldest = min(_cache, key=lambda k: _cache[k]["ts"])
+        del _cache[oldest]
     _cache[key] = {"data": data, "ts": time.time()}
 
 # ── Field normalisation ───────────────────────────────────────────────────────
@@ -82,7 +103,7 @@ def root():
 
 @app.get("/valuation/{ticker}")
 async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
-    ticker = ticker.upper().strip()
+    ticker = _validate_ticker(ticker)
 
     # Check plan limits
     try:
@@ -105,7 +126,7 @@ async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
         from supabase import create_client
         sb = create_client(
             os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
         )
         exists = sb.table("stock_fundamentals").select("ticker").eq("ticker", ticker).limit(1).execute().data
         if not exists:
@@ -120,11 +141,31 @@ async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
     data = normalise(raw)
     result = run_valuation(ticker, data)
     _set_cached(f"val:{ticker}", result)
+
+    # Increment usage counter (best-effort, don't fail the response)
+    try:
+        from supabase import create_client as _sc
+        from datetime import date
+        _sb = _sc(
+            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
+        )
+        today = date.today().isoformat()
+        new_count = (analyses_today + 1) if profile.get("last_analysis_date") == today else 1
+        _sb.table("user_profiles").update({
+            "analyses_today": new_count,
+            "last_analysis_date": today,
+        }).eq("id", user["sub"]).execute()
+    except Exception as e:
+        print(f"[usage increment] {e}")
+
     return result
 
 @app.get("/history/{ticker}")
-def get_history(ticker: str, period: str = "1y"):
-    ticker = ticker.upper().strip()
+async def get_history(ticker: str, period: str = "1y", user: dict = Depends(get_current_user)):
+    ticker = _validate_ticker(ticker)
+    if period not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
+        raise HTTPException(status_code=400, detail="Invalid period.")
     cache_key = f"hist:{ticker}:{period}"
     cached = _get_cached(cache_key)
     if cached:
@@ -137,8 +178,8 @@ def get_history(ticker: str, period: str = "1y"):
     return result
 
 @app.get("/comps/{ticker}")
-def get_comps(ticker: str):
-    ticker = ticker.upper().strip()
+async def get_comps(ticker: str, user: dict = Depends(get_current_user)):
+    ticker = _validate_ticker(ticker)
     cached = _get_cached(f"comps:{ticker}")
     if cached:
         return cached
@@ -227,8 +268,8 @@ def get_comps(ticker: str):
     return result
 
 @app.post("/thesis/{ticker}")
-def generate_thesis(ticker: str):
-    ticker = ticker.upper().strip()
+async def generate_thesis(ticker: str, user: dict = Depends(get_current_user)):
+    ticker = _validate_ticker(ticker)
     cached = _get_cached(f"thesis:{ticker}")
     if cached:
         return cached
@@ -307,21 +348,20 @@ Be direct, analytical, and use specific financial data. Write like a professiona
         return result
     except Exception as e:
         print(f"[thesis error] {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate thesis: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate thesis. Please try again.")
 
 @app.get("/search/{query}")
-def search(query: str):
-    if len(query) < 1:
+async def search(query: str, user: dict = Depends(get_current_user)):
+    if len(query) < 1 or len(query) > 20:
         return {"results": []}
     cached = _get_cached(f"search:{query.upper()}")
     if cached:
         return cached
     try:
         from supabase import create_client
-        import os
         sb = create_client(
             os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
         )
         q = query.upper()
         # Search by ticker prefix first, then by name
@@ -356,10 +396,20 @@ def search(query: str):
 class ThesisRequest(BaseModel):
     messages: list
 
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, v):
+        if not v or len(v) > 20:
+            raise ValueError("messages must be 1-20 items")
+        total_len = sum(len(str(m.get("content", ""))) for m in v if isinstance(m, dict))
+        if total_len > 50000:
+            raise ValueError("Total message content too long")
+        return v
+
 @app.post("/ai/thesis")
-async def ai_thesis_stream(payload: ThesisRequest):
+async def ai_thesis_stream(payload: ThesisRequest, user: dict = Depends(get_current_user)):
     from fastapi.responses import StreamingResponse
-    import anthropic, json
+    import json
     messages = payload.messages
     if not messages:
         return {"error": "no messages"}
@@ -378,7 +428,7 @@ async def ai_thesis_stream(payload: ThesisRequest):
             yield "data: [DONE]\n\n"
         except Exception as e:
             print(f"[ai/thesis error] {e}")
-            yield f"data: {json.dumps({'type':'error','error':str(e)})}\n\n"
+            yield f"data: {json.dumps({'type':'error','error':'AI generation failed. Please try again.'})}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -389,8 +439,15 @@ class PDFRequest(BaseModel):
     monte_carlo: dict | None = None
     lbo: dict | None = None
 
+    @field_validator("memo")
+    @classmethod
+    def validate_memo(cls, v):
+        if len(v) > 100000:
+            raise ValueError("Memo too long")
+        return v
+
 @app.post("/pdf/export")
-def export_pdf(payload: PDFRequest):
+async def export_pdf(payload: PDFRequest, user: dict = Depends(get_current_user)):
     from fastapi.responses import Response
     from pdf_generator import generate_pdf
     pdf_bytes = generate_pdf(
@@ -399,23 +456,25 @@ def export_pdf(payload: PDFRequest):
         monte_carlo=payload.monte_carlo,
         lbo=payload.lbo,
     )
-    ticker = payload.data.get("ticker", "report")
+    raw_ticker = payload.data.get("ticker", "report")
+    safe_ticker = re.sub(r'[^A-Za-z0-9]', '', raw_ticker)[:10] or "report"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{ticker}_EquityValuation.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_ticker}_EquityValuation.pdf"'},
     )
 
 @app.get("/screener")
-def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
+async def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
              min_roe: float = None, min_rev_growth: float = None,
-             max_pb: float = None, limit: int = 200):
+             max_pb: float = None, limit: int = 200, user: dict = Depends(get_current_user)):
     """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
+    limit = min(limit, 500)
     try:
         from supabase import create_client
         sb = create_client(
             os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "sb_publishable_x3ZqwJc8Ir3yO0tGKRncSQ_blmR27Wt"),
+            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
         )
         query = sb.table("stock_fundamentals").select(
             "ticker,name,sector,current_price,market_cap,pe_ratio,pb_ratio,roe,revenue_growth,eps,debt_to_equity"
@@ -438,7 +497,7 @@ def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
         return {"results": rows, "count": len(rows)}
     except Exception as e:
         print(f"[screener] {e}")
-        raise HTTPException(status_code=500, detail=f"Screener error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Screener error. Please try again.")
 
 @app.post("/stripe/create-checkout")
 async def create_checkout(request: Request, user: dict = Depends(get_current_user)):
@@ -454,10 +513,10 @@ async def create_checkout(request: Request, user: dict = Depends(get_current_use
         )
         return {"checkout_url": session.url}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Invalid plan selected.")
     except Exception as e:
         print(f"[stripe checkout error] {e}")
-        raise HTTPException(status_code=500, detail="Could not create checkout session")
+        raise HTTPException(status_code=500, detail="Could not create checkout session.")
 
 @app.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
@@ -466,7 +525,8 @@ async def stripe_webhook(request: Request):
     try:
         event = handle_webhook_event(payload, sig)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Webhook error: {str(e)}")
+        print(f"[stripe webhook sig error] {e}")
+        raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
 
     try:
         from supabase import create_client
@@ -497,7 +557,7 @@ async def stripe_webhook(request: Request):
 
     return {"status": "ok"}
 
-@app.get("/cache/clear")
-def clear_cache():
+@app.post("/cache/clear")
+async def clear_cache(user: dict = Depends(get_current_user)):
     _cache.clear()
     return {"message": "Cache cleared"}

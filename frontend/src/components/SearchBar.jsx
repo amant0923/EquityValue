@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import api from "../lib/api";
 
 export default function SearchBar({ ticker, setTicker, onSearch, loading }) {
   const [suggestions, setSuggestions] = useState([]);
@@ -15,10 +14,9 @@ export default function SearchBar({ ticker, setTicker, onSearch, loading }) {
     if (!ticker || ticker.length < 1) { setSuggestions([]); setOpen(false); return; }
     debounceRef.current = setTimeout(async () => {
       try {
-        const res  = await fetch(`${API}/search/${encodeURIComponent(ticker)}`);
-        const data = await res.json();
-        setSuggestions(data.results || []);
-        setOpen((data.results || []).length > 0);
+        const res  = await api.get(`/search/${encodeURIComponent(ticker)}`);
+        setSuggestions(res.data.results || []);
+        setOpen((res.data.results || []).length > 0);
         setActive(-1);
       } catch { setSuggestions([]); setOpen(false); }
     }, 220);
