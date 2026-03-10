@@ -35,6 +35,7 @@ export default function AppLayout() {
     else if (p === "screener") navigate("/screener");
     else if (p === "compare") navigate("/compare");
     else if (p === "analysis") navigate("/analysis");
+    else if (p === "portfolio") navigate("/portfolio");
   };
 
   return (
@@ -57,7 +58,7 @@ export default function AppLayout() {
                 <span className="topbar-breadcrumb-home" onClick={() => navigate("/")}>Equity Valuation</span>
                 <span className="topbar-breadcrumb-sep">/</span>
                 <span className="topbar-breadcrumb-current">
-                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis" }[currentPage] || currentPage}
+                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio" }[currentPage] || currentPage}
                 </span>
               </div>
             </div>

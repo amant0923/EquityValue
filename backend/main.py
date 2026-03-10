@@ -14,6 +14,7 @@ import anthropic
 from routes.financials import router as financials_router
 from routes.intelligence import router as intelligence_router
 from routes.summary import router as summary_router
+from routes.portfolio import router as portfolio_router
 
 ALLOWED_ORIGINS = [
     "https://equityvalue.ai",
@@ -29,6 +30,7 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credenti
 app.include_router(financials_router)
 app.include_router(intelligence_router)
 app.include_router(summary_router)
+app.include_router(portfolio_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
