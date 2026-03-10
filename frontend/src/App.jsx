@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "./lib/api";
@@ -25,13 +25,14 @@ import InvestmentThesis from "./components/InvestmentThesis";
 import CompsTable from "./components/CompsTable";
 import LockedFeatureCard from "./components/LockedFeatureCard";
 
-import LandingPage from "./pages/LandingPage";
-import DashboardPage from "./pages/DashboardPage";
-import ScreenerPage from "./pages/ScreenerPage";
-import CompanyPage from "./pages/CompanyPage";
-import CompanyFinancialsPage from "./pages/CompanyFinancialsPage";
-import CompanyIntelligencePage from "./pages/CompanyIntelligencePage";
-import CompanyValuationPage from "./pages/CompanyValuationPage";
+// Lazy-loaded page components — only downloaded when the route is visited
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const ScreenerPage = lazy(() => import("./pages/ScreenerPage"));
+const CompanyPage = lazy(() => import("./pages/CompanyPage"));
+const CompanyFinancialsPage = lazy(() => import("./pages/CompanyFinancialsPage"));
+const CompanyIntelligencePage = lazy(() => import("./pages/CompanyIntelligencePage"));
+const CompanyValuationPage = lazy(() => import("./pages/CompanyValuationPage"));
 
 import AppLayout from "./layouts/AppLayout";
 
@@ -174,6 +175,7 @@ function AppInner() {
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
       <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
 
+      <Suspense fallback={<AnalysisSkeleton />}>
       <Routes>
         {/* Landing page */}
         <Route path="/" element={
@@ -256,6 +258,7 @@ function AppInner() {
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+      </Suspense>
     </>
   );
 }
