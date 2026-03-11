@@ -15,6 +15,7 @@ import LBOModel from "../components/LBOModel";
 import InvestmentThesis from "../components/InvestmentThesis";
 import LockedFeatureCard from "../components/LockedFeatureCard";
 import PriceChart from "../components/PriceChart";
+import ReverseDCF from "../components/ReverseDCF";
 import SkeletonLoader from "../components/SkeletonLoader";
 
 const fadeUp = {
@@ -171,7 +172,14 @@ export default function CompanyValuationPage() {
           </motion.section>
         )}
 
-        {/* 5. Sensitivity Table */}
+        {/* 5. Reverse DCF */}
+        {valuation.reverse_dcf && (
+          <motion.div variants={fadeUp}>
+            <ReverseDCF data={valuation.reverse_dcf} />
+          </motion.div>
+        )}
+
+        {/* 6. Sensitivity Table */}
         {valuation.dcf_sensitivity && (
           <motion.div variants={fadeUp}>
             <SensitivityTable data={valuation.dcf_sensitivity} currentPrice={valuation.current_price} />

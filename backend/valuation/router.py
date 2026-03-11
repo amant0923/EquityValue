@@ -112,6 +112,96 @@ def dcf_sensitivity(data):
     return {"waccs": [f"{w:.0%}" for w in waccs], "growths": [f"{g:.0%}" for g in growths], "table": table}
 
 
+def reverse_dcf(data, risk_free_rate=None):
+    """Calculate the implied growth rate the market is pricing in.
+
+    Instead of saying 'TSLA is 95% overvalued', this answers:
+    'The market expects 35% annual FCF growth for the next 10 years.'
+    Much more useful for extreme premium stocks.
+    """
+    fcf    = data.get("free_cashflow")
+    shares = data.get("shares_outstanding")
+    price  = data.get("price")
+    debt   = float(data.get("total_debt") or 0)
+    cash   = float(data.get("cash") or 0)
+    if not fcf or not shares or not price or shares <= 0 or price <= 0:
+        return None
+    # For negative FCF companies, use revenue-based proxy
+    if fcf <= 0:
+        revenue = data.get("revenue")
+        if not revenue or revenue <= 0:
+            return None
+        # Assume target FCF margin of 15% at maturity
+        fcf = revenue * 0.05  # current implied FCF at 5% margin
+        fcf_note = "Estimated from 5% of revenue (company has negative FCF)"
+    else:
+        fcf_note = None
+
+    rfr = risk_free_rate or 0.043
+    wacc = max(rfr + 0.045, 0.08)  # equity risk premium ~4.5%
+    terminal_growth = 0.025
+    market_cap = price * shares
+    enterprise_value = market_cap + debt - cash
+
+    # Binary search for implied growth rate
+    lo, hi = -0.10, 1.0  # -10% to 100% growth
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        # Project FCF for 10 years at this growth rate
+        proj_fcf = [fcf * (1 + mid) ** i for i in range(1, 11)]
+        disc_fcf = [cf / (1 + wacc) ** i for i, cf in enumerate(proj_fcf, 1)]
+        # Terminal value
+        terminal_fcf = proj_fcf[-1] * (1 + terminal_growth)
+        tv = terminal_fcf / (wacc - terminal_growth)
+        pv_tv = tv / (1 + wacc) ** 10
+        implied_ev = sum(disc_fcf) + pv_tv
+        if implied_ev < enterprise_value:
+            lo = mid
+        else:
+            hi = mid
+
+    implied_growth = (lo + hi) / 2
+
+    # Compute what FCF would be in year 10 at this rate
+    year10_fcf = fcf * (1 + implied_growth) ** 10
+    year10_margin_note = None
+    revenue = data.get("revenue")
+    if revenue and revenue > 0:
+        year10_revenue = revenue * (1 + implied_growth * 0.7) ** 10  # revenue grows slower
+        year10_margin = year10_fcf / year10_revenue if year10_revenue > 0 else None
+        if year10_margin and year10_margin > 0.40:
+            year10_margin_note = f"Implies {round(year10_margin * 100)}% FCF margin in year 10 — would be historically exceptional"
+
+    result = {
+        "implied_growth_rate": round(implied_growth * 100, 1),
+        "wacc_used": round(wacc * 100, 1),
+        "terminal_growth": round(terminal_growth * 100, 1),
+        "current_fcf": round(fcf, 0),
+        "year10_fcf": round(year10_fcf, 0),
+        "projection_years": 10,
+    }
+    if fcf_note:
+        result["fcf_note"] = fcf_note
+    if year10_margin_note:
+        result["margin_note"] = year10_margin_note
+
+    # Reasonableness assessment
+    if implied_growth > 0.40:
+        result["assessment"] = "Extremely aggressive — very few companies sustain >40% FCF growth for a decade"
+    elif implied_growth > 0.25:
+        result["assessment"] = "Aggressive — requires sustained high growth execution"
+    elif implied_growth > 0.15:
+        result["assessment"] = "Optimistic but achievable for a strong grower"
+    elif implied_growth > 0.05:
+        result["assessment"] = "Reasonable — market expects moderate growth"
+    elif implied_growth > 0:
+        result["assessment"] = "Conservative — market expects minimal growth"
+    else:
+        result["assessment"] = "Market is pricing in negative growth or FCF decline"
+
+    return result
+
+
 def peer_comparison(data, sector_multiples=None):
     sector  = data.get("sector", "default")
     price   = data.get("price") or 1
@@ -349,6 +439,7 @@ def run_valuation(ticker: str, data: dict) -> dict:
         "signals":       signals,
         "valuations":    results,
         "dcf_sensitivity": dcf_sensitivity(data),
+        "reverse_dcf":   reverse_dcf(data, risk_free_rate),
         "peer_comparison": peer_comparison(data, sector_multiples),
         "confidence":    confidence_score(data, results, signals, analyst_blended),
         "analyst": {

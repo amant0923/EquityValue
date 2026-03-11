@@ -5,6 +5,7 @@ import CompanyNav from "../components/company/CompanyNav";
 import CompanyHeader from "../components/CompanyHeader";
 import ConsensusCard from "../components/ConsensusCard";
 import AnalystWidget from "../components/company/AnalystWidget";
+import EVModelWidget from "../components/company/EVModelWidget";
 import KeyMetricsRow from "../components/company/KeyMetricsRow";
 import FinancialSnapshot from "../components/company/FinancialSnapshot";
 import MarginGrowthTrends from "../components/company/MarginGrowthTrends";
@@ -66,9 +67,12 @@ export default function CompanyPage() {
 
       {valuation?.consensus && <ConsensusCard data={valuation.consensus} signals={valuation.signals} />}
 
-      {data?.analyst && Object.keys(data.analyst).length > 0 && (
-        <AnalystWidget analyst={data.analyst} />
-      )}
+      <div className="cp-targets-row">
+        {valuation && <EVModelWidget valuation={valuation} />}
+        {data?.analyst && Object.keys(data.analyst).length > 0 && (
+          <AnalystWidget analyst={data.analyst} />
+        )}
+      </div>
 
       {data && (
         <KeyMetricsRow
@@ -94,6 +98,14 @@ export default function CompanyPage() {
           display: flex;
           flex-direction: column;
           gap: 20px;
+        }
+        .cp-targets-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        @media (max-width: 768px) {
+          .cp-targets-row { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
