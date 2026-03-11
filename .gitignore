@@ -22,3 +22,4 @@ frontend/node_modules/.vite/
 .env
 .env.local
 *.env
+.worktrees/
