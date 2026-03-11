@@ -146,6 +146,8 @@ def get_risk_free_rate():
     if _rfr_cache["data"] is not None and (now - _rfr_cache["ts"]) < _CACHE_TTL:
         return _rfr_cache["data"]
     try:
+        if fmp_get_first is None:
+            raise ValueError("FMP client not available")
         data = fmp_get_first("treasury-rates", {"limit": 1})
         if data and "year10" in data:
             rate = float(data["year10"]) / 100.0
