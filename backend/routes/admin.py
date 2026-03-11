@@ -138,4 +138,8 @@ async def reset_password(user_id: str, user: dict = Depends(get_current_user)):
 async def check_admin(user: dict = Depends(get_current_user)):
     """Check if the current user is an admin."""
     email = (user.get("email") or "").lower()
-    return {"is_admin": email in ADMIN_EMAILS}
+    return {
+        "is_admin": email in ADMIN_EMAILS,
+        "your_email": email,
+        "admin_emails_configured": len(ADMIN_EMAILS) > 0,
+    }

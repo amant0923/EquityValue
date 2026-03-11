@@ -25,12 +25,14 @@ export default function AdminPage() {
     try {
       const checkRes = await api.get("/admin/check");
       if (!checkRes.data.is_admin) {
-        navigate("/dashboard");
+        setError("Access denied — your email is not in ADMIN_EMAILS. Check Render env vars.");
+        setLoading(false);
         return;
       }
       await loadUsers();
-    } catch {
-      navigate("/dashboard");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to verify admin access");
+      setLoading(false);
     }
   }
 
