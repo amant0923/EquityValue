@@ -348,6 +348,70 @@ def merge(primary: dict, fallback: dict) -> dict:
     return merged
 
 
+def _fetch_valuation_supplements(ticker: str) -> dict:
+    """Fetch additional data from financial_statements and key_metrics for valuation models.
+
+    Returns dict with: operating_income, depreciation_amortization, total_assets,
+    total_assets_prev, ebitda_prev, eps_3yr_avg, roe_3yr_avg, interest_expense, payout_ratio.
+    """
+    if not USE_SUPABASE:
+        return {}
+    result = {}
+    try:
+        # Latest annual income statement for operating_income, interest_expense
+        income = supabase.table("financial_statements") \
+            .select("operating_income, interest_expense, ebitda") \
+            .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "income") \
+            .order("period_date", desc=True).limit(2).execute().data or []
+        if income:
+            result["operating_income"] = _safe_val(income[0].get("operating_income"))
+            result["interest_expense"] = _safe_val(income[0].get("interest_expense"))
+            if len(income) >= 2:
+                result["ebitda_prev"] = _safe_val(income[1].get("ebitda"))
+
+        # Latest annual cash flow for depreciation
+        cashflow = supabase.table("financial_statements") \
+            .select("depreciation_amortization") \
+            .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "cashflow") \
+            .order("period_date", desc=True).limit(1).execute().data or []
+        if cashflow:
+            result["depreciation_amortization"] = _safe_val(cashflow[0].get("depreciation_amortization"))
+
+        # Latest 2 annual balance sheets for total_assets (current + prior)
+        balance = supabase.table("financial_statements") \
+            .select("total_assets") \
+            .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "balance") \
+            .order("period_date", desc=True).limit(2).execute().data or []
+        if balance:
+            result["total_assets"] = _safe_val(balance[0].get("total_assets"))
+            if len(balance) >= 2:
+                result["total_assets_prev"] = _safe_val(balance[1].get("total_assets"))
+
+        # 3-year avg annual EPS from financial_statements (has eps_diluted column per FY)
+        eps_rows = supabase.table("financial_statements") \
+            .select("eps_diluted") \
+            .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "income") \
+            .order("period_date", desc=True).limit(3).execute().data or []
+        eps_vals = [_safe_val(e.get("eps_diluted")) for e in eps_rows if _safe_val(e.get("eps_diluted")) is not None]
+        if len(eps_vals) >= 2:
+            result["eps_3yr_avg"] = sum(eps_vals) / len(eps_vals)
+
+        # 3-year avg ROE from key_metrics
+        metrics = supabase.table("key_metrics") \
+            .select("roe, payout_ratio") \
+            .eq("ticker", ticker).eq("period_type", "FY") \
+            .order("period_date", desc=True).limit(3).execute().data or []
+        roe_vals = [_safe_val(m.get("roe")) for m in metrics if _safe_val(m.get("roe")) is not None]
+        if len(roe_vals) >= 2:
+            result["roe_3yr_avg"] = sum(roe_vals) / len(roe_vals)
+        if metrics and metrics[0].get("payout_ratio") is not None:
+            result["payout_ratio"] = _safe_val(metrics[0].get("payout_ratio"))
+
+    except Exception:
+        pass  # Non-critical — models fall back to available data
+    return result
+
+
 def fetch_stock_data(ticker: str) -> dict:
     ticker = ticker.upper().strip()
 
@@ -396,6 +460,12 @@ def fetch_stock_data(ticker: str) -> dict:
         cash = data.get("total_cash")
         if mc and debt is not None and cash is not None:
             data["enterprise_value"] = mc + debt - cash
+
+    # Fetch supplemental data for valuation models
+    supplements = _fetch_valuation_supplements(ticker)
+    for k, v in supplements.items():
+        if v is not None and data.get(k) is None:
+            data[k] = v
 
     return data
 
