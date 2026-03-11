@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const PLAN_COLORS = {
   free: { bg: "rgba(148,163,184,0.12)", color: "#94a3b8", border: "rgba(148,163,184,0.3)" },
@@ -8,43 +9,93 @@ const PLAN_COLORS = {
   max:  { bg: "rgba(168,85,247,0.12)",  color: "#a855f7", border: "rgba(168,85,247,0.3)" },
 };
 
+function getAdminToken() {
+  return localStorage.getItem("ev_admin_token");
+}
+
+function adminApi(method, path, data) {
+  const token = getAdminToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `AdminToken ${token}`;
+  const opts = { method, headers };
+  if (data) opts.body = JSON.stringify(data);
+  return fetch(`${API_URL}${path}`, opts).then(async (res) => {
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.detail || `Error ${res.status}`);
+    return json;
+  });
+}
+
 export default function AdminPage() {
-  const navigate = useNavigate();
+  const [authed, setAuthed] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actionMsg, setActionMsg] = useState("");
   const [search, setSearch] = useState("");
 
+  // Check if already have a valid admin token
   useEffect(() => {
-    checkAndLoad();
+    const token = getAdminToken();
+    if (token) {
+      adminApi("GET", "/admin/check")
+        .then((res) => {
+          if (res.is_admin) {
+            setAuthed(true);
+            loadUsers();
+          } else {
+            localStorage.removeItem("ev_admin_token");
+          }
+        })
+        .catch(() => localStorage.removeItem("ev_admin_token"));
+    }
   }, []);
 
-  async function checkAndLoad() {
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
     try {
-      const checkRes = await api.get("/admin/check");
-      if (!checkRes.data.is_admin) {
-        setError("Access denied — your email is not in ADMIN_EMAILS. Check Render env vars.");
-        setLoading(false);
-        return;
-      }
-      await loadUsers();
+      const res = await fetch(`${API_URL}/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Invalid credentials");
+      localStorage.setItem("ev_admin_token", data.token);
+      setAuthed(true);
+      setPassword("");
+      loadUsers();
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to verify admin access");
-      setLoading(false);
+      setLoginError(err.message);
+    } finally {
+      setLoginLoading(false);
     }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("ev_admin_token");
+    setAuthed(false);
+    setUsers([]);
+    setTotal(0);
   }
 
   async function loadUsers() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/admin/users");
-      setUsers(res.data.users);
-      setTotal(res.data.total);
+      const res = await adminApi("GET", "/admin/users");
+      setUsers(res.users);
+      setTotal(res.total);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to load users");
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -52,36 +103,36 @@ export default function AdminPage() {
 
   async function changePlan(userId, plan) {
     try {
-      await api.patch(`/admin/users/${userId}/plan`, { plan });
+      await adminApi("PATCH", `/admin/users/${userId}/plan`, { plan });
       setActionMsg(`Plan updated to ${plan}`);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan } : u));
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
-      setActionMsg(`Error: ${err.response?.data?.detail || "Failed"}`);
+      setActionMsg(`Error: ${err.message}`);
     }
   }
 
   async function resetPassword(userId, email) {
     if (!confirm(`Send password reset email to ${email}?`)) return;
     try {
-      await api.post(`/admin/users/${userId}/reset-password`);
+      await adminApi("POST", `/admin/users/${userId}/reset-password`);
       setActionMsg(`Reset email sent to ${email}`);
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
-      setActionMsg(`Error: ${err.response?.data?.detail || "Failed"}`);
+      setActionMsg(`Error: ${err.message}`);
     }
   }
 
   async function deleteUser(userId, email) {
     if (!confirm(`Delete user ${email}? This cannot be undone.`)) return;
     try {
-      await api.delete(`/admin/users/${userId}`);
+      await adminApi("DELETE", `/admin/users/${userId}`);
       setUsers(prev => prev.filter(u => u.id !== userId));
       setTotal(prev => prev - 1);
       setActionMsg(`Deleted ${email}`);
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
-      setActionMsg(`Error: ${err.response?.data?.detail || "Failed"}`);
+      setActionMsg(`Error: ${err.message}`);
     }
   }
 
@@ -104,6 +155,89 @@ export default function AdminPage() {
   const planCounts = { free: 0, pro: 0, max: 0 };
   users.forEach(u => { planCounts[u.plan] = (planCounts[u.plan] || 0) + 1; });
 
+  // ── Login screen ──
+  if (!authed) {
+    return (
+      <div className="adm-login-wrap">
+        <form className="adm-login-card" onSubmit={handleLogin}>
+          <h1 className="adm-login-title">Admin</h1>
+          <p className="adm-login-sub">Sign in to manage users</p>
+
+          {loginError && <div className="adm-login-error">{loginError}</div>}
+
+          <div className="adm-login-field">
+            <label>Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </div>
+          <div className="adm-login-field">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <button className="adm-login-btn" type="submit" disabled={loginLoading}>
+            {loginLoading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+
+        <style>{`
+          .adm-login-wrap {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 60vh;
+          }
+          .adm-login-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 40px 36px;
+            width: 100%; max-width: 380px;
+            display: flex; flex-direction: column; gap: 16px;
+          }
+          .adm-login-title {
+            font-size: 1.5rem; font-weight: 700; color: var(--text);
+            letter-spacing: -0.5px; text-align: center; margin: 0;
+          }
+          .adm-login-sub {
+            font-size: 0.82rem; color: var(--text3); text-align: center; margin: 0 0 8px;
+          }
+          .adm-login-error {
+            background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+            color: #ef4444; padding: 10px 14px; border-radius: var(--radius);
+            font-size: 0.78rem; text-align: center;
+          }
+          .adm-login-field { display: flex; flex-direction: column; gap: 6px; }
+          .adm-login-field label {
+            font-size: 0.72rem; font-weight: 700; color: var(--text3);
+            text-transform: uppercase; letter-spacing: 0.5px;
+          }
+          .adm-login-field input {
+            padding: 10px 14px; border-radius: var(--radius);
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); font-size: 0.88rem; font-family: inherit; outline: none;
+          }
+          .adm-login-field input:focus { border-color: var(--primary); }
+          .adm-login-btn {
+            background: var(--primary); color: #fff; border: none;
+            padding: 11px 20px; border-radius: var(--radius);
+            font-size: 0.85rem; font-weight: 700; cursor: pointer;
+            font-family: inherit; margin-top: 4px; transition: opacity 0.15s;
+          }
+          .adm-login-btn:hover { opacity: 0.88; }
+          .adm-login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ── Dashboard ──
   return (
     <div className="adm-page">
       <div className="adm-header">
@@ -111,9 +245,14 @@ export default function AdminPage() {
           <h1 className="adm-title">Admin</h1>
           <p className="adm-sub">{total} registered users</p>
         </div>
-        <button className="adm-refresh" onClick={loadUsers} disabled={loading}>
-          Refresh
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="adm-refresh" onClick={loadUsers} disabled={loading}>
+            Refresh
+          </button>
+          <button className="adm-refresh" onClick={handleLogout} style={{ color: "#ef4444" }}>
+            Log Out
+          </button>
+        </div>
       </div>
 
       {/* Stats row */}

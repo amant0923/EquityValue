@@ -1,6 +1,9 @@
 """Admin endpoints — list users, change plans, delete users, reset passwords."""
 import os
-from fastapi import APIRouter, HTTPException, Depends, Body
+import time
+import hashlib
+import hmac
+from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from auth import get_current_user
 from supabase import create_client
 
@@ -13,12 +16,45 @@ SUPABASE_KEY = os.environ.get(
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I",
 )
 
-# Comma-separated list of admin emails
+# Admin credentials (env vars with defaults)
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Password1")
+
+# Secret for signing admin tokens
+_ADMIN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", SUPABASE_SERVICE_KEY or "ev-admin-secret-key")
+
+# Comma-separated list of admin emails (for Supabase-auth-based admin access)
 ADMIN_EMAILS = set(
     e.strip().lower()
     for e in os.environ.get("ADMIN_EMAILS", "").split(",")
     if e.strip()
 )
+
+
+def _make_admin_token():
+    """Generate a signed admin token valid for 24 hours."""
+    expires = int(time.time()) + 86400
+    payload = f"admin:{expires}"
+    sig = hmac.new(_ADMIN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _verify_admin_token(token: str) -> bool:
+    """Verify an admin token is valid and not expired."""
+    parts = token.split(":")
+    if len(parts) != 3:
+        return False
+    role, expires_str, sig = parts
+    if role != "admin":
+        return False
+    try:
+        expires = int(expires_str)
+    except ValueError:
+        return False
+    if time.time() > expires:
+        return False
+    expected = hmac.new(_ADMIN_SECRET.encode(), f"{role}:{expires_str}".encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
 
 
 def _get_sb():
@@ -28,16 +64,47 @@ def _get_sb():
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
-def _require_admin(user: dict):
-    """Check that the authenticated user is an admin."""
+def _require_admin_from_request(request: Request):
+    """Check admin access from either admin token or Supabase auth."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("AdminToken "):
+        token = auth_header.split(" ", 1)[1]
+        if _verify_admin_token(token):
+            return
+        raise HTTPException(403, "Invalid or expired admin token")
+    # No admin token — will be checked via Supabase auth in individual endpoints
+    raise HTTPException(401, "Not authenticated")
+
+
+async def _require_admin(request: Request):
+    """Check admin access: admin token OR Supabase user in ADMIN_EMAILS."""
+    auth_header = request.headers.get("Authorization", "")
+    # Check admin token first
+    if auth_header.startswith("AdminToken "):
+        token = auth_header.split(" ", 1)[1]
+        if _verify_admin_token(token):
+            return {"role": "admin", "email": "admin"}
+        raise HTTPException(403, "Invalid or expired admin token")
+    # Fall back to Supabase auth
+    user = await get_current_user(request)
     email = (user.get("email") or "").lower()
-    if not email or email not in ADMIN_EMAILS:
-        raise HTTPException(403, "Admin access required")
+    if email and email in ADMIN_EMAILS:
+        return user
+    raise HTTPException(403, "Admin access required")
+
+
+@router.post("/login")
+async def admin_login(username: str = Body(...), password: str = Body(...)):
+    """Authenticate with admin username/password, returns a signed token."""
+    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+        raise HTTPException(401, "Invalid username or password")
+    token = _make_admin_token()
+    return {"token": token}
 
 
 @router.get("/users")
-async def list_users(user: dict = Depends(get_current_user)):
-    _require_admin(user)
+async def list_users(request: Request):
+    await _require_admin(request)
     sb = _get_sb()
 
     # Fetch all user profiles
@@ -82,11 +149,11 @@ async def list_users(user: dict = Depends(get_current_user)):
 
 @router.patch("/users/{user_id}/plan")
 async def update_user_plan(
+    request: Request,
     user_id: str,
     plan: str = Body(..., embed=True),
-    user: dict = Depends(get_current_user),
 ):
-    _require_admin(user)
+    await _require_admin(request)
     if plan not in ("free", "pro", "max"):
         raise HTTPException(400, "Plan must be free, pro, or max")
     sb = _get_sb()
@@ -98,11 +165,11 @@ async def update_user_plan(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, user: dict = Depends(get_current_user)):
-    _require_admin(user)
+async def delete_user(request: Request, user_id: str):
+    admin = await _require_admin(request)
     sb = _get_sb()
     # Don't allow deleting yourself
-    if user.get("sub") == user_id:
+    if admin.get("sub") == user_id:
         raise HTTPException(400, "Cannot delete your own account")
     try:
         sb.auth.admin.delete_user(user_id)
@@ -112,8 +179,8 @@ async def delete_user(user_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/users/{user_id}/reset-password")
-async def reset_password(user_id: str, user: dict = Depends(get_current_user)):
-    _require_admin(user)
+async def reset_password(request: Request, user_id: str):
+    await _require_admin(request)
     sb = _get_sb()
     # Get user email first
     try:
@@ -135,11 +202,10 @@ async def reset_password(user_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/check")
-async def check_admin(user: dict = Depends(get_current_user)):
-    """Check if the current user is an admin."""
-    email = (user.get("email") or "").lower()
-    return {
-        "is_admin": email in ADMIN_EMAILS,
-        "your_email": email,
-        "admin_emails_configured": len(ADMIN_EMAILS) > 0,
-    }
+async def check_admin(request: Request):
+    """Check if the current user is an admin (via token or Supabase)."""
+    try:
+        await _require_admin(request)
+        return {"is_admin": True}
+    except HTTPException:
+        return {"is_admin": False}
