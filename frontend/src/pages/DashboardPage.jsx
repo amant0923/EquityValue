@@ -1,21 +1,7 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-
-const MARKET_MOVERS = [
-  { ticker: "NVDA", name: "NVIDIA Corp", change: "+3.42%", price: "135.80", positive: true },
-  { ticker: "TSLA", name: "Tesla Inc", change: "+2.18%", price: "248.50", positive: true },
-  { ticker: "AAPL", name: "Apple Inc", change: "+0.87%", price: "213.49", positive: true },
-  { ticker: "MSFT", name: "Microsoft Corp", change: "-0.42%", price: "378.22", positive: false },
-  { ticker: "META", name: "Meta Platforms", change: "-1.15%", price: "498.30", positive: false },
-];
-
-const SECTORS = [
-  { name: "Technology", change: "+1.82%", positive: true },
-  { name: "Healthcare", change: "+0.34%", positive: true },
-  { name: "Financials", change: "-0.28%", positive: false },
-  { name: "Energy", change: "+0.91%", positive: true },
-  { name: "Consumer Disc.", change: "-0.63%", positive: false },
-  { name: "Utilities", change: "+0.12%", positive: true },
-];
+import { useNavigate } from "react-router-dom";
+import api from "../lib/api";
 
 const blurReveal = {
   hidden: { opacity: 0, filter: "blur(12px)", y: 20 },
@@ -33,6 +19,19 @@ const staggerContainer = {
 };
 
 export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
+  const navigate = useNavigate();
+  const [topPicks, setTopPicks] = useState({ buy: [], avoid: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/dashboard/top-picks")
+      .then(({ data }) => setTopPicks(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmt = (n) => n?.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—";
+
   return (
     <div className="db-wrap">
       <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
@@ -75,37 +74,66 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
           </motion.section>
         )}
 
-        {/* Market movers */}
+        {/* Top Picks */}
         <motion.section variants={blurReveal} className="db-section">
-          <h2 className="db-section-title">Market Movers</h2>
-          <div className="db-movers-card">
-            {MARKET_MOVERS.map((m, i) => (
-              <div key={i} className="db-mover" onClick={() => { onGoAnalysis(); onSearch(m.ticker); }}>
-                <div className="db-mover-left">
-                  <span className="db-mover-ticker mono">{m.ticker}</span>
-                  <span className="db-mover-name">{m.name}</span>
-                </div>
-                <div className="db-mover-right">
-                  <span className="db-mover-price mono">${m.price}</span>
-                  <span className={`db-mover-change mono ${m.positive ? "db-positive" : "db-negative"}`}>{m.change}</span>
-                </div>
+          <div className="db-picks-grid">
+            {/* Top 5 Buy */}
+            <div>
+              <h2 className="db-section-title">
+                <span className="db-pick-dot db-pick-dot--buy" />
+                Top 5 — Best to Buy
+              </h2>
+              <div className="db-movers-card">
+                {loading ? (
+                  <div className="db-mover" style={{ justifyContent: "center", color: "var(--text3)" }}>Loading...</div>
+                ) : topPicks.buy.map((s, i) => (
+                  <div key={s.ticker} className="db-mover" onClick={() => navigate(`/company/${s.ticker}`)}>
+                    <div className="db-mover-left">
+                      <span className="db-mover-rank">{i + 1}</span>
+                      <div>
+                        <span className="db-mover-ticker mono">{s.ticker}</span>
+                        <span className="db-mover-name">{s.name}</span>
+                      </div>
+                    </div>
+                    <div className="db-mover-right">
+                      <span className="db-mover-price mono">${fmt(s.current_price)}</span>
+                      <span className="db-mover-target">Target: ${fmt(s.target_price)}</span>
+                      <span className="db-mover-change mono db-positive">+{s.upside_pct}%</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="db-disclaimer">Market data is illustrative. Use the Analysis page for live valuations.</p>
-        </motion.section>
+            </div>
 
-        {/* Sector performance */}
-        <motion.section variants={blurReveal} className="db-section">
-          <h2 className="db-section-title">Sector Performance</h2>
-          <div className="db-sectors-grid">
-            {SECTORS.map((s, i) => (
-              <div key={i} className={`db-sector-card ${s.positive ? "db-sector--positive" : "db-sector--negative"}`}>
-                <span className="db-sector-name">{s.name}</span>
-                <span className={`db-sector-change mono ${s.positive ? "db-positive" : "db-negative"}`}>{s.change}</span>
+            {/* Top 5 Avoid */}
+            <div>
+              <h2 className="db-section-title">
+                <span className="db-pick-dot db-pick-dot--avoid" />
+                Top 5 — Avoid / Sell
+              </h2>
+              <div className="db-movers-card">
+                {loading ? (
+                  <div className="db-mover" style={{ justifyContent: "center", color: "var(--text3)" }}>Loading...</div>
+                ) : topPicks.avoid.map((s, i) => (
+                  <div key={s.ticker} className="db-mover" onClick={() => navigate(`/company/${s.ticker}`)}>
+                    <div className="db-mover-left">
+                      <span className="db-mover-rank">{i + 1}</span>
+                      <div>
+                        <span className="db-mover-ticker mono">{s.ticker}</span>
+                        <span className="db-mover-name">{s.name}</span>
+                      </div>
+                    </div>
+                    <div className="db-mover-right">
+                      <span className="db-mover-price mono">${fmt(s.current_price)}</span>
+                      <span className="db-mover-target">Target: ${fmt(s.target_price)}</span>
+                      <span className="db-mover-change mono db-negative">{s.upside_pct}%</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
+          <p className="db-disclaimer">Based on analyst consensus price targets vs. current price. Not financial advice.</p>
         </motion.section>
 
         {/* Quick start */}
@@ -207,6 +235,23 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
           border-radius: var(--radius-lg);
           overflow: hidden;
         }
+        .db-picks-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        @media (max-width: 768px) {
+          .db-picks-grid { grid-template-columns: 1fr; }
+        }
+        .db-pick-dot {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-right: 6px;
+        }
+        .db-pick-dot--buy { background: var(--green2); }
+        .db-pick-dot--avoid { background: var(--red2); }
         .db-mover {
           display: flex;
           justify-content: space-between;
@@ -218,37 +263,22 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
         }
         .db-mover:last-child { border-bottom: none; }
         .db-mover:hover { background: var(--surface2); }
-        .db-mover-left { display: flex; flex-direction: column; gap: 2px; }
-        .db-mover-ticker { font-size: 0.88rem; font-weight: 700; color: var(--text); }
-        .db-mover-name { font-size: 0.75rem; color: var(--text3); }
+        .db-mover-left { display: flex; align-items: center; gap: 12px; }
+        .db-mover-rank {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--text3);
+          min-width: 18px;
+        }
+        .db-mover-ticker { font-size: 0.88rem; font-weight: 700; color: var(--text); display: block; }
+        .db-mover-name { font-size: 0.72rem; color: var(--text3); display: block; }
         .db-mover-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
         .db-mover-price { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+        .db-mover-target { font-size: 0.68rem; color: var(--text3); }
         .db-mover-change { font-size: 0.8rem; font-weight: 600; }
         .db-positive { color: var(--green2); }
         .db-negative { color: var(--red2); }
         .db-disclaimer { font-size: 0.68rem; color: var(--text3); margin-top: 8px; }
-
-        .db-sectors-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-          gap: 10px;
-        }
-        .db-sector-card {
-          background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-          padding: 14px 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          cursor: default;
-          transition: border-color 0.2s, background 0.2s;
-        }
-        .db-sector-card:hover { background: var(--surface2); }
-        .db-sector--positive { border-left: 3px solid var(--green2); }
-        .db-sector--negative { border-left: 3px solid var(--red2); }
-        .db-sector-name { font-size: 0.78rem; color: var(--text2); font-weight: 500; }
-        .db-sector-change { font-size: 0.9rem; font-weight: 700; }
 
         .db-empty {
           background: var(--surface);

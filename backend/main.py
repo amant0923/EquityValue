@@ -509,6 +509,32 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
         print(f"[screener] {e}")
         raise HTTPException(status_code=500, detail="Screener error. Please try again.")
 
+@app.get("/dashboard/top-picks")
+async def top_picks(user: dict = Depends(get_current_user)):
+    """Return top 5 stocks to buy and top 5 to avoid based on analyst target upside."""
+    try:
+        from supabase import create_client
+        sb = create_client(
+            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
+        )
+        rows = sb.table("stock_fundamentals").select(
+            "ticker,name,sector,current_price,target_price,pe_ratio,roe,revenue_growth"
+        ).not_.is_("target_price", "null").not_.is_("current_price", "null").gt("current_price", 0).execute().data or []
+
+        for r in rows:
+            cp = float(r["current_price"])
+            tp = float(r["target_price"])
+            r["upside_pct"] = round((tp - cp) / cp * 100, 2)
+
+        ranked = sorted(rows, key=lambda r: r["upside_pct"], reverse=True)
+        buy = ranked[:5]
+        avoid = ranked[-5:][::-1]  # worst 5, most overvalued first
+        return {"buy": buy, "avoid": avoid}
+    except Exception as e:
+        print(f"[top-picks] {e}")
+        raise HTTPException(status_code=500, detail="Failed to load top picks")
+
 @app.post("/stripe/create-checkout")
 async def create_checkout(request: Request, user: dict = Depends(get_current_user)):
     body = await request.json()
