@@ -105,6 +105,14 @@ def normalise(data: dict) -> dict:
             fval = float(val)
             if abs(fval) > 5:  # clearly already a percentage, normalise to decimal
                 d[field] = fval / 100
+
+    # Pass through supplemental fields for valuation models
+    for field in ("operating_income", "depreciation_amortization", "total_assets",
+                  "total_assets_prev", "ebitda_prev", "eps_3yr_avg", "roe_3yr_avg",
+                  "interest_expense", "payout_ratio"):
+        if d.get(field) is None and data.get(field) is not None:
+            d[field] = data[field]
+
     return d
 
 @app.get("/")
