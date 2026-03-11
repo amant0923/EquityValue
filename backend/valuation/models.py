@@ -162,7 +162,7 @@ def ev_ebitda_comps(data, sector_multiples=None):
         "model": "EV/EBITDA Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
         "upside_pct": _pct(intrinsic, price), "verdict": _verdict(intrinsic, price),
-        "assumptions": {"Sector Median EV/EBITDA": benchmark, "Company EBITDA": f"${ebitda:,.0f}"},
+        "assumptions": {"Sector Median EV/EBITDA": round(benchmark, 2), "Company EBITDA": f"${ebitda:,.0f}"},
         "description": "Applies the sector median EV/EBITDA multiple to the company's EBITDA.",
         "category": "Market-Based",
     }
@@ -195,7 +195,7 @@ def ev_ebit_comps(data, sector_multiples=None):
         "model": "EV/EBIT Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
         "upside_pct": _pct(intrinsic, price), "verdict": _verdict(intrinsic, price),
-        "assumptions": {"Sector Median EV/EBIT": benchmark, "Est. EBIT": f"${ebit:,.0f}"},
+        "assumptions": {"Sector Median EV/EBIT": round(benchmark, 2), "Est. EBIT": f"${ebit:,.0f}"},
         "description": "Applies the sector median EV/EBIT multiple — excludes D&A for better operational comparison.",
         "category": "Market-Based",
     }
@@ -220,7 +220,7 @@ def ev_sales_comps(data, sector_multiples=None):
         "model": "EV/Sales Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
         "upside_pct": _pct(intrinsic, price), "verdict": _verdict(intrinsic, price),
-        "assumptions": {"Sector Median EV/Sales": benchmark, "Total Revenue": f"${revenue:,.0f}"},
+        "assumptions": {"Sector Median EV/Sales": round(benchmark, 2), "Total Revenue": f"${revenue:,.0f}"},
         "description": "Applies the sector median EV/Sales multiple — useful for high-growth or pre-profit companies.",
         "category": "Market-Based",
     }
@@ -242,7 +242,7 @@ def pe_comps(data, sector_multiples=None):
         "model": "P/E Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
         "upside_pct": _pct(intrinsic, price), "verdict": _verdict(intrinsic, price),
-        "assumptions": {"Sector Median P/E": median_pe, "Trailing EPS": f"${round(eps,2)}"},
+        "assumptions": {"Sector Median P/E": round(median_pe, 2), "Trailing EPS": f"${round(eps,2)}"},
         "description": "Applies the sector median P/E ratio to the company's trailing 12-month EPS.",
         "category": "Market-Based",
     }
@@ -265,7 +265,7 @@ def ps_comps(data, sector_multiples=None):
         "model": "P/S Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
         "upside_pct": _pct(intrinsic, price), "verdict": _verdict(intrinsic, price),
-        "assumptions": {"Sector Median P/S": median_ps, "Revenue Per Share": f"${round(revenue/shares,2)}"},
+        "assumptions": {"Sector Median P/S": round(median_ps, 2), "Revenue Per Share": f"${round(revenue/shares,2)}"},
         "description": "Applies the sector median Price/Sales multiple to revenue per share.",
         "category": "Market-Based",
     }
