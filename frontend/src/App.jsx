@@ -35,6 +35,7 @@ const CompanyIntelligencePage = lazy(() => import("./pages/CompanyIntelligencePa
 const CompanyValuationPage = lazy(() => import("./pages/CompanyValuationPage"));
 const PortfolioListPage = lazy(() => import("./pages/PortfolioListPage"));
 const PortfolioDetailPage = lazy(() => import("./pages/PortfolioDetailPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 
 import AppLayout from "./layouts/AppLayout";
 
@@ -259,6 +260,7 @@ function AppInner() {
 
           <Route path="/portfolio" element={<PortfolioListPage />} />
           <Route path="/portfolio/:id" element={<PortfolioDetailPage />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" />} />
