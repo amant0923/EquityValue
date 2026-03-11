@@ -97,7 +97,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
                     </div>
                     <div className="db-mover-right">
                       <span className="db-mover-price mono">${fmt(s.current_price)}</span>
-                      <span className="db-mover-target">Target: ${fmt(s.target_price)}</span>
+                      <span className="db-mover-target">WS Target: ${fmt(s.target_price)}</span>
                       <span className="db-mover-change mono db-positive">+{s.upside_pct}%</span>
                     </div>
                   </div>
@@ -125,7 +125,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
                     </div>
                     <div className="db-mover-right">
                       <span className="db-mover-price mono">${fmt(s.current_price)}</span>
-                      <span className="db-mover-target">Target: ${fmt(s.target_price)}</span>
+                      <span className="db-mover-target">WS Target: ${fmt(s.target_price)}</span>
                       <span className="db-mover-change mono db-negative">{s.upside_pct}%</span>
                     </div>
                   </div>
@@ -133,7 +133,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
               </div>
             </div>
           </div>
-          <p className="db-disclaimer">Based on analyst consensus price targets vs. current price. Not financial advice.</p>
+          <p className="db-disclaimer">Based on Wall Street analyst consensus price targets vs. current price. Not financial advice.</p>
         </motion.section>
 
         {/* Quick start */}

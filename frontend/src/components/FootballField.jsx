@@ -107,7 +107,7 @@ export default function FootballField({ valuations, currentPrice, consensus }) {
           {/* Consensus line */}
           {consensusPct != null && (
             <div className="ff-consensus-line" style={{ left: `${consensusPct}%` }}>
-              <div className="ff-consensus-label">${consensus.average_intrinsic_value}<br/>Consensus</div>
+              <div className="ff-consensus-label">${consensus.average_intrinsic_value}<br/>EV Model</div>
             </div>
           )}
 
@@ -167,7 +167,7 @@ export default function FootballField({ valuations, currentPrice, consensus }) {
         {consensus && (
           <div className="ff-legend-item">
             <div className="ff-legend-line ff-legend-line--consensus" />
-            <span>Consensus</span>
+            <span>EV Model Consensus</span>
           </div>
         )}
       </div>

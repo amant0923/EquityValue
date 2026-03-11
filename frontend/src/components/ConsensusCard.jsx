@@ -55,7 +55,7 @@ function ScoreRing({ score, color, size = 90 }) {
   );
 }
 
-export default function ConsensusCard({ data }) {
+export default function ConsensusCard({ data, signals }) {
   const cfg = VERDICT_CONFIG[data.overall_verdict] || VERDICT_CONFIG["Fairly Valued"];
   const sign = data.upside_pct > 0 ? "+" : "";
   const animatedPrice = useCountUp(parseFloat(data.average_intrinsic_value) || 0, 1000);
@@ -72,7 +72,7 @@ export default function ConsensusCard({ data }) {
       {/* Left: verdict + details */}
       <div className="cc-left">
         <div className="cc-eyebrow-row">
-          <span className="cc-eyebrow">Consensus Verdict</span>
+          <span className="cc-eyebrow">EV Model Consensus</span>
           <span className="cc-models-badge">{data.models_used} models</span>
         </div>
 
@@ -82,7 +82,7 @@ export default function ConsensusCard({ data }) {
         </div>
 
         <p className="cc-sub">
-          Arithmetic mean of {data.models_used} applicable valuation models
+          Weighted average of {data.models_used} Equity Valuation models (not Wall Street analyst targets)
         </p>
 
         <div className="cc-meta-row">
@@ -118,6 +118,16 @@ export default function ConsensusCard({ data }) {
           <span className="cc-current">vs ${data.current_price}</span>
         </div>
       </div>
+
+      {signals?.extreme_premium && (
+        <div className="cc-premium-warning">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>{signals.extreme_premium.message}</span>
+        </div>
+      )}
 
       <style>{`
         .cc-wrap {
@@ -185,6 +195,21 @@ export default function ConsensusCard({ data }) {
         .cc-upside-block { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
         .cc-upside { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; }
         .cc-current { font-size: 0.75rem; color: var(--text3); }
+
+        .cc-premium-warning {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          width: 100%;
+          background: rgba(245,158,11,0.08);
+          border: 1px solid rgba(245,158,11,0.25);
+          border-radius: var(--radius);
+          padding: 12px 16px;
+          font-size: 0.75rem;
+          color: var(--yellow2);
+          line-height: 1.55;
+        }
+        .cc-premium-warning svg { flex-shrink: 0; margin-top: 1px; }
 
         @media (max-width: 640px) {
           .cc-wrap { padding: 20px; gap: 20px; }

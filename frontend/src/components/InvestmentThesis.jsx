@@ -57,9 +57,10 @@ BALANCE SHEET:
 - Total Debt: ${fmt(km.total_debt, "large")} | Cash: ${fmt(km.total_cash, "large")}
 - Debt/Equity: ${km.debt_to_equity?.toFixed(2) || "N/A"} | Current Ratio: ${km.current_ratio?.toFixed(2) || "N/A"}
 
-ANALYST CONSENSUS:
-- Recommendation: ${an.recommendation || "N/A"} | Mean Target: ${fmt(an.target_mean, "price")}
-- Target Range: ${fmt(an.target_low, "price")} – ${fmt(an.target_high, "price")} | Analysts: ${an.analyst_count ? Math.round(an.analyst_count) : "N/A"}
+EV MODEL CONSENSUS (Equity Valuation model-derived targets):
+- Recommendation: ${an.recommendation || "N/A"} | Mean Model Target: ${fmt(an.target_mean, "price")}
+- Model Target Range: ${fmt(an.target_low, "price")} – ${fmt(an.target_high, "price")}
+Note: These targets are derived from EV's valuation models (DCF, EV/EBITDA, P/S, etc.), not from Wall Street analyst consensus.
 
 Write the memo in the following exact structure. Be specific, quantitative, and analytical — not generic. Reference the actual numbers provided. Write as if this memo will be read by a Managing Director before a client call.
 

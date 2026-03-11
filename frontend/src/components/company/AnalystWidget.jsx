@@ -25,7 +25,7 @@ export default function AnalystWidget({ analyst }) {
   return (
     <div className="glass-card" style={{ padding: 20 }}>
       <div className="aw-header">
-        <h3 className="aw-title">Analyst Consensus</h3>
+        <h3 className="aw-title">Wall Street Analyst Consensus</h3>
         {analyst.consensus && (
           <span className="aw-consensus-badge">{analyst.consensus}</span>
         )}

@@ -198,6 +198,24 @@ def _compute_signals(data, consensus, sector_multiples):
     if consensus and abs(consensus.get("upside_pct", 0)) > 25:
         signals["mispricing_note"] = "Mispricings of this magnitude typically take 3-5+ years to fully correct"
 
+    # Extreme premium detection — warn when P/E > 5x sector median
+    pe = data.get("pe_ratio")
+    if not pe and data.get("eps") and data["eps"] > 0 and data.get("price"):
+        pe = data["price"] / data["eps"]
+    if pe and pe > 0:
+        sector = data.get("sector", "default")
+        sm = sector_multiples.get(sector, sector_multiples.get("default", {}))
+        sector_pe = sm.get("pe", 18)
+        if sector_pe and sector_pe > 0:
+            pe_ratio_to_sector = pe / sector_pe
+            if pe_ratio_to_sector > 5:
+                signals["extreme_premium"] = {
+                    "company_pe": round(pe, 1),
+                    "sector_pe": round(sector_pe, 1),
+                    "multiple": round(pe_ratio_to_sector, 1),
+                    "message": f"This stock trades at {round(pe_ratio_to_sector, 1)}x its sector median P/E ({round(pe, 1)}x vs {round(sector_pe, 1)}x). Traditional valuation models may not fully capture the growth expectations or speculative premium embedded in the price."
+                }
+
     return signals
 
 

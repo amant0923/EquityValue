@@ -135,7 +135,7 @@ export default function CompanyValuationPage() {
         {/* 1. Consensus Card */}
         {valuation.consensus && (
           <motion.div variants={fadeUp}>
-            <ConsensusCard data={valuation.consensus} />
+            <ConsensusCard data={valuation.consensus} signals={valuation.signals} />
           </motion.div>
         )}
 
@@ -228,7 +228,7 @@ export default function CompanyValuationPage() {
                 </div>
                 <div className="cvp-fmp-divider" />
                 <div className="cvp-fmp-item cvp-fmp-item--highlight">
-                  <span className="cvp-fmp-label">App Consensus</span>
+                  <span className="cvp-fmp-label">EV Model Consensus</span>
                   <span className="cvp-fmp-value">
                     {valuation.consensus?.average_intrinsic_value
                       ? fmtPrice(valuation.consensus.average_intrinsic_value)

@@ -64,7 +64,7 @@ export default function CompanyPage() {
 
       {valuation && <CompanyHeader data={valuation} />}
 
-      {valuation?.consensus && <ConsensusCard data={valuation.consensus} />}
+      {valuation?.consensus && <ConsensusCard data={valuation.consensus} signals={valuation.signals} />}
 
       {data?.analyst && Object.keys(data.analyst).length > 0 && (
         <AnalystWidget analyst={data.analyst} />

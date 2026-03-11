@@ -20,7 +20,7 @@ export default function PriceTargetChart({ data, currentPrice }) {
   return (
     <div className="glass-card" style={{ padding: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <h3 className="ci-section-title">Price Targets</h3>
+        <h3 className="ci-section-title">Wall Street Price Targets</h3>
         {data.target_count && (
           <span style={{ fontSize: "0.68rem", color: "var(--text3)" }}>
             {data.target_count} analyst{data.target_count !== 1 ? "s" : ""}
