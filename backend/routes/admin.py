@@ -23,10 +23,9 @@ ADMIN_EMAILS = set(
 
 def _get_sb():
     """Get Supabase client with service_role key (bypasses RLS)."""
-    key = SUPABASE_SERVICE_KEY or SUPABASE_KEY
-    if not key:
-        raise HTTPException(500, "Supabase not configured")
-    return create_client(SUPABASE_URL, key)
+    if not SUPABASE_SERVICE_KEY:
+        raise HTTPException(500, "SUPABASE_SERVICE_KEY not configured — required for admin access")
+    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
 def _require_admin(user: dict):
@@ -45,10 +44,18 @@ async def list_users(user: dict = Depends(get_current_user)):
     profiles = sb.table("user_profiles").select("*").execute().data or []
     profile_map = {p["id"]: p for p in profiles}
 
-    # Fetch auth users via Supabase Admin API
-    # service_role key gives access to auth.admin
+    # Fetch auth users via Supabase Admin API (paginated, 50 per page)
+    auth_users = []
+    page = 1
     try:
-        auth_users = sb.auth.admin.list_users()
+        while True:
+            batch = sb.auth.admin.list_users(page=page, per_page=50)
+            if not batch:
+                break
+            auth_users.extend(batch)
+            if len(batch) < 50:
+                break
+            page += 1
     except Exception as e:
         raise HTTPException(500, f"Failed to list auth users: {e}")
 
