@@ -5,7 +5,7 @@ from valuation.models import (
     pe_comps, ps_comps, peg_model,
     pb_model, residual_income, fcf_yield_model,
 )
-from valuation.sector_multiples import get_sector_multiples, get_risk_free_rate
+from valuation.sector_multiples import get_sector_multiples, get_risk_free_rate, HARDCODED_FALLBACK
 import math
 
 MODEL_MAP = {
@@ -36,7 +36,7 @@ MODEL_WEIGHTS = {
 _SECTOR_MODELS = {ev_ebitda_comps, ev_ebit_comps, ev_sales_comps, pe_comps, ps_comps,
                   peg_model, cap_earnings, fcf_yield_model, pb_model}
 _RFR_MODELS = {dcf, ddm, pb_model, residual_income}
-_BOTH_MODELS = _SECTOR_MODELS & _RFR_MODELS  # pb_model takes both
+# pb_model is in both sets — _call_model handles the intersection
 
 
 def _normalise(data: dict) -> dict:
@@ -120,7 +120,6 @@ def peer_comparison(data, sector_multiples=None):
     ev      = data.get("enterprise_value")
     revenue = data.get("revenue")
     shares  = data.get("shares_outstanding") or 1
-    from valuation.sector_multiples import HARDCODED_FALLBACK
     sm = (sector_multiples or HARDCODED_FALLBACK).get(sector, (sector_multiples or HARDCODED_FALLBACK).get("default", {}))
     rows = []
     if eps and eps > 0:
@@ -246,6 +245,9 @@ def confidence_score(data, result, signals=None, analyst_blended=None):
 
 def run_valuation(ticker: str, data: dict) -> dict:
     data = _normalise(data)
+    if not data.get("price"):
+        return {"ticker": ticker, "error": "No price data available", "consensus": None,
+                "valuations": [], "confidence": "Low", "signals": {}}
     sector_multiples = get_sector_multiples()
     risk_free_rate = get_risk_free_rate()
 
@@ -285,6 +287,8 @@ def run_valuation(ticker: str, data: dict) -> dict:
         if analyst_target and float(analyst_target) > 0 and avg > 0:
             analyst_target = float(analyst_target)
             divergence = abs(analyst_target - avg) / avg
+            # Higher weight when divergent: analysts often have info models lack
+            # (catalysts, management changes, sector shifts) — Delao et al. 2024
             analyst_weight = 0.6 if divergence > 0.10 else 0.3
             blended = analyst_weight * analyst_target + (1 - analyst_weight) * avg
             analyst_blended = {

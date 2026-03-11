@@ -1,7 +1,7 @@
 """Tests for valuation router — consensus, signals, confidence."""
 import pytest
 from unittest.mock import patch, MagicMock
-from valuation.router import run_valuation
+from valuation.router import run_valuation, OUTLIER_MODELS
 
 
 # All tests mock sector_multiples and risk_free_rate to avoid live API/Supabase calls
@@ -44,17 +44,11 @@ def test_weighted_consensus_not_simple_average(sample_stock_data):
     """Weighted consensus should differ from simple average of non-outlier models."""
     result = _mock_run(sample_stock_data)
     # Get the non-outlier applicable models (same pool that feeds consensus)
-    OUTLIER_MODELS = {"Graham Number", "Gordon Growth Model (DDM)", "Residual Income",
-                      "Capitalization of Earnings", "P/E Comparables"}
     applicable = [r for r in result["valuations"]
                   if r.get("applicable") and r.get("model") not in OUTLIER_MODELS]
-    if len(applicable) >= 2:
-        simple_avg = sum(r["intrinsic_value"] for r in applicable) / len(applicable)
-        consensus_val = result["consensus"]["average_intrinsic_value"]
-        # Weighted consensus uses different weights per model, so should differ
-        # (unless analyst blending changed it further)
-        # Just verify it's a reasonable value, not exactly the simple average
-        assert consensus_val > 0
+    assert len(applicable) >= 2, "Need at least 2 non-outlier models for meaningful test"
+    consensus_val = result["consensus"]["average_intrinsic_value"]
+    assert consensus_val > 0
 
 
 def test_analyst_blending_divergent(sample_stock_data):
@@ -62,23 +56,23 @@ def test_analyst_blending_divergent(sample_stock_data):
     sample_stock_data["target_price"] = 500.0  # Very far from likely consensus
     result = _mock_run(sample_stock_data)
     ab = result.get("analyst_blended")
-    if ab:
-        assert ab["analyst_weight"] == 0.6
-        assert ab["divergence_pct"] > 10
+    assert ab is not None, "Analyst blending should occur with target_price set"
+    assert ab["analyst_weight"] == 0.6
+    assert ab["divergence_pct"] > 10
 
 
 def test_analyst_blending_close(sample_stock_data):
     """When analyst target is within 10%, should get 30% analyst weight."""
     # Set target_price close to what consensus would be (roughly same range)
     result_no_target = _mock_run({**sample_stock_data, "target_price": None})
-    if result_no_target.get("consensus"):
-        consensus_val = result_no_target["consensus"]["average_intrinsic_value"]
-        # Set target within 5% of consensus
-        sample_stock_data["target_price"] = consensus_val * 1.03
-        result = _mock_run(sample_stock_data)
-        ab = result.get("analyst_blended")
-        if ab:
-            assert ab["analyst_weight"] == 0.3
+    assert result_no_target.get("consensus") is not None, "Should produce consensus"
+    consensus_val = result_no_target["consensus"]["average_intrinsic_value"]
+    # Set target within 5% of consensus
+    sample_stock_data["target_price"] = consensus_val * 1.03
+    result = _mock_run(sample_stock_data)
+    ab = result.get("analyst_blended")
+    assert ab is not None, "Analyst blending should occur with close target"
+    assert ab["analyst_weight"] == 0.3
 
 
 def test_contextual_signals_present(sample_stock_data):
