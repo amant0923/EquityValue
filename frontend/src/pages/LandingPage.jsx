@@ -3,10 +3,9 @@ import { motion } from "framer-motion";
 import { Activity, Clock, Star, LayoutGrid, BarChart3, FileText, Check, X, ArrowRight } from "lucide-react";
 import { cn } from "../lib/utils";
 import SearchBar from "../components/SearchBar";
+import { HeroGraphic } from "../components/ui/css-background";
 import { ShaderAnimation } from "../components/ui/shader-animation";
 import { GlowingEffect } from "../components/ui/glowing-effect";
-import { SplineScene } from "../components/ui/splite";
-import { Spotlight } from "../components/ui/spotlight";
 
 const FEATURES = [
   { icon: <Activity className="w-5 h-5" />, title: "12 Valuation Models", desc: "DCF, comparables, Graham Number, DDM — all run simultaneously and synthesised into one verdict." },
@@ -153,8 +152,6 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
 
       {/* ── Personal Equity Analyst ── */}
       <section className="relative z-10 w-full h-[500px] bg-black/40 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
-        <Spotlight className="-top-40 left-0 md:left-60 md:-top-20" fill="white" />
-
         <div className="flex h-full">
           {/* Left content */}
           <div className="flex-1 p-8 md:p-12 relative z-10 flex flex-col justify-center">
@@ -166,12 +163,9 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
             </p>
           </div>
 
-          {/* Right content - 3D scene */}
+          {/* Right content - animated chart */}
           <div className="flex-1 relative">
-            <SplineScene
-              scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-              className="w-full h-full"
-            />
+            <HeroGraphic />
           </div>
         </div>
       </section>
