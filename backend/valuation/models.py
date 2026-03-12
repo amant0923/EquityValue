@@ -24,8 +24,14 @@ def _pct(intrinsic, current):
     return round((intrinsic - current) / current * 100, 1)
 
 
-def _get_sector_mult(sector, sector_multiples, key):
-    """Get a specific multiple for a sector from the dynamic multiples dict."""
+def _get_sector_mult(sector, sector_multiples, key, industry=None):
+    """Get a specific multiple, checking industry overrides first, then sector."""
+    # Industry-level override takes priority (fixes Healthcare MCO, auto, etc.)
+    if industry:
+        from valuation.sector_multiples import get_industry_override
+        override = get_industry_override(industry, key)
+        if override is not None:
+            return override
     if sector_multiples:
         sm = sector_multiples.get(sector, sector_multiples.get("default", {}))
         val = sm.get(key)
@@ -68,7 +74,21 @@ def dcf(data, growth_rate=None, wacc=None, terminal_growth=None, years=5, risk_f
         retention = max(1.0 - payout, 0.3)
         sustainable = roa * retention if roa > 0 else 0
         rev_growth = float(data.get("revenue_growth") or 0)
-        growth_rate = max(min(sustainable, rev_growth, 0.20), 0.02) if sustainable > 0 else min(max(rev_growth, 0.02), 0.20)
+        earnings_growth = float(data.get("earnings_growth") or 0)
+        # Use the best available growth signal: pick the highest credible one
+        candidates = [g for g in [sustainable, rev_growth, earnings_growth] if g > 0]
+        if candidates:
+            # Use the median of positive signals
+            candidates.sort()
+            raw_growth = candidates[len(candidates) // 2]
+            # Cyclical sectors: cap at 10% — their boom-phase growth doesn't persist
+            sector = data.get("sector", "")
+            cyclical_sectors = {"Energy", "Basic Materials", "Materials"}
+            max_growth = 0.10 if sector in cyclical_sectors else 0.20
+            growth_rate = min(raw_growth, max_growth)
+            growth_rate = max(growth_rate, 0.02)
+        else:
+            growth_rate = 0.02
     if terminal_growth is None:
         terminal_growth = min(0.025, wacc - 0.015)
     debt = float(data.get("total_debt") or 0)
@@ -77,7 +97,14 @@ def dcf(data, growth_rate=None, wacc=None, terminal_growth=None, years=5, risk_f
     disc = [cf / (1 + wacc) ** i for i, cf in enumerate(proj, 1)]
     tv   = proj[-1] * (1 + terminal_growth) / (wacc - terminal_growth)
     pv_tv = tv / (1 + wacc) ** years
-    intrinsic = (sum(disc) + pv_tv - debt + cash) / shares
+    gross_ev = sum(disc) + pv_tv
+    # Cap net debt at 60% of gross enterprise value to prevent debt-heavy
+    # companies (AMZN, DE, F) from collapsing to near-zero equity value.
+    # Their massive debt often includes financing arms that support revenue.
+    net_debt = debt - cash
+    if net_debt > 0:
+        net_debt = min(net_debt, gross_ev * 0.60)
+    intrinsic = (gross_ev - net_debt) / shares
     return {
         "model": "DCF (Discounted Cash Flow)", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
@@ -93,8 +120,9 @@ def dcf(data, growth_rate=None, wacc=None, terminal_growth=None, years=5, risk_f
 def cap_earnings(data, sector_multiples=None):
     eps    = _safe(data.get("eps"))
     sector = data.get("sector", "default")
+    industry = data.get("industry")
     price  = _safe(data.get("price"))
-    cap_rate = _get_sector_mult(sector, sector_multiples, "cap_rate")
+    cap_rate = _get_sector_mult(sector, sector_multiples, "cap_rate", industry)
     if not eps or eps <= 0 or not price:
         return {"model": "Capitalization of Earnings", "applicable": False,
                 "reason": "Negative or missing EPS",
@@ -147,17 +175,29 @@ def ddm(data, cost_of_equity=None, long_term_growth=0.04, risk_free_rate=None):
 def ev_ebitda_comps(data, sector_multiples=None):
     ebitda    = _safe(data.get("ebitda"))
     sector    = data.get("sector", "default")
+    industry  = data.get("industry")
     shares    = _safe(data.get("shares_outstanding"))
     debt      = float(data.get("total_debt") or 0)
     cash      = float(data.get("cash") or 0)
     price     = _safe(data.get("price"))
-    benchmark = _get_sector_mult(sector, sector_multiples, "ev_ebitda")
+    benchmark = _get_sector_mult(sector, sector_multiples, "ev_ebitda", industry)
     if not ebitda or ebitda <= 0 or not shares or not price:
         return {"model": "EV/EBITDA Comparables", "applicable": False,
                 "reason": "Negative or missing EBITDA",
                 "description": "Applies the sector median EV/EBITDA multiple to the company's EBITDA.",
                 "category": "Market-Based"}
-    intrinsic = (benchmark * ebitda - debt + cash) / shares
+    implied_ev = benchmark * ebitda
+    net_debt = debt - cash
+    # Guard: if net debt exceeds implied EV, the model is unreliable
+    # (common for companies with large financing arms like F, DE)
+    if net_debt > 0 and net_debt > implied_ev * 0.80:
+        net_debt = min(net_debt, implied_ev * 0.60)
+    intrinsic = (implied_ev - net_debt) / shares
+    if intrinsic <= 0:
+        return {"model": "EV/EBITDA Comparables", "applicable": False,
+                "reason": "Debt exceeds implied enterprise value",
+                "description": "Applies the sector median EV/EBITDA multiple to the company's EBITDA.",
+                "category": "Market-Based"}
     return {
         "model": "EV/EBITDA Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
@@ -171,11 +211,12 @@ def ev_ebitda_comps(data, sector_multiples=None):
 # ── 5. EV/EBIT (fixed: use operating_income first) ─────────────────
 def ev_ebit_comps(data, sector_multiples=None):
     sector    = data.get("sector", "default")
+    industry  = data.get("industry")
     shares    = _safe(data.get("shares_outstanding"))
     debt      = float(data.get("total_debt") or 0)
     cash      = float(data.get("cash") or 0)
     price     = _safe(data.get("price"))
-    benchmark = _get_sector_mult(sector, sector_multiples, "ev_ebit")
+    benchmark = _get_sector_mult(sector, sector_multiples, "ev_ebit", industry)
     # Priority: operating_income → ebitda - D&A → ebitda * 0.85
     ebit = _safe(data.get("operating_income"))
     if not ebit or ebit <= 0:
@@ -190,7 +231,16 @@ def ev_ebit_comps(data, sector_multiples=None):
                 "reason": "Insufficient EBIT data",
                 "description": "Applies the sector median EV/EBIT multiple — excludes D&A for better operational comparison.",
                 "category": "Market-Based"}
-    intrinsic = (benchmark * ebit - debt + cash) / shares
+    implied_ev = benchmark * ebit
+    net_debt = debt - cash
+    if net_debt > 0 and net_debt > implied_ev * 0.80:
+        net_debt = min(net_debt, implied_ev * 0.60)
+    intrinsic = (implied_ev - net_debt) / shares
+    if intrinsic <= 0:
+        return {"model": "EV/EBIT Comparables", "applicable": False,
+                "reason": "Debt exceeds implied enterprise value",
+                "description": "Applies the sector median EV/EBIT multiple — excludes D&A for better operational comparison.",
+                "category": "Market-Based"}
     return {
         "model": "EV/EBIT Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
@@ -205,17 +255,27 @@ def ev_ebit_comps(data, sector_multiples=None):
 def ev_sales_comps(data, sector_multiples=None):
     revenue   = _safe(data.get("revenue"))
     sector    = data.get("sector", "default")
+    industry  = data.get("industry")
     shares    = _safe(data.get("shares_outstanding"))
     debt      = float(data.get("total_debt") or 0)
     cash      = float(data.get("cash") or 0)
     price     = _safe(data.get("price"))
-    benchmark = _get_sector_mult(sector, sector_multiples, "ev_sales")
+    benchmark = _get_sector_mult(sector, sector_multiples, "ev_sales", industry)
     if not revenue or not shares or not price:
         return {"model": "EV/Sales Comparables", "applicable": False,
                 "reason": "Missing revenue or shares data",
                 "description": "Applies the sector median EV/Sales multiple — useful for high-growth or pre-profit companies.",
                 "category": "Market-Based"}
-    intrinsic = (benchmark * revenue - debt + cash) / shares
+    implied_ev = benchmark * revenue
+    net_debt = debt - cash
+    if net_debt > 0 and net_debt > implied_ev * 0.80:
+        net_debt = min(net_debt, implied_ev * 0.60)
+    intrinsic = (implied_ev - net_debt) / shares
+    if intrinsic <= 0:
+        return {"model": "EV/Sales Comparables", "applicable": False,
+                "reason": "Debt exceeds implied enterprise value",
+                "description": "Applies the sector median EV/Sales multiple — useful for high-growth or pre-profit companies.",
+                "category": "Market-Based"}
     return {
         "model": "EV/Sales Comparables", "applicable": True,
         "intrinsic_value": round(intrinsic, 2), "current_price": round(price, 2),
@@ -230,8 +290,9 @@ def ev_sales_comps(data, sector_multiples=None):
 def pe_comps(data, sector_multiples=None):
     eps       = _safe(data.get("eps"))
     sector    = data.get("sector", "default")
+    industry  = data.get("industry")
     price     = _safe(data.get("price"))
-    median_pe = _get_sector_mult(sector, sector_multiples, "pe")
+    median_pe = _get_sector_mult(sector, sector_multiples, "pe", industry)
     if not eps or eps <= 0 or not price:
         return {"model": "P/E Comparables", "applicable": False,
                 "reason": "Negative or missing EPS",
@@ -253,8 +314,9 @@ def ps_comps(data, sector_multiples=None):
     revenue   = _safe(data.get("revenue"))
     shares    = _safe(data.get("shares_outstanding"))
     sector    = data.get("sector", "default")
+    industry  = data.get("industry")
     price     = _safe(data.get("price"))
-    median_ps = _get_sector_mult(sector, sector_multiples, "ps")
+    median_ps = _get_sector_mult(sector, sector_multiples, "ps", industry)
     if not revenue or not shares or not price:
         return {"model": "P/S Comparables", "applicable": False,
                 "reason": "Missing revenue or shares data",
@@ -277,13 +339,14 @@ def peg_model(data, sector_multiples=None):
     price  = _safe(data.get("price"))
     growth = _safe(data.get("earnings_growth") or data.get("revenue_growth"))
     sector = data.get("sector", "default")
+    industry = data.get("industry")
     if not eps or eps <= 0 or not price or not growth or growth <= 0:
         return {"model": "PEG Ratio", "applicable": False,
                 "reason": "Insufficient earnings or growth data",
                 "description": "Relates P/E to earnings growth rate — a PEG of 1 suggests fair value.",
                 "category": "Market-Based"}
-    sector_pe = _get_sector_mult(sector, sector_multiples, "pe")
-    sector_growth = _get_sector_mult(sector, sector_multiples, "median_growth")
+    sector_pe = _get_sector_mult(sector, sector_multiples, "pe", industry)
+    sector_growth = _get_sector_mult(sector, sector_multiples, "median_growth", industry)
     growth_ratio = min(float(growth) / sector_growth, 3.0) if sector_growth > 0 else 1.0
     fair_pe = sector_pe * growth_ratio
     fair_pe = min(max(fair_pe, 5), 60)
@@ -322,7 +385,15 @@ def pb_model(data, sector_multiples=None, risk_free_rate=None):
                 "reason": "Book value per share is abnormally large — model not reliable for this stock",
                 "description": "Calculates a justified P/B ratio from ROE vs cost of equity.",
                 "category": "Asset-Based"}
-    justified_pb = max(float(roe) / coe if coe > 0 else 1.0, 0.5)
+    # Guard: if BVPS is tiny relative to price (<5% of price), P/B is meaningless
+    # (asset-light companies like MMC with $1.18 BVPS vs $183 price)
+    if bvps < price * 0.05:
+        return {"model": "Price-to-Book (P/B)", "applicable": False,
+                "reason": "Book value too small relative to price — asset-light company",
+                "description": "Calculates a justified P/B ratio from ROE vs cost of equity.",
+                "category": "Asset-Based"}
+    # Cap justified P/B at 10x to prevent extreme ROE from producing absurd values
+    justified_pb = min(max(float(roe) / coe if coe > 0 else 1.0, 0.5), 10.0)
     intrinsic    = justified_pb * bvps
     roe_source = "3yr avg" if data.get("roe_3yr_avg") else "trailing"
     return {
@@ -375,12 +446,13 @@ def fcf_yield_model(data, sector_multiples=None):
     shares = _safe(data.get("shares_outstanding"))
     price  = _safe(data.get("price"))
     sector = data.get("sector", "default")
+    industry = data.get("industry")
     if not fcf or fcf <= 0 or not shares or not price:
         return {"model": "FCF Yield", "applicable": False,
                 "reason": "Negative or missing Free Cash Flow",
                 "description": "Values a stock by comparing its FCF yield to the sector median — the strongest predictor of returns (Yartseva 2025).",
                 "category": "Income-Based"}
-    sector_fcf_yield = _get_sector_mult(sector, sector_multiples, "fcf_yield")
+    sector_fcf_yield = _get_sector_mult(sector, sector_multiples, "fcf_yield", industry)
     fair_mcap = fcf / sector_fcf_yield
     intrinsic = fair_mcap / shares
     company_yield = fcf / (price * shares)

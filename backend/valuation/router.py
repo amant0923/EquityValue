@@ -7,6 +7,7 @@ from valuation.models import (
 )
 from valuation.sector_multiples import get_sector_multiples, get_risk_free_rate, HARDCODED_FALLBACK
 import math
+import statistics
 
 MODEL_MAP = {
     "dividend":                 [ddm, dcf, cap_earnings, ev_ebitda_comps, pe_comps, ps_comps, fcf_yield_model],
@@ -106,7 +107,11 @@ def dcf_sensitivity(data):
             disc  = [cf / (1 + w) ** i for i, cf in enumerate(proj, 1)]
             tv    = proj[-1] * 1.025 / (w - 0.025)
             pv_tv = tv / (1 + w) ** 5
-            val   = (sum(disc) + pv_tv - debt + cash) / shares
+            gross_ev = sum(disc) + pv_tv
+            net_debt = debt - cash
+            if net_debt > 0:
+                net_debt = min(net_debt, gross_ev * 0.60)
+            val   = (gross_ev - net_debt) / shares
             row.append(round(val, 2))
         table.append(row)
     return {"waccs": [f"{w:.0%}" for w in waccs], "growths": [f"{g:.0%}" for g in growths], "table": table}
@@ -373,6 +378,19 @@ def run_valuation(ticker: str, data: dict) -> dict:
     # Compute price targets using non-outlier models
     market_pool = [r for r in applicable if r.get("model") not in OUTLIER_MODELS]
     target_pool = market_pool if market_pool else applicable
+
+    # Outlier trimming: exclude models whose output diverges too far from
+    # the median.  This catches cases where one model blows up (e.g. DCF
+    # on a high-debt company, or P/S on a low-margin company).
+    if len(target_pool) >= 3:
+        values = [r["intrinsic_value"] for r in target_pool]
+        med = statistics.median(values)
+        if med > 0:
+            target_pool = [r for r in target_pool
+                           if 0.30 * med <= r["intrinsic_value"] <= 3.0 * med]
+            # Ensure we still have models after trimming
+            if not target_pool:
+                target_pool = market_pool if market_pool else applicable
     ve_target_mean = round(sum(r["intrinsic_value"] for r in target_pool) / len(target_pool), 2) if target_pool else None
     ve_target_high = round(max(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
     ve_target_low  = round(min(r["intrinsic_value"] for r in target_pool), 2) if target_pool else None
@@ -395,9 +413,14 @@ def run_valuation(ticker: str, data: dict) -> dict:
         if analyst_target and float(analyst_target) > 0 and avg > 0:
             analyst_target = float(analyst_target)
             divergence = abs(analyst_target - avg) / avg
-            # Higher weight when divergent: analysts often have info models lack
+            # Tiered analyst weight: larger divergences → trust analysts more
             # (catalysts, management changes, sector shifts) — Delao et al. 2024
-            analyst_weight = 0.6 if divergence > 0.10 else 0.3
+            if divergence > 0.50:
+                analyst_weight = 0.75
+            elif divergence > 0.10:
+                analyst_weight = 0.60
+            else:
+                analyst_weight = 0.30
             blended = analyst_weight * analyst_target + (1 - analyst_weight) * avg
             analyst_blended = {
                 "blended_value": round(blended, 2),
