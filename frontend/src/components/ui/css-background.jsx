@@ -50,70 +50,73 @@ export function CSSBackground() {
 export function HeroGraphic() {
   return (
     <div className="hero-graphic">
-      <svg viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg" className="hero-graphic-svg">
-        {/* Grid lines */}
-        {[60, 120, 180, 240].map(y => (
-          <line key={y} x1="0" y1={y} x2="400" y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-        ))}
-        {[80, 160, 240, 320].map(x => (
-          <line key={x} x1={x} y1="0" x2={x} y2="300" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-        ))}
-
-        {/* Gradient area under the line */}
+      <svg viewBox="0 0 420 320" fill="none" xmlns="http://www.w3.org/2000/svg" className="hero-graphic-svg">
         <defs>
           <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(59,130,246,0.3)" />
+            <stop offset="0%" stopColor="rgba(59,130,246,0.18)" />
             <stop offset="100%" stopColor="rgba(59,130,246,0)" />
           </linearGradient>
           <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#3b82f6" />
             <stop offset="100%" stopColor="#818cf8" />
           </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
+
+        {/* Subtle grid */}
+        {[80, 140, 200, 260].map(y => (
+          <line key={y} x1="30" y1={y} x2="390" y2={y} stroke="rgba(255,255,255,0.035)" strokeWidth="0.5" />
+        ))}
 
         {/* Area fill */}
         <path
-          d="M20,220 L60,200 L100,210 L140,180 L180,160 L220,170 L260,120 L300,100 L340,80 L380,60 L380,280 L20,280 Z"
+          d="M40,240 C70,230 85,225 110,215 C135,205 150,212 170,195 C190,178 210,168 230,172 C250,176 260,155 280,135 C300,115 320,100 350,85 C365,78 380,68 390,58 L390,290 L40,290 Z"
           fill="url(#chartGrad)"
           className="hero-area"
         />
 
-        {/* Main chart line */}
-        <polyline
-          points="20,220 60,200 100,210 140,180 180,160 220,170 260,120 300,100 340,80 380,60"
+        {/* Chart line — smooth curve */}
+        <path
+          d="M40,240 C70,230 85,225 110,215 C135,205 150,212 170,195 C190,178 210,168 230,172 C250,176 260,155 280,135 C300,115 320,100 350,85 C365,78 380,68 390,58"
           stroke="url(#lineGrad)"
-          strokeWidth="2.5"
+          strokeWidth="2"
           strokeLinecap="round"
-          strokeLinejoin="round"
           fill="none"
           className="hero-line"
+          filter="url(#glow)"
         />
 
-        {/* Glow dot at end */}
-        <circle cx="380" cy="60" r="4" fill="#3b82f6" className="hero-dot">
-          <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="1;0.6;1" dur="2s" repeatCount="indefinite" />
+        {/* End dot */}
+        <circle cx="390" cy="58" r="3" fill="#818cf8" className="hero-dot">
+          <animate attributeName="r" values="3;5;3" dur="2.5s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="1;0.5;1" dur="2.5s" repeatCount="indefinite" />
         </circle>
-        <circle cx="380" cy="60" r="12" fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.3" className="hero-dot-ring">
-          <animate attributeName="r" values="12;20;12" dur="2s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
+        <circle cx="390" cy="58" r="10" fill="none" stroke="#818cf8" strokeWidth="0.5" opacity="0.25">
+          <animate attributeName="r" values="10;18;10" dur="2.5s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.25;0;0.25" dur="2.5s" repeatCount="indefinite" />
         </circle>
 
-        {/* Value labels */}
-        <text x="340" y="50" fill="#3b82f6" fontSize="13" fontWeight="700" fontFamily="monospace" className="hero-price">$247.82</text>
-        <text x="340" y="68" fill="#10b981" fontSize="9" fontWeight="600" fontFamily="monospace">+18.4%</text>
-
-        {/* Floating data cards */}
-        <g className="hero-card hero-card-1">
-          <rect x="40" y="80" width="100" height="50" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-          <text x="52" y="100" fill="rgba(255,255,255,0.4)" fontSize="8" fontWeight="600" fontFamily="sans-serif">INTRINSIC VALUE</text>
-          <text x="52" y="118" fill="#10b981" fontSize="14" fontWeight="700" fontFamily="monospace">$312.40</text>
+        {/* Price label */}
+        <g className="hero-price">
+          <text x="348" y="48" fill="rgba(255,255,255,0.8)" fontSize="11" fontWeight="600" fontFamily="ui-monospace, monospace">$247.82</text>
+          <text x="348" y="62" fill="#10b981" fontSize="8.5" fontWeight="600" fontFamily="ui-monospace, monospace">+18.4%</text>
         </g>
 
+        {/* Card: Intrinsic Value */}
+        <g className="hero-card hero-card-1">
+          <rect x="55" y="100" width="88" height="40" rx="6" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <text x="65" y="116" fill="rgba(255,255,255,0.35)" fontSize="6.5" fontWeight="600" letterSpacing="0.5" fontFamily="ui-sans-serif, system-ui, sans-serif">INTRINSIC VALUE</text>
+          <text x="65" y="132" fill="#10b981" fontSize="12" fontWeight="700" fontFamily="ui-monospace, monospace">$312.40</text>
+        </g>
+
+        {/* Card: Verdict */}
         <g className="hero-card hero-card-2">
-          <rect x="220" y="190" width="100" height="50" rx="8" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-          <text x="232" y="210" fill="rgba(255,255,255,0.4)" fontSize="8" fontWeight="600" fontFamily="sans-serif">CONSENSUS</text>
-          <text x="232" y="228" fill="#3b82f6" fontSize="14" fontWeight="700" fontFamily="monospace">Undervalued</text>
+          <rect x="250" y="205" width="92" height="40" rx="6" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <text x="260" y="221" fill="rgba(255,255,255,0.35)" fontSize="6.5" fontWeight="600" letterSpacing="0.5" fontFamily="ui-sans-serif, system-ui, sans-serif">EV MODEL VERDICT</text>
+          <text x="260" y="237" fill="#3b82f6" fontSize="11" fontWeight="700" fontFamily="ui-sans-serif, system-ui, sans-serif">Undervalued</text>
         </g>
       </svg>
 
@@ -122,29 +125,26 @@ export function HeroGraphic() {
           width: 100%; height: 100%;
           display: flex; align-items: center; justify-content: center;
           position: relative;
+          padding: 16px;
         }
         .hero-graphic-svg {
-          width: 90%; height: auto;
-          max-height: 90%;
+          width: 100%; height: auto;
+          max-height: 100%;
         }
         .hero-line {
-          stroke-dasharray: 1000;
-          stroke-dashoffset: 1000;
-          animation: drawLine 2s ease-out forwards;
+          stroke-dasharray: 1200;
+          stroke-dashoffset: 1200;
+          animation: drawLine 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
         .hero-area {
           opacity: 0;
-          animation: fadeArea 1s ease-out 1.5s forwards;
+          animation: fadeArea 0.8s ease-out 1.6s forwards;
         }
-        .hero-card {
-          opacity: 0;
-        }
-        .hero-card-1 { animation: fadeCard 0.5s ease-out 2s forwards; }
-        .hero-card-2 { animation: fadeCard 0.5s ease-out 2.3s forwards; }
-        .hero-price {
-          opacity: 0;
-          animation: fadeCard 0.5s ease-out 1.8s forwards;
-        }
+        .hero-card { opacity: 0; }
+        .hero-card-1 { animation: fadeSlideUp 0.6s ease-out 2.1s forwards; }
+        .hero-card-2 { animation: fadeSlideUp 0.6s ease-out 2.4s forwards; }
+        .hero-price { opacity: 0; animation: fadeSlideUp 0.5s ease-out 1.9s forwards; }
+        .hero-dot { opacity: 0; animation: fadeCard 0.3s ease-out 2s forwards; }
         @keyframes drawLine {
           to { stroke-dashoffset: 0; }
         }
@@ -153,6 +153,10 @@ export function HeroGraphic() {
         }
         @keyframes fadeCard {
           to { opacity: 1; }
+        }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>

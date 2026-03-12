@@ -227,7 +227,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
                 <span className="text-[0.7rem] text-text3 font-medium">{cat.models} models</span>
               </div>
               <p className="text-[0.83rem] text-text2 leading-[1.65]">{cat.desc}</p>
-              <ul className="flex flex-col gap-[7px] list-none mt-auto">
+              <ul className="flex flex-col gap-[7px] list-none mt-2">
                 {cat.models_list.map((m, j) => (
                   <li key={j} className="flex items-center gap-2 text-[0.8rem] text-text3">
                     <span className={cn(
