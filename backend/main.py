@@ -142,7 +142,7 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
         profile = {"plan": "free", "analyses_today": 0}
     plan = profile.get("plan", "free")
     analyses_today = profile.get("analyses_today", 0)
-    PLAN_LIMITS = {"free": 1, "pro": 5, "max": 999999}
+    PLAN_LIMITS = {"free": 3, "pro": 5, "max": 999999}
     limit = PLAN_LIMITS.get(plan, 1)
     if analyses_today >= limit:
         raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
