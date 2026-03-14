@@ -23,3 +23,12 @@ frontend/node_modules/.vite/
 .env.local
 *.env
 .worktrees/
+
+# One-off scripts
+backend/diagnostic_valuation.py
+
+# Generated SEO pages (created by GitHub Action)
+frontend/public/stocks/
+
+# Pytest
+backend/.pytest_cache/

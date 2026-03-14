@@ -7,7 +7,9 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 PLAN_PRICE_IDS = {
     "pro": os.environ.get("STRIPE_PRO_PRICE_ID", ""),
+    "pro_annual": os.environ.get("STRIPE_PRO_ANNUAL_PRICE_ID", ""),
     "max": os.environ.get("STRIPE_MAX_PRICE_ID", ""),
+    "max_annual": os.environ.get("STRIPE_MAX_ANNUAL_PRICE_ID", ""),
 }
 
 
@@ -18,7 +20,8 @@ def get_price_id(plan: str) -> str:
 def price_id_to_plan(price_id: str) -> str:
     for plan, pid in PLAN_PRICE_IDS.items():
         if pid and pid == price_id:
-            return plan
+            # Strip _annual suffix — both monthly and annual map to same plan
+            return plan.replace("_annual", "")
     return "pro"
 
 

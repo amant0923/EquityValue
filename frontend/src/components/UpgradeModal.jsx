@@ -28,6 +28,7 @@ const PLANS = [
 
 export default function UpgradeModal({ onClose, reason = "limit" }) {
   const [upgrading, setUpgrading] = useState(false);
+  const [annual, setAnnual] = useState(false);
 
   const handleUpgrade = async (planKey) => {
     setUpgrading(true);
@@ -73,6 +74,25 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
               ? "You've used all your free analyses for today. Upgrade for more."
               : "This feature is available on Pro and Max plans."}
           </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
+            <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
+            <button
+              onClick={() => setAnnual(!annual)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: "none",
+                background: annual ? "var(--primary)" : "var(--border)",
+                position: "relative", cursor: "pointer", transition: "background 0.2s",
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: 9, background: "#fff",
+                position: "absolute", top: 3, left: annual ? 23 : 3, transition: "left 0.2s",
+              }} />
+            </button>
+            <span style={{ fontSize: 13, color: annual ? "var(--text)" : "var(--text3)", fontWeight: annual ? 600 : 400 }}>
+              Annual <span style={{ color: "#22c55e", fontSize: 11, fontWeight: 700 }}>Save 20%</span>
+            </span>
+          </div>
         </div>
 
         <div className="upg-plans">
@@ -80,9 +100,18 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
             <div key={i} className={`upg-plan${plan.featured ? " upg-plan--featured" : ""}`}>
               <div className="upg-plan-name">{plan.name}</div>
               <div className="upg-plan-price">
-                <span className="upg-plan-amount mono">{plan.price}</span>
+                <span className="upg-plan-amount mono">
+                  {annual
+                    ? (plan.priceEnv === "pro" ? "$24" : "$40")
+                    : plan.price}
+                </span>
                 <span className="upg-plan-period">{plan.period}</span>
               </div>
+              {annual && (
+                <div style={{ fontSize: "0.72rem", color: "var(--text3)", marginTop: -4 }}>
+                  billed annually
+                </div>
+              )}
               <div className="upg-plan-limit">{plan.limit}</div>
               <ul className="upg-plan-features">
                 {plan.features.map((f, j) => (
@@ -97,7 +126,7 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
               <button
                 className="upg-plan-cta"
                 style={{ background: plan.color }}
-                onClick={() => handleUpgrade(plan.priceEnv)}
+                onClick={() => handleUpgrade(annual ? `${plan.priceEnv}_annual` : plan.priceEnv)}
                 disabled={upgrading}
               >
                 {upgrading ? "Redirecting..." : plan.cta}
