@@ -2,6 +2,9 @@ import re
 from pydantic import BaseModel, field_validator
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from data_fetcher import fetch_stock_data, fetch_price_history
 from valuation.router import run_valuation
 from auth import get_current_user, get_user_profile
@@ -28,6 +31,10 @@ ALLOWED_ORIGINS = [
 
 app = FastAPI(title="Stock Valuation API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(financials_router)
 app.include_router(intelligence_router)
@@ -124,7 +131,8 @@ def root():
     return {"message": "Equity Valuation API v2"}
 
 @app.get("/valuation/{ticker}")
-async def get_valuation(ticker: str, user: dict = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
 
     # Check plan limits
@@ -290,7 +298,8 @@ async def get_comps(ticker: str, user: dict = Depends(get_current_user)):
     return result
 
 @app.post("/thesis/{ticker}")
-async def generate_thesis(ticker: str, user: dict = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def generate_thesis(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
     cached = _get_cached(f"thesis:{ticker}")
     if cached:
@@ -429,7 +438,8 @@ class ThesisRequest(BaseModel):
         return v
 
 @app.post("/ai/thesis")
-async def ai_thesis_stream(payload: ThesisRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def ai_thesis_stream(payload: ThesisRequest, request: Request, user: dict = Depends(get_current_user)):
     from fastapi.responses import StreamingResponse
     import json
     messages = payload.messages

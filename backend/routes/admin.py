@@ -9,16 +9,17 @@ from supabase import create_client
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-SUPABASE_KEY = os.environ.get(
-    "SUPABASE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I",
-)
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-# Admin credentials (env vars with defaults)
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Password1")
+# Admin credentials (REQUIRED env vars — no defaults)
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+
+if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+    import warnings
+    warnings.warn("ADMIN_USERNAME and ADMIN_PASSWORD not set — admin endpoints disabled")
 
 # Secret for signing admin tokens
 _ADMIN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", SUPABASE_SERVICE_KEY or "ev-admin-secret-key")
