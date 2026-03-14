@@ -72,12 +72,13 @@ def compute_and_store(ticker):
             "computed_at": now,
         }, on_conflict="ticker").execute()
 
-        # Append to history
+        # Append to history (computed_at is DATE, one row per ticker per day)
+        today = datetime.now(timezone.utc).date().isoformat()
         sb.table("equity_value_score_history").upsert({
             "ticker": ticker,
             "score": evs_result["score"],
             "verdict": evs_result["verdict"],
-            "computed_at": now,
+            "computed_at": today,
         }, on_conflict="ticker,computed_at").execute()
 
         return evs_result["score"]
