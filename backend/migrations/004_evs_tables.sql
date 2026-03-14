@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS equity_value_score_history (
     ticker TEXT NOT NULL,
     score INTEGER NOT NULL,
     verdict TEXT NOT NULL,
-    computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(ticker, (computed_at::date))
+    computed_at DATE NOT NULL DEFAULT CURRENT_DATE,
+    UNIQUE(ticker, computed_at)
 );
 
 CREATE INDEX IF NOT EXISTS idx_evs_history_ticker ON equity_value_score_history(ticker, computed_at DESC);
