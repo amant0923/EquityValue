@@ -20,6 +20,7 @@ from routes.summary import router as summary_router
 from routes.portfolio import router as portfolio_router
 from routes.admin import router as admin_router
 from routes.evs import router as evs_router
+from routes.accuracy import router as accuracy_router
 
 ALLOWED_ORIGINS = [
     "https://equityvalue.ai",
@@ -42,6 +43,7 @@ app.include_router(summary_router)
 app.include_router(portfolio_router)
 app.include_router(admin_router)
 app.include_router(evs_router)
+app.include_router(accuracy_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
