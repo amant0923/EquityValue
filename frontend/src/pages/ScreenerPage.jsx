@@ -92,6 +92,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
                 <thead>
                   <tr>
                     <th>Ticker</th>
+                    <th>EVS</th>
                     <th>Company</th>
                     <th>Sector</th>
                     <th>Price</th>
@@ -107,6 +108,12 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
                   {results.map((r, i) => (
                     <tr key={i} className="sc-row" onClick={() => { onGoAnalysis(); onSearch(r.ticker); }}>
                       <td className="sc-ticker mono">{r.ticker}</td>
+                      <td className="mono" style={{
+                        fontWeight: 700,
+                        color: r.evs_score >= 70 ? "#22c55e" : r.evs_score >= 40 ? "#eab308" : r.evs_score != null ? "#ef4444" : "var(--text3)"
+                      }}>
+                        {r.evs_score != null ? r.evs_score : "—"}
+                      </td>
                       <td className="sc-name">{r.company_name || r.name}</td>
                       <td className="sc-sector">{r.sector || "—"}</td>
                       <td className="mono">${fmtNum(r.current_price)}</td>

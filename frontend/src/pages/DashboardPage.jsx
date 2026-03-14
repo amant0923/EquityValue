@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
+import EVScoreBadge from "../components/EVScoreBadge";
 
 const blurReveal = {
   hidden: { opacity: 0, filter: "blur(12px)", y: 20 },
@@ -90,6 +91,9 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
                   <div key={s.ticker} className="db-mover" onClick={() => navigate(`/company/${s.ticker}`)}>
                     <div className="db-mover-left">
                       <span className="db-mover-rank">{i + 1}</span>
+                      {s.evs_score != null && (
+                        <EVScoreBadge score={s.evs_score} verdict={s.evs_verdict || "Hold"} size="sm" />
+                      )}
                       <div>
                         <span className="db-mover-ticker mono">{s.ticker}</span>
                         <span className="db-mover-name">{s.name}</span>
@@ -118,6 +122,9 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
                   <div key={s.ticker} className="db-mover" onClick={() => navigate(`/company/${s.ticker}`)}>
                     <div className="db-mover-left">
                       <span className="db-mover-rank">{i + 1}</span>
+                      {s.evs_score != null && (
+                        <EVScoreBadge score={s.evs_score} verdict={s.evs_verdict || "Hold"} size="sm" />
+                      )}
                       <div>
                         <span className="db-mover-ticker mono">{s.ticker}</span>
                         <span className="db-mover-name">{s.name}</span>
