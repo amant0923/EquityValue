@@ -149,6 +149,55 @@ def backfill_accuracy():
                 print(f"  BACKFILL ERROR {ticker}: {e}")
 
 
+def fire_alerts():
+    """Compare today's EVS to yesterday's, fire matching user alerts."""
+    from datetime import timedelta
+
+    current = {r["ticker"]: r for r in sb.table("equity_value_scores").select("*").execute().data}
+
+    yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1)).isoformat()
+    prev_rows = sb.table("equity_value_score_history") \
+        .select("ticker, score, verdict") \
+        .gte("computed_at", yesterday) \
+        .lt("computed_at", datetime.now(timezone.utc).date().isoformat()) \
+        .execute().data
+    prev = {r["ticker"]: r for r in prev_rows}
+
+    alerts = sb.table("user_alerts").select("*").eq("enabled", True).execute().data
+
+    fired = 0
+    for alert in alerts:
+        ticker = alert["ticker"]
+        cur = current.get(ticker)
+        pre = prev.get(ticker)
+        if not cur:
+            continue
+        message = None
+        if alert["alert_type"] == "score_threshold" and alert.get("threshold"):
+            if pre and ((pre["score"] > alert["threshold"] and cur["score"] <= alert["threshold"]) or
+                       (pre["score"] < alert["threshold"] and cur["score"] >= alert["threshold"])):
+                message = f"{ticker} EVS crossed {alert['threshold']} (now {cur['score']})"
+        elif alert["alert_type"] == "score_change" and pre:
+            change = abs(cur["score"] - pre["score"])
+            if change >= 10:
+                direction = "up" if cur["score"] > pre["score"] else "down"
+                message = f"{ticker} EVS moved {direction} {change} points to {cur['score']}"
+        elif alert["alert_type"] == "verdict_flip" and pre:
+            if cur["verdict"] != pre["verdict"]:
+                message = f"{ticker} verdict changed: {pre['verdict']} -> {cur['verdict']}"
+
+        if message:
+            sb.table("alert_history").insert({
+                "user_id": alert["user_id"],
+                "ticker": ticker,
+                "alert_type": alert["alert_type"],
+                "message": message,
+            }).execute()
+            fired += 1
+
+    print(f"Fired {fired} alerts")
+
+
 def main():
     tickers = fetch_all_tickers()
     print(f"Computing EVS for {len(tickers)} tickers...")
@@ -170,6 +219,10 @@ def main():
     # Phase 2: backfill accuracy for snapshots from 6/12 months ago
     print("Backfilling accuracy data...")
     backfill_accuracy()
+
+    # Fire alerts for score changes
+    print("Checking alert subscriptions...")
+    fire_alerts()
 
 
 if __name__ == "__main__":
