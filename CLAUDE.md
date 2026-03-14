@@ -67,6 +67,16 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `GET /earnings/{ticker}` | Earnings history (EPS actual vs estimate) |
 | `GET /dividends/{ticker}` | Dividends history |
 | `GET /scores/{ticker}` | Financial scores (Altman Z, Piotroski, DCF values) |
+| `GET /evs/top?limit=20` | Top N highest EVS scores (public) |
+| `GET /evs/bottom?limit=20` | Bottom N lowest EVS scores (public) |
+| `GET /evs/{ticker}` | EVS score + breakdown + history |
+| `GET /accuracy/models` | Aggregate model accuracy stats |
+| `GET /accuracy/score` | EVS backtest by score range |
+| `GET /accuracy/{ticker}` | Per-ticker accuracy history |
+| `POST /alerts/subscribe` | Subscribe to score alerts (auth) |
+| `GET /alerts/history` | User's alert history (auth) |
+| `PUT /alerts/{id}/read` | Mark alert as read (auth) |
+| `DELETE /alerts/{id}` | Unsubscribe from alert (auth) |
 
 ### Supabase schema
 **Core table:** `stock_fundamentals` — S&P 500 company basics (cached from FMP).
@@ -85,6 +95,17 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `company_scores` | ticker, altman_z_score, piotroski_score, dcf_value | Daily |
 | `senate_trades` | ticker, senator_name, party, transaction_type, amount_range | Daily |
 
+**EVS and accuracy tables** (populated by nightly pipeline):
+| Table | Key Fields | Refresh |
+|-------|-----------|---------|
+| `equity_value_scores` | ticker (PK), score, verdict, components, computed_at | Nightly |
+| `equity_value_score_history` | ticker, score, verdict, computed_at | Nightly |
+| `valuation_snapshots` | ticker, snapshot_date, model_name, intrinsic_value, price_at_snapshot | Nightly |
+| `accuracy_tracking` | ticker, snapshot_date, model_name, direction_correct_6mo/12mo | Nightly |
+| `user_alerts` | user_id, ticker, alert_type, threshold, enabled | On demand |
+| `alert_history` | user_id, ticker, alert_type, message, read | Nightly |
+| `api_usage_log` | endpoint, method, user_id, timestamp, response_time_ms | On demand |
+
 ### FMP data refresh pipeline
 Three Python scripts in `backend/` fetch from FMP API and upsert to Supabase:
 - `refresh_quarterly.py` — financial statements + earnings (runs quarterly via GitHub Actions)
@@ -92,6 +113,18 @@ Three Python scripts in `backend/` fetch from FMP API and upsert to Supabase:
 - `refresh_daily.py` — analyst, insider, senate, scores (runs daily Mon-Fri)
 
 All use `fmp_client.py` (shared rate-limited FMP client). GitHub Actions workflows in `.github/workflows/`.
+
+### GitHub Actions
+| Workflow | Schedule | Purpose |
+|----------|----------|---------|
+| `nightly-evs-pipeline.yml` | Mon-Fri 6am ET | Compute EVS, snapshot valuations, backfill accuracy, fire alerts |
+| `weekly-digest.yml` | Sunday 6pm ET | Send weekly digest emails via Resend |
+| `generate-seo-pages.yml` | Mon-Fri 10am ET | Generate static SEO pages from EVS data |
+
+### EVS (Equity Value Score)
+Proprietary 1-100 composite score. Components: Valuation (35%), Financial Health (20%), Analyst Alignment (15%), Growth Quality (15%), Risk Signals (15%). Computed nightly for all S&P 500 tickers.
+
+Core files: `backend/evs/score.py` (algorithm), `backend/evs/extract.py` (data bridge), `backend/evs/snapshot.py` (nightly pipeline), `backend/evs/digest.py` (weekly email).
 
 ### Frontend routing
 React Router v6 (`react-router-dom`). Routes defined in `App.jsx`:
@@ -106,6 +139,7 @@ React Router v6 (`react-router-dom`). Routes defined in `App.jsx`:
 | `/company/:ticker/intelligence` | CompanyIntelligencePage | Analyst, insider, earnings data |
 | `/company/:ticker/valuation` | CompanyValuationPage | Valuation models + DCF comparison |
 | `/compare` | ComparePage | Side-by-side stock comparison (Pro) |
+| `/accuracy` | AccuracyPage | Model accuracy dashboard |
 
 App shell layout in `layouts/AppLayout.jsx`. Company tab navigation in `components/company/CompanyNav.jsx`.
 
@@ -114,6 +148,9 @@ App shell layout in `layouts/AppLayout.jsx`. Company tab navigation in `componen
 - `ANTHROPIC_API_KEY` — AI memo generation (`/thesis` and `/ai/thesis` endpoints)
 - `SUPABASE_URL` / `SUPABASE_KEY` — default to hardcoded values in `data_fetcher.py` if not set
 - `FMP_KEY` — FMP API key (used by refresh scripts and GitHub Actions only)
+- `RESEND_API_KEY` — weekly digest email sending (used by GitHub Actions only)
+- `STRIPE_PRO_ANNUAL_PRICE_ID` — annual Pro plan Stripe price ID
+- `STRIPE_MAX_ANNUAL_PRICE_ID` — annual Max plan Stripe price ID
 
 ### Deployment
 - Frontend → Vercel (root: `frontend`). `VITE_API_URL` in `.env.production` points to the Render backend URL.
