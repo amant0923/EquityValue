@@ -80,6 +80,7 @@ const fadeUp = {
 };
 
 export default function LandingPage({ ticker, setTicker, onSearch, loading, onEnterApp }) {
+  const [annual, setAnnual] = useState(false);
   return (
     <div className="relative max-w-[1100px] mx-auto px-8 pb-20 flex flex-col gap-24 md:gap-28">
 
@@ -288,6 +289,25 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Simple, transparent pricing</h2>
           <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start free. Upgrade when you need the full suite.</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
+            <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
+            <button
+              onClick={() => setAnnual(!annual)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: "none",
+                background: annual ? "var(--primary)" : "var(--border)",
+                position: "relative", cursor: "pointer", transition: "background 0.2s",
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: 9, background: "#fff",
+                position: "absolute", top: 3, left: annual ? 23 : 3, transition: "left 0.2s",
+              }} />
+            </button>
+            <span style={{ fontSize: 13, color: annual ? "var(--text)" : "var(--text3)", fontWeight: annual ? 600 : 400 }}>
+              Annual <span style={{ color: "#22c55e", fontSize: 11, fontWeight: 700 }}>Save 20%</span>
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-5 items-center lg:items-stretch justify-center max-w-[960px] mx-auto">
@@ -311,10 +331,20 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
                 </div>
               )}
               <div className="text-[0.8rem] font-bold tracking-[1px] uppercase text-text3 mb-1.5">{plan.name}</div>
-              <div className="flex items-baseline gap-1 mb-1.5">
-                <span className="text-[2.8rem] font-bold tracking-[-2px] text-text font-mono">{plan.price}</span>
-                <span className="text-[0.9rem] text-text3">{plan.period}</span>
+              <div className="flex items-baseline gap-1 mb-0.5">
+                <span className="text-[2.8rem] font-bold tracking-[-2px] text-text font-mono">
+                  {annual && plan.name === "Pro" ? "$24" : annual && plan.name === "Max" ? "$40" : plan.price}
+                </span>
+                <span className="text-[0.9rem] text-text3">
+                  {plan.name === "Free" ? "" : annual ? "/mo" : plan.period}
+                </span>
               </div>
+              {annual && plan.name !== "Free" && (
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[0.72rem] text-text3">billed annually</span>
+                  <span className="text-[0.65rem] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded-full">Save 20%</span>
+                </div>
+              )}
               <p className="text-[0.82rem] text-text2 mb-5">{plan.desc}</p>
 
               <button
@@ -372,6 +402,15 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
           <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
         </button>
       </motion.section>
+
+      <div style={{
+        padding: "24px", fontSize: 11, color: "var(--text3)",
+        textAlign: "center", lineHeight: 1.5, maxWidth: 600, margin: "40px auto 0",
+      }}>
+        Equity Value is an educational tool. Nothing on this site constitutes investment advice.
+        Valuations are model estimates, not guarantees. Past accuracy does not predict future results.
+        Always do your own research and consult a licensed financial advisor.
+      </div>
     </div>
   );
 }

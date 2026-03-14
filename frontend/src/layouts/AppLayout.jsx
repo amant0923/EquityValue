@@ -98,6 +98,15 @@ export default function AppLayout() {
           <main className="app-content">
             <Outlet context={{ showAuth: setShowAuth, setAuthMode, showUpgrade: setShowUpgrade, setUpgradeReason }} />
           </main>
+
+          <footer style={{
+            padding: "16px 24px", fontSize: 11, color: "var(--text-muted)",
+            borderTop: "1px solid var(--border)", textAlign: "center", lineHeight: 1.5,
+          }}>
+            Equity Value is an educational tool. Nothing on this site constitutes investment advice.
+            Valuations are model estimates, not guarantees. Past accuracy does not predict future results.
+            Always do your own research and consult a licensed financial advisor.
+          </footer>
         </div>
       </div>
     </>
