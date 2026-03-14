@@ -10,6 +10,8 @@ import KeyMetricsRow from "../components/company/KeyMetricsRow";
 import FinancialSnapshot from "../components/company/FinancialSnapshot";
 import MarginGrowthTrends from "../components/company/MarginGrowthTrends";
 import SkeletonLoader from "../components/SkeletonLoader";
+import EVScoreBadge from "../components/EVScoreBadge";
+import EVScoreBreakdown from "../components/EVScoreBreakdown";
 import api from "../lib/api";
 
 export default function CompanyPage() {
@@ -19,18 +21,21 @@ export default function CompanyPage() {
   const [valuation, setValuation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [evs, setEvs] = useState(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       setError("");
       try {
-        const [summaryRes, valuationRes] = await Promise.allSettled([
+        const [summaryRes, valuationRes, evsRes] = await Promise.allSettled([
           api.get(`/summary/${ticker}`),
           api.get(`/valuation/${ticker}`),
+          api.get(`/evs/${ticker}`),
         ]);
         if (summaryRes.status === "fulfilled") setData(summaryRes.value.data);
         if (valuationRes.status === "fulfilled") setValuation(valuationRes.value.data);
+        if (evsRes.status === "fulfilled") setEvs(evsRes.value.data);
         if (summaryRes.status === "rejected" && valuationRes.status === "rejected") {
           setError(summaryRes.reason?.response?.data?.detail || "Failed to load company data.");
         }
@@ -62,6 +67,13 @@ export default function CompanyPage() {
   return (
     <div className="company-page">
       <CompanyNav />
+
+      {evs && (
+        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
+          <EVScoreBadge score={evs.score} verdict={evs.verdict} />
+          <EVScoreBreakdown components={evs.components ? (typeof evs.components === 'string' ? JSON.parse(evs.components) : evs.components) : null} />
+        </div>
+      )}
 
       {valuation && <CompanyHeader data={valuation} />}
 
