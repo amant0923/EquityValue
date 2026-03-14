@@ -1,0 +1,30 @@
+name: Nightly EVS Pipeline
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'  # 6am ET (11 UTC) Mon-Fri
+  workflow_dispatch:
+
+jobs:
+  compute-evs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      - name: Compute EVS scores
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+        run: |
+          cd backend
+          python -m evs.snapshot
