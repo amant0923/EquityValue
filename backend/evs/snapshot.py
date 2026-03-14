@@ -52,6 +52,10 @@ def compute_and_store(ticker):
         evs_inputs = extract_evs_inputs(data, valuation, scores)
         evs_result = compute_evs(evs_inputs)
 
+        # Snapshot individual model outputs for accuracy tracking
+        price = data.get("price") or data.get("current_price") or 0
+        snapshot_valuations(ticker, valuation, price)
+
         now = datetime.now(timezone.utc).isoformat()
 
         # Upsert to equity_value_scores (current score)
@@ -82,6 +86,69 @@ def compute_and_store(ticker):
         return None
 
 
+def snapshot_valuations(ticker, valuation_result, price):
+    """Snapshot each model's output for accuracy tracking."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    models = valuation_result.get("models", [])
+    for model in models:
+        if not model.get("applicable"):
+            continue
+        try:
+            sb.table("valuation_snapshots").upsert({
+                "ticker": ticker,
+                "snapshot_date": today,
+                "model_name": model.get("model", "Unknown"),
+                "intrinsic_value": model.get("intrinsic_value"),
+                "verdict": model.get("verdict"),
+                "price_at_snapshot": price,
+            }, on_conflict="ticker,snapshot_date,model_name").execute()
+        except Exception as e:
+            print(f"  SNAPSHOT ERROR {ticker}/{model.get('model')}: {e}")
+
+
+def backfill_accuracy():
+    """Compare past snapshots (6/12 months ago) to current prices."""
+    from data_fetcher import fetch_finnhub_price
+    from datetime import timedelta
+
+    today = datetime.now(timezone.utc).date()
+
+    for months, col_price, col_correct in [(6, "price_6mo", "direction_correct_6mo"),
+                                            (12, "price_12mo", "direction_correct_12mo")]:
+        target_date = (today - timedelta(days=months * 30)).isoformat()
+        snapshots = sb.table("valuation_snapshots") \
+            .select("*") \
+            .eq("snapshot_date", target_date) \
+            .execute().data
+
+        for snap in snapshots:
+            ticker = snap["ticker"]
+            try:
+                price_data = fetch_finnhub_price(ticker)
+                current_price = price_data.get("current_price") if price_data else None
+                if not current_price:
+                    continue
+                price_at = snap["price_at_snapshot"]
+                iv = snap["intrinsic_value"]
+                if not price_at or not iv:
+                    continue
+                predicted_direction = "up" if iv > price_at else "down"
+                actual_direction = "up" if current_price > price_at else "down"
+                correct = predicted_direction == actual_direction
+
+                sb.table("accuracy_tracking").upsert({
+                    "ticker": ticker,
+                    "snapshot_date": snap["snapshot_date"],
+                    "model_name": snap["model_name"],
+                    "intrinsic_value": iv,
+                    "price_at_snapshot": price_at,
+                    col_price: current_price,
+                    col_correct: correct,
+                }, on_conflict="ticker,snapshot_date,model_name").execute()
+            except Exception as e:
+                print(f"  BACKFILL ERROR {ticker}: {e}")
+
+
 def main():
     tickers = fetch_all_tickers()
     print(f"Computing EVS for {len(tickers)} tickers...")
@@ -99,6 +166,10 @@ def main():
     if failed > len(tickers) * 0.10:
         print("WARNING: >10% failure rate — check data sources")
         sys.exit(1)
+
+    # Phase 2: backfill accuracy for snapshots from 6/12 months ago
+    print("Backfilling accuracy data...")
+    backfill_accuracy()
 
 
 if __name__ == "__main__":
