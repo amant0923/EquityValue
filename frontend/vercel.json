@@ -1,5 +1,9 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/stocks/:ticker", "destination": "/stocks/:ticker.html" },
+    { "source": "/stocks", "destination": "/stocks/index.html" },
+    { "source": "/stocks/undervalued", "destination": "/stocks/undervalued.html" },
+    { "source": "/stocks/overvalued", "destination": "/stocks/overvalued.html" },
+    { "source": "/((?!stocks).*)", "destination": "/index.html" }
   ]
 }
