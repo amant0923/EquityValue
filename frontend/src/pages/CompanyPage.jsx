@@ -12,6 +12,7 @@ import MarginGrowthTrends from "../components/company/MarginGrowthTrends";
 import SkeletonLoader from "../components/SkeletonLoader";
 import EVScoreBadge from "../components/EVScoreBadge";
 import EVScoreBreakdown from "../components/EVScoreBreakdown";
+import AlertPreferences from "../components/AlertPreferences";
 import api from "../lib/api";
 
 export default function CompanyPage() {
@@ -72,6 +73,7 @@ export default function CompanyPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
           <EVScoreBadge score={evs.score} verdict={evs.verdict} />
           <EVScoreBreakdown components={evs.components ? (typeof evs.components === 'string' ? JSON.parse(evs.components) : evs.components) : null} />
+          <AlertPreferences ticker={ticker} />
         </div>
       )}
 

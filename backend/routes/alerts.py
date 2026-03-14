@@ -1,0 +1,68 @@
+"""Alert subscription and history endpoints."""
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+import os
+from supabase import create_client
+from auth import get_current_user
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+
+router = APIRouter(prefix="/alerts")
+
+
+class AlertSubscription(BaseModel):
+    ticker: str
+    alert_type: str  # score_threshold, score_change, verdict_flip, analyst_shift
+    threshold: int | None = None
+
+
+@router.post("/subscribe")
+async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    sb.table("user_alerts").insert({
+        "user_id": user["sub"],
+        "ticker": body.ticker.upper(),
+        "alert_type": body.alert_type,
+        "threshold": body.threshold,
+    }).execute()
+    return {"status": "subscribed"}
+
+
+@router.get("/history")
+async def history(user=Depends(get_current_user)):
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    rows = sb.table("alert_history") \
+        .select("*") \
+        .eq("user_id", user["sub"]) \
+        .order("triggered_at", desc=True) \
+        .limit(50) \
+        .execute().data
+    return rows
+
+
+@router.put("/{alert_id}/read")
+async def mark_read(alert_id: int, user=Depends(get_current_user)):
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    sb.table("alert_history") \
+        .update({"read": True}) \
+        .eq("id", alert_id) \
+        .eq("user_id", user["sub"]) \
+        .execute()
+    return {"status": "read"}
+
+
+@router.delete("/{alert_id}")
+async def unsubscribe(alert_id: int, user=Depends(get_current_user)):
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    sb.table("user_alerts") \
+        .delete() \
+        .eq("id", alert_id) \
+        .eq("user_id", user["sub"]) \
+        .execute()
+    return {"status": "unsubscribed"}
