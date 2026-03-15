@@ -577,12 +577,14 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
         tickers = [r["ticker"] for r in rows if r.get("ticker")]
         evs_map = {}
         if tickers:
-            evs_rows = _supabase.table("equity_value_scores").select("ticker,score,verdict").in_("ticker", tickers).execute().data or []
+            evs_rows = _supabase.table("equity_value_scores").select("ticker,score,verdict,sector_rank,sector_percentile").in_("ticker", tickers).execute().data or []
             evs_map = {r["ticker"]: r for r in evs_rows}
         for row in rows:
             evs = evs_map.get(row.get("ticker"))
             row["evs_score"] = evs["score"] if evs else None
             row["evs_verdict"] = evs["verdict"] if evs else None
+            row["sector_rank"] = evs["sector_rank"] if evs else None
+            row["sector_percentile"] = evs["sector_percentile"] if evs else None
 
         if min_evs is not None or max_evs is not None:
             rows = [r for r in rows if r.get("evs_score") is not None]
@@ -593,6 +595,8 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
 
         if sort_by == "evs":
             rows.sort(key=lambda r: r.get("evs_score") or 0, reverse=True)
+        elif sort_by == "sector_percentile":
+            rows.sort(key=lambda r: r.get("sector_percentile") or 0, reverse=True)
         else:
             rows.sort(key=lambda r: r.get("market_cap") or 0, reverse=True)
 

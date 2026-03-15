@@ -2,7 +2,20 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../lib/api";
 
-const SECTORS = ["All Sectors", "Technology", "Healthcare", "Financial Services", "Consumer Cyclical", "Consumer Defensive", "Energy", "Industrials", "Basic Materials", "Real Estate", "Utilities", "Communication Services"];
+const SECTORS = [
+  "All Sectors",
+  "Technology",
+  "Financials",
+  "Healthcare",
+  "Industrials",
+  "Consumer Discretionary",
+  "Consumer Staples",
+  "Energy",
+  "Utilities",
+  "Real Estate",
+  "Materials",
+  "Communication Services",
+];
 
 const FILTERS = [
   { key: "pe_ratio",      label: "P/E Ratio",    type: "range", min: 0,   max: 100,  step: 1   },
@@ -83,6 +96,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
             <select className="sc-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
               <option value="market_cap">Market Cap</option>
               <option value="evs">EVS Score</option>
+              <option value="sector_percentile">Sector Percentile</option>
             </select>
           </div>
           <div className="sc-filter-group">
@@ -127,6 +141,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
                   <tr>
                     <th>Ticker</th>
                     <th>EVS</th>
+                    <th>Sector %ile</th>
                     <th>Company</th>
                     <th>Sector</th>
                     <th>Price</th>
@@ -141,12 +156,22 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
                 <tbody>
                   {results.map((r, i) => (
                     <tr key={i} className="sc-row" onClick={() => { onGoAnalysis(); onSearch(r.ticker); }}>
-                      <td className="sc-ticker mono">{r.ticker}</td>
+                      <td className="sc-ticker mono">
+                        {r.ticker}
+                        {r.sector_rank === 1 && (
+                          <span className="sc-best-badge" title="Best in Sector">★ Best</span>
+                        )}
+                      </td>
                       <td className="mono" style={{
                         fontWeight: 700,
                         color: r.evs_score >= 70 ? "#22c55e" : r.evs_score >= 40 ? "#eab308" : r.evs_score != null ? "#ef4444" : "var(--text3)"
                       }}>
                         {r.evs_score != null ? r.evs_score : "—"}
+                      </td>
+                      <td className="mono" style={{
+                        color: r.sector_percentile >= 90 ? "#22c55e" : r.sector_percentile >= 60 ? "#eab308" : r.sector_percentile != null ? "var(--text2)" : "var(--text3)"
+                      }}>
+                        {r.sector_percentile != null ? `${r.sector_percentile}%` : "—"}
                       </td>
                       <td className="sc-name">{r.company_name || r.name}</td>
                       <td className="sc-sector">{r.sector || "—"}</td>
@@ -279,7 +304,21 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
         }
         .sc-row { cursor: pointer; transition: background 0.12s; }
         .sc-row:hover td { background: var(--surface2); }
-        .sc-ticker { font-weight: 700; color: var(--primary2); }
+        .sc-ticker { font-weight: 700; color: var(--primary2); display: flex; align-items: center; gap: 6px; }
+        .sc-best-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          background: rgba(234, 179, 8, 0.15);
+          color: #ca8a04;
+          border: 1px solid rgba(234, 179, 8, 0.35);
+          border-radius: 4px;
+          font-size: 0.62rem;
+          font-weight: 700;
+          padding: 1px 5px;
+          letter-spacing: 0.4px;
+          white-space: nowrap;
+        }
         .sc-name { color: var(--text); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
         .sc-sector { color: var(--text3); font-size: 0.75rem; }
         .sc-good { color: var(--green2); }
