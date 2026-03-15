@@ -52,13 +52,13 @@ def test_weighted_consensus_not_simple_average(sample_stock_data):
 
 
 def test_analyst_blending_divergent(sample_stock_data):
-    """When analyst target diverges >10%, should get 60% analyst weight."""
-    sample_stock_data["target_price"] = 500.0  # Very far from likely consensus
+    """When analyst target diverges >50%, should get 75% analyst weight (tiered system)."""
+    sample_stock_data["target_price"] = 500.0  # Very far from likely consensus (>50% divergence)
     result = _mock_run(sample_stock_data)
     ab = result.get("analyst_blended")
     assert ab is not None, "Analyst blending should occur with target_price set"
-    assert ab["analyst_weight"] == 0.6
-    assert ab["divergence_pct"] > 10
+    assert ab["analyst_weight"] == 0.75
+    assert ab["divergence_pct"] > 50
 
 
 def test_analyst_blending_close(sample_stock_data):

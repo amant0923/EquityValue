@@ -128,21 +128,23 @@ class TestCapEarnings:
 
 class TestPB:
     def test_uses_smoothed_roe_when_available(self):
-        data = {"book_value_per_share": 4.25, "roe": 0.50, "roe_3yr_avg": 0.43,
+        # bvps must be >= 5% of price (asset-light guard), so use 10.0 with price=175
+        data = {"book_value_per_share": 10.0, "roe": 0.50, "roe_3yr_avg": 0.43,
                 "price": 175, "beta": 1.2, "sector": "Technology"}
         result = pb_model(data, risk_free_rate=0.043)
         assert result["applicable"]
         coe = min(max(0.043 + 1.2 * 0.055, 0.06), 0.14)
-        justified = max(0.43 / coe, 0.5)
-        expected = justified * 4.25
+        justified = min(max(0.43 / coe, 0.5), 10.0)
+        expected = justified * 10.0
         assert result["intrinsic_value"] == pytest.approx(expected, rel=0.01)
 
     def test_falls_back_to_trailing_roe(self):
-        data = {"book_value_per_share": 4.25, "roe": 0.50,
+        # bvps must be >= 5% of price (asset-light guard), so use 10.0 with price=175
+        data = {"book_value_per_share": 10.0, "roe": 0.50,
                 "price": 175, "beta": 1.2, "sector": "Technology"}
         result = pb_model(data, risk_free_rate=0.043)
         assert result["applicable"]
         coe = min(max(0.043 + 1.2 * 0.055, 0.06), 0.14)
-        justified = max(0.50 / coe, 0.5)
-        expected = justified * 4.25
+        justified = min(max(0.50 / coe, 0.5), 10.0)
+        expected = justified * 10.0
         assert result["intrinsic_value"] == pytest.approx(expected, rel=0.01)
