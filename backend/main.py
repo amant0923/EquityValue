@@ -305,9 +305,7 @@ async def get_comps(ticker: str, user: dict = Depends(get_current_user)):
 @limiter.limit("60/minute")
 async def generate_thesis(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
-    profile = await get_user_profile(user.get("sub", ""))
-    plan = profile.get("plan", "free")
-    cached = _get_cached(f"thesis:{ticker}:{plan}")
+    cached = _get_cached(f"thesis:{ticker}")
     if cached:
         return cached
 
@@ -368,9 +366,8 @@ Be direct, analytical, and use specific financial data. Write like a professiona
 
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        model = "claude-haiku-4-5-20251001" if plan == "free" else "claude-sonnet-4-6"
         message = client.messages.create(
-            model=model,
+            model="claude-sonnet-4-6",
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -382,7 +379,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
             "consensus": consensus,
             "generated_at": time.strftime("%Y-%m-%d %H:%M UTC"),
         }
-        _set_cached(f"thesis:{ticker}:{plan}", result)
+        _set_cached(f"thesis:{ticker}", result)
         return result
     except Exception as e:
         print(f"[thesis error] {e}")
