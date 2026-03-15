@@ -79,6 +79,13 @@ export default function CompanyValuationPage() {
         { data: valuation, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null },
         { responseType: "blob" }
       );
+      // Check if response is actually an error (JSON) disguised as blob
+      if (res.data.type && res.data.type.includes("json")) {
+        const text = await res.data.text();
+        const err = JSON.parse(text);
+        alert("PDF export failed: " + (err.detail || "Unknown error"));
+        return;
+      }
       const blob = res.data;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -89,7 +96,16 @@ export default function CompanyValuationPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("PDF export failed: " + e.message);
+      // Try to extract error message from blob response
+      let msg = e.message;
+      if (e.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const err = JSON.parse(text);
+          msg = err.detail || msg;
+        } catch {}
+      }
+      alert("PDF export failed: " + msg);
     }
   };
 

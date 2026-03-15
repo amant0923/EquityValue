@@ -43,21 +43,41 @@ def get_biggest_movers(n=5):
     return movers[:n]
 
 
-def build_html(top_scores, movers):
-    """Build digest HTML email."""
+def build_html(top_scores, movers, is_pro=True):
+    """Build digest HTML email. Free users get limited version."""
+    display_top = top_scores if is_pro else top_scores[:3]
     top_rows = "".join(
         f'<tr><td style="padding:8px;border-bottom:1px solid #eee"><a href="{APP_URL}/company/{s["ticker"]}" style="color:#2563eb;font-weight:600">{s["ticker"]}</a></td>'
         f'<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;font-weight:700">{s["score"]}</td>'
         f'<td style="padding:8px;border-bottom:1px solid #eee">{s["verdict"]}</td></tr>'
-        for s in top_scores
+        for s in display_top
     )
-    mover_rows = "".join(
-        f'<tr><td style="padding:8px;border-bottom:1px solid #eee"><a href="{APP_URL}/company/{m["ticker"]}" style="color:#2563eb;font-weight:600">{m["ticker"]}</a></td>'
-        f'<td style="padding:8px;border-bottom:1px solid #eee;text-align:center">{m["score"]}</td>'
-        f'<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:{"#22c55e" if m["change"] > 0 else "#ef4444"}">'
-        f'{"+" if m["change"] > 0 else ""}{m["change"]}</td></tr>'
-        for m in movers
-    )
+
+    movers_section = ""
+    if is_pro and movers:
+        mover_rows = "".join(
+            f'<tr><td style="padding:8px;border-bottom:1px solid #eee"><a href="{APP_URL}/company/{m["ticker"]}" style="color:#2563eb;font-weight:600">{m["ticker"]}</a></td>'
+            f'<td style="padding:8px;border-bottom:1px solid #eee;text-align:center">{m["score"]}</td>'
+            f'<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;color:{"#22c55e" if m["change"] > 0 else "#ef4444"}">'
+            f'{"+" if m["change"] > 0 else ""}{m["change"]}</td></tr>'
+            for m in movers
+        )
+        movers_section = f"""
+        <h2 style="font-size:16px;margin:24px 0 12px">Biggest Score Movers</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr style="background:#f8fafc"><th style="padding:8px;text-align:left">Ticker</th><th style="padding:8px">Score</th><th style="padding:8px">Change</th></tr>
+          {mover_rows}
+        </table>
+        """
+
+    upgrade_cta = "" if is_pro else """
+        <div style="margin:20px 0;padding:16px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;text-align:center">
+          <p style="margin:0 0 8px;font-size:14px;color:#1e40af;font-weight:600">Upgrade to Pro for the full digest</p>
+          <p style="margin:0 0 12px;font-size:12px;color:#64748b">See all top scores, biggest movers, and score alerts</p>
+          <a href="{APP_URL}/dashboard" style="display:inline-block;padding:8px 20px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Upgrade Now</a>
+        </div>
+    """.replace("{APP_URL}", APP_URL)
+
     return f"""
     <div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#1e293b">
       <div style="padding:24px;background:#2563eb;color:white;text-align:center;border-radius:8px 8px 0 0">
@@ -70,11 +90,8 @@ def build_html(top_scores, movers):
           <tr style="background:#f8fafc"><th style="padding:8px;text-align:left">Ticker</th><th style="padding:8px">EVS</th><th style="padding:8px;text-align:left">Verdict</th></tr>
           {top_rows}
         </table>
-        <h2 style="font-size:16px;margin:24px 0 12px">Biggest Score Movers</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr style="background:#f8fafc"><th style="padding:8px;text-align:left">Ticker</th><th style="padding:8px">Score</th><th style="padding:8px">Change</th></tr>
-          {mover_rows}
-        </table>
+        {movers_section}
+        {upgrade_cta}
         <div style="margin-top:24px;text-align:center">
           <a href="{APP_URL}/dashboard" style="display:inline-block;padding:10px 24px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">View Dashboard</a>
         </div>
@@ -93,10 +110,11 @@ def send_digest():
         return
     top = get_top_scores()
     movers = get_biggest_movers()
-    html = build_html(top, movers)
+    pro_html = build_html(top, movers, is_pro=True)
+    free_html = build_html(top, movers, is_pro=False)
 
     # Get all users with profiles
-    users = sb.table("user_profiles").select("id").execute().data
+    users = sb.table("user_profiles").select("id, plan").execute().data
     sent = 0
     for user in users:
         try:
@@ -104,6 +122,8 @@ def send_digest():
             email = auth_user.user.email if auth_user and auth_user.user else None
             if not email:
                 continue
+            is_pro = user.get("plan", "free") in ("pro", "max")
+            html = pro_html if is_pro else free_html
             requests.post("https://api.resend.com/emails", json={
                 "from": FROM_EMAIL,
                 "to": email,

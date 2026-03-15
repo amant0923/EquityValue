@@ -305,7 +305,9 @@ async def get_comps(ticker: str, user: dict = Depends(get_current_user)):
 @limiter.limit("60/minute")
 async def generate_thesis(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
-    cached = _get_cached(f"thesis:{ticker}")
+    profile = await get_user_profile(user.get("sub", ""))
+    plan = profile.get("plan", "free")
+    cached = _get_cached(f"thesis:{ticker}:{plan}")
     if cached:
         return cached
 
@@ -366,8 +368,9 @@ Be direct, analytical, and use specific financial data. Write like a professiona
 
     try:
         client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        model = "claude-haiku-4-5-20251001" if plan == "free" else "claude-sonnet-4-6"
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=model,
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -379,7 +382,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
             "consensus": consensus,
             "generated_at": time.strftime("%Y-%m-%d %H:%M UTC"),
         }
-        _set_cached(f"thesis:{ticker}", result)
+        _set_cached(f"thesis:{ticker}:{plan}", result)
         return result
     except Exception as e:
         print(f"[thesis error] {e}")
@@ -486,12 +489,18 @@ class PDFRequest(BaseModel):
 async def export_pdf(payload: PDFRequest, user: dict = Depends(get_current_user)):
     from fastapi.responses import Response
     from pdf_generator import generate_pdf
-    pdf_bytes = generate_pdf(
-        data=payload.data,
-        memo=payload.memo,
-        monte_carlo=payload.monte_carlo,
-        lbo=payload.lbo,
-    )
+    try:
+        pdf_bytes = generate_pdf(
+            data=payload.data,
+            memo=payload.memo,
+            monte_carlo=payload.monte_carlo,
+            lbo=payload.lbo,
+        )
+    except Exception as e:
+        print(f"[pdf export error] {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
     raw_ticker = payload.data.get("ticker", "report")
     safe_ticker = re.sub(r'[^A-Za-z0-9]', '', raw_ticker)[:10] or "report"
     return Response(
@@ -503,7 +512,9 @@ async def export_pdf(payload: PDFRequest, user: dict = Depends(get_current_user)
 @app.get("/screener")
 async def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
              min_roe: float = None, min_rev_growth: float = None,
-             max_pb: float = None, limit: int = 200, user: dict = Depends(get_current_user)):
+             max_pb: float = None, limit: int = 200,
+             min_evs: int = None, max_evs: int = None, sort_by: str = None,
+             user: dict = Depends(get_current_user)):
     """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
     limit = min(limit, 500)
     try:
@@ -541,6 +552,16 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
             evs = evs_map.get(row.get("ticker"))
             row["evs_score"] = evs["score"] if evs else None
             row["evs_verdict"] = evs["verdict"] if evs else None
+
+        if min_evs is not None or max_evs is not None:
+            rows = [r for r in rows if r.get("evs_score") is not None]
+            if min_evs is not None:
+                rows = [r for r in rows if r["evs_score"] >= min_evs]
+            if max_evs is not None:
+                rows = [r for r in rows if r["evs_score"] <= max_evs]
+
+        if sort_by == "evs":
+            rows.sort(key=lambda r: r.get("evs_score") or 0, reverse=True)
 
         return {"results": rows, "count": len(rows)}
     except Exception as e:

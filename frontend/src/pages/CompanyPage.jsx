@@ -15,6 +15,32 @@ import EVScoreBreakdown from "../components/EVScoreBreakdown";
 import AlertPreferences from "../components/AlertPreferences";
 import api from "../lib/api";
 
+function EVSparkline({ history }) {
+  if (!history || history.length < 2) return null;
+  const data = [...history].reverse().slice(-90); // last 90 days, chronological
+  const scores = data.map(d => d.score);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = max - min || 1;
+  const w = 120, h = 36, pad = 2;
+  const points = scores.map((s, i) => {
+    const x = pad + (i / (scores.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((s - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  }).join(" ");
+  const last = scores[scores.length - 1];
+  const first = scores[0];
+  const color = last >= first ? "#22c55e" : "#ef4444";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <svg width={w} height={h} style={{ overflow: "visible" }}>
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span style={{ fontSize: 10, color: "var(--text3)" }}>90d trend</span>
+    </div>
+  );
+}
+
 export default function CompanyPage() {
   const { ticker } = useParams();
   const { getToken } = useAuth();
@@ -73,6 +99,7 @@ export default function CompanyPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <EVScoreBadge score={evs.score} verdict={evs.verdict} />
+            <EVSparkline history={evs.history} />
             <EVScoreBreakdown components={evs.components ? (typeof evs.components === 'string' ? JSON.parse(evs.components) : evs.components) : null} />
           </div>
           <AlertPreferences ticker={ticker} />

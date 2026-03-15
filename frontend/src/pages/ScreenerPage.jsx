@@ -17,6 +17,9 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
   const [loading, setLoading] = useState(false);
   const [sector, setSector] = useState("All Sectors");
   const [searched, setSearched] = useState(false);
+  const [minEvs, setMinEvs] = useState("");
+  const [maxEvs, setMaxEvs] = useState("");
+  const [sortBy, setSortBy] = useState("market_cap");
 
   const runScreener = async () => {
     setLoading(true);
@@ -24,6 +27,9 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
     try {
       const params = new URLSearchParams();
       if (sector !== "All Sectors") params.set("sector", sector);
+      if (minEvs) params.set("min_evs", minEvs);
+      if (maxEvs) params.set("max_evs", maxEvs);
+      if (sortBy === "evs") params.set("sort_by", "evs");
       const res = await api.get(`/screener?${params}`);
       setResults(res.data.results || []);
     } catch (e) {
@@ -57,6 +63,24 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
               onChange={e => setSector(e.target.value)}
             >
               {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="sc-filter-group">
+            <label className="sc-filter-label">EVS Min</label>
+            <input type="number" min={0} max={100} className="sc-select" style={{ width: 80 }}
+              value={minEvs} onChange={e => setMinEvs(e.target.value)} placeholder="0" />
+          </div>
+          <div className="sc-filter-group">
+            <label className="sc-filter-label">EVS Max</label>
+            <input type="number" min={0} max={100} className="sc-select" style={{ width: 80 }}
+              value={maxEvs} onChange={e => setMaxEvs(e.target.value)} placeholder="100" />
+          </div>
+          <div className="sc-filter-group">
+            <label className="sc-filter-label">Sort By</label>
+            <select className="sc-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="market_cap">Market Cap</option>
+              <option value="evs">EVS Score</option>
             </select>
           </div>
 

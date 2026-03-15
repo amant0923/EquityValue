@@ -23,6 +23,21 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
   const navigate = useNavigate();
   const [topPicks, setTopPicks] = useState({ buy: [], avoid: [] });
   const [loading, setLoading] = useState(true);
+  const [watchlistEvs, setWatchlistEvs] = useState({});
+
+  useEffect(() => {
+    if (!watchlist.length) return;
+    // Fetch EVS for each watched ticker
+    Promise.allSettled(
+      watchlist.map(sym => api.get(`/evs/${sym}`).then(({ data }) => ({ sym, data })))
+    ).then(results => {
+      const map = {};
+      results.forEach(r => {
+        if (r.status === "fulfilled") map[r.value.sym] = r.value.data;
+      });
+      setWatchlistEvs(map);
+    });
+  }, [watchlist]);
 
   useEffect(() => {
     api.get("/dashboard/top-picks")
@@ -55,22 +70,38 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
           <motion.section variants={blurReveal} className="db-section">
             <h2 className="db-section-title">Recent Analyses</h2>
             <div className="db-watchlist-grid">
-              {watchlist.map((sym, i) => (
-                <motion.button
-                  key={sym}
-                  className="db-watchlist-card"
-                  onClick={() => { onGoAnalysis(); onSearch(sym); }}
-                  whileHover={{ y: -2, transition: { duration: 0.15 } }}
-                >
-                  <span className="db-wl-ticker mono">{sym}</span>
-                  <span className="db-wl-cta">
-                    View analysis
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                    </svg>
-                  </span>
-                </motion.button>
-              ))}
+              {watchlist.map((sym, i) => {
+                const evsData = watchlistEvs[sym];
+                return (
+                  <motion.button
+                    key={sym}
+                    className="db-watchlist-card"
+                    onClick={() => navigate(`/company/${sym}`)}
+                    whileHover={{ y: -2, transition: { duration: 0.15 } }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span className="db-wl-ticker mono">{sym}</span>
+                      {evsData && (
+                        <span style={{
+                          fontSize: 13, fontWeight: 700,
+                          color: evsData.score >= 70 ? "#22c55e" : evsData.score >= 40 ? "#eab308" : "#ef4444",
+                        }}>
+                          {evsData.score}
+                        </span>
+                      )}
+                    </div>
+                    {evsData && (
+                      <span style={{ fontSize: 10, color: "var(--text3)" }}>{evsData.verdict}</span>
+                    )}
+                    <span className="db-wl-cta">
+                      View analysis
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                      </svg>
+                    </span>
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.section>
         )}

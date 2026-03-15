@@ -153,6 +153,7 @@ def backfill_accuracy():
 def fire_alerts():
     """Compare today's EVS to yesterday's, fire matching user alerts."""
     from datetime import timedelta
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
     current = {r["ticker"]: r for r in sb.table("equity_value_scores").select("*").execute().data}
 
@@ -194,6 +195,21 @@ def fire_alerts():
                 "alert_type": alert["alert_type"],
                 "message": message,
             }).execute()
+            # Send email notification
+            if RESEND_API_KEY:
+                try:
+                    user_auth = sb.auth.admin.get_user_by_id(alert["user_id"])
+                    email = user_auth.user.email if user_auth and user_auth.user else None
+                    if email:
+                        import requests as req
+                        req.post("https://api.resend.com/emails", json={
+                            "from": "alerts@equityvalue.ai",
+                            "to": email,
+                            "subject": f"EVS Alert: {message}",
+                            "html": f'<div style="font-family:Arial;max-width:500px;margin:0 auto"><h2 style="color:#2563eb">EVS Alert</h2><p style="font-size:16px;color:#1e293b">{message}</p><a href="https://equityvalue.ai/company/{ticker}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;margin-top:12px">View {ticker}</a><p style="font-size:11px;color:#94a3b8;margin-top:20px">Equity Value is an educational tool, not investment advice.</p></div>',
+                        }, headers={"Authorization": f"Bearer {RESEND_API_KEY}"})
+                except Exception as e:
+                    print(f"  ALERT EMAIL ERROR {ticker}: {e}")
             fired += 1
 
     print(f"Fired {fired} alerts")
