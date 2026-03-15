@@ -30,7 +30,7 @@ const stagger = {
 
 export default function CompanyValuationPage() {
   const { ticker } = useParams();
-  const { isFeatureUnlocked } = useAuth();
+  const { isFeatureUnlocked, getLimit } = useAuth();
 
   const [valuation, setValuation] = useState(null);
   const [scores, setScores] = useState(null);
@@ -69,8 +69,11 @@ export default function CompanyValuationPage() {
     if (ticker) load();
   }, [ticker]);
 
-  const applicable = valuation?.valuations?.filter(v => v?.applicable) || [];
+  const allApplicable = valuation?.valuations?.filter(v => v?.applicable) || [];
   const notApplicable = valuation?.valuations?.filter(v => v && !v.applicable) || [];
+  const modelsLimit = getLimit("valuation_models_limit");
+  const applicable = allApplicable.slice(0, modelsLimit);
+  const hiddenCount = allApplicable.length - applicable.length;
 
   const exportPDF = async () => {
     try {
@@ -156,14 +159,14 @@ export default function CompanyValuationPage() {
           </motion.div>
         )}
 
-        {/* 2. ValuationChart + FootballField */}
-        {applicable.length > 0 && (
+        {/* 2. ValuationChart + FootballField (always show all models in charts) */}
+        {allApplicable.length > 0 && (
           <motion.div variants={fadeUp} className="cvp-charts-row">
             <div className="cvp-chart-half">
-              <ValuationChart valuations={applicable} currentPrice={valuation.current_price} />
+              <ValuationChart valuations={allApplicable} currentPrice={valuation.current_price} />
             </div>
             <div className="cvp-chart-half">
-              <FootballField valuations={applicable} currentPrice={valuation.current_price} consensus={valuation.consensus} />
+              <FootballField valuations={allApplicable} currentPrice={valuation.current_price} consensus={valuation.consensus} />
             </div>
           </motion.div>
         )}
@@ -185,6 +188,14 @@ export default function CompanyValuationPage() {
                 <ValuationCard key={i} data={v} />
               ))}
             </div>
+            {hiddenCount > 0 && (
+              <div className="cvp-models-locked">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                {hiddenCount} more model{hiddenCount > 1 ? "s" : ""} available on Pro
+              </div>
+            )}
           </motion.section>
         )}
 
@@ -287,8 +298,8 @@ export default function CompanyValuationPage() {
         )}
 
         {/* 11. PDF Export button */}
-        {isFeatureUnlocked("pdf_export") && (
-          <motion.div variants={fadeUp} className="cvp-export-row">
+        <motion.div variants={fadeUp} className="cvp-export-row">
+          {isFeatureUnlocked("pdf_export") ? (
             <button className="cvp-export-btn" onClick={exportPDF}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -297,8 +308,15 @@ export default function CompanyValuationPage() {
               </svg>
               Export PDF Report
             </button>
-          </motion.div>
-        )}
+          ) : (
+            <button className="cvp-export-btn" style={{ opacity: 0.5, cursor: "not-allowed" }} disabled title="Upgrade to Pro to export PDF reports">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+              Export PDF (Pro)
+            </button>
+          )}
+        </motion.div>
 
       </motion.div>
 
@@ -388,6 +406,22 @@ export default function CompanyValuationPage() {
         }
         .cvp-fmp-divider {
           display: none;
+        }
+
+        /* Models locked banner */
+        .cvp-models-locked {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 12px;
+          padding: 14px 20px;
+          background: var(--surface);
+          border: 1px dashed var(--border2);
+          border-radius: var(--radius);
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: var(--text2);
         }
 
         /* Not Applicable grid */

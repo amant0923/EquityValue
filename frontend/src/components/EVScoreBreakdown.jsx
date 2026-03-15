@@ -33,6 +33,8 @@ export default function EVScoreBreakdown({ components, sectorRank, sectorTotal, 
   const [open, setOpen] = useState(false);
   const { isFeatureUnlocked } = useAuth();
   const unlocked = isFeatureUnlocked("evs_breakdown");
+  const sectorUnlocked = isFeatureUnlocked("sector_percentile");
+  const peerUnlocked = isFeatureUnlocked("peer_comparison");
 
   if (!components) return null;
 
@@ -68,13 +70,25 @@ export default function EVScoreBreakdown({ components, sectorRank, sectorTotal, 
               Upgrade to Pro to see the full score breakdown
             </div>
           )}
-          <SectorComparison
-            sectorRank={sectorRank}
-            sectorTotal={sectorTotal}
-            sectorPercentile={sectorPercentile}
-            sector={sector}
-          />
-          <PeerComparison peerContext={peerContext} currentTicker={ticker} />
+          {sectorUnlocked ? (
+            <SectorComparison
+              sectorRank={sectorRank}
+              sectorTotal={sectorTotal}
+              sectorPercentile={sectorPercentile}
+              sector={sector}
+            />
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "8px 0" }}>
+              Upgrade to Pro to see sector percentile
+            </div>
+          )}
+          {peerUnlocked ? (
+            <PeerComparison peerContext={peerContext} currentTicker={ticker} />
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "8px 0" }}>
+              Upgrade to Pro to see peer comparison
+            </div>
+          )}
         </div>
       )}
     </div>

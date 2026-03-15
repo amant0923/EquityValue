@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { TIER_LIMITS, isFeatureAllowed, getFeatureLimit } from "../lib/features";
 
 const AuthContext = createContext({});
 
@@ -72,9 +73,13 @@ export function AuthProvider({ children }) {
   const isFeatureUnlocked = (feature) => {
     if (!supabase || !user) return true; // No auth = allow all
     const plan = profile?.plan || "free";
-    const FREE_BLOCKED = ["ai_thesis", "monte_carlo", "lbo", "pdf_export", "compare", "screener_full", "intelligence_full", "financials_quarterly", "evs_breakdown", "evs_history", "accuracy_detail"];
-    if (plan === "free" && FREE_BLOCKED.includes(feature)) return false;
-    return true;
+    return isFeatureAllowed(plan, feature);
+  };
+
+  const getLimit = (feature) => {
+    if (!supabase || !user) return Infinity; // No auth = unlimited
+    const plan = profile?.plan || "free";
+    return getFeatureLimit(plan, feature);
   };
 
   useEffect(() => {
@@ -157,6 +162,7 @@ export function AuthProvider({ children }) {
     recordAnalysis,
     canAnalyse,
     isFeatureUnlocked,
+    getLimit,
     getToken,
   };
 

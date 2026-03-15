@@ -153,16 +153,24 @@ function EVSCard({ evs, ticker }) {
         </>
       )}
 
-      {/* Sector & Peer comparison */}
-      {unlocked && expanded && (
+      {/* Sector & Peer comparison — gated on Pro+ */}
+      {expanded && (
         <>
-          <SectorComparison
-            sectorRank={evs?.sector_rank}
-            sectorTotal={evs?.sector_total}
-            sectorPercentile={evs?.sector_percentile}
-            sector={evs?.sector}
-          />
-          <PeerComparison peerContext={evs?.peer_context} currentTicker={ticker} />
+          {isFeatureUnlocked("sector_percentile") ? (
+            <SectorComparison
+              sectorRank={evs?.sector_rank}
+              sectorTotal={evs?.sector_total}
+              sectorPercentile={evs?.sector_percentile}
+              sector={evs?.sector}
+            />
+          ) : unlocked ? (
+            <div className="evs-card-locked">Pro to see sector ranking</div>
+          ) : null}
+          {isFeatureUnlocked("peer_comparison") ? (
+            <PeerComparison peerContext={evs?.peer_context} currentTicker={ticker} />
+          ) : unlocked ? (
+            <div className="evs-card-locked">Pro to see peer comparison</div>
+          ) : null}
         </>
       )}
 
