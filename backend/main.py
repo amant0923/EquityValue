@@ -364,8 +364,11 @@ Write the memo in this exact structure:
 
 Be direct, analytical, and use specific financial data. Write like a professional analyst, not a chatbot."""
 
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured on server")
     try:
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1500,
@@ -450,7 +453,11 @@ async def ai_thesis_stream(payload: ThesisRequest, request: Request, user: dict 
     if not messages:
         return {"error": "no messages"}
 
-    client = anthropic.Anthropic()
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "ANTHROPIC_API_KEY not configured"}, status_code=503)
+    client = anthropic.Anthropic(api_key=api_key)
 
     async def stream():
         try:
