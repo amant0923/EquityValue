@@ -5,15 +5,15 @@ import api from "../lib/api";
 const SECTORS = [
   "All Sectors",
   "Technology",
-  "Financials",
   "Healthcare",
-  "Industrials",
-  "Consumer Discretionary",
-  "Consumer Staples",
+  "Financial Services",
+  "Consumer Cyclical",
+  "Consumer Defensive",
   "Energy",
-  "Utilities",
+  "Industrials",
+  "Basic Materials",
   "Real Estate",
-  "Materials",
+  "Utilities",
   "Communication Services",
 ];
 
