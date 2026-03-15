@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import SectorComparison from "./evs/SectorComparison";
+import PeerComparison from "./evs/PeerComparison";
 
 const LABELS = {
   valuation: { name: "Valuation", weight: "35%", desc: "Consensus model upside vs current price" },
@@ -27,7 +29,7 @@ function barColor(val) {
   return "#ef4444";
 }
 
-export default function EVScoreBreakdown({ components }) {
+export default function EVScoreBreakdown({ components, sectorRank, sectorTotal, sectorPercentile, sector, peerContext, ticker }) {
   const [open, setOpen] = useState(false);
   const { isFeatureUnlocked } = useAuth();
   const unlocked = isFeatureUnlocked("evs_breakdown");
@@ -66,6 +68,13 @@ export default function EVScoreBreakdown({ components }) {
               Upgrade to Pro to see the full score breakdown
             </div>
           )}
+          <SectorComparison
+            sectorRank={sectorRank}
+            sectorTotal={sectorTotal}
+            sectorPercentile={sectorPercentile}
+            sector={sector}
+          />
+          <PeerComparison peerContext={peerContext} currentTicker={ticker} />
         </div>
       )}
     </div>

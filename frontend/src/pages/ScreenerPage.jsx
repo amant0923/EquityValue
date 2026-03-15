@@ -20,6 +20,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
   const [minEvs, setMinEvs] = useState("");
   const [maxEvs, setMaxEvs] = useState("");
   const [sortBy, setSortBy] = useState("market_cap");
+  const [trend, setTrend] = useState("all");
 
   const runScreener = async () => {
     setLoading(true);
@@ -30,6 +31,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       if (minEvs) params.set("min_evs", minEvs);
       if (maxEvs) params.set("max_evs", maxEvs);
       if (sortBy) params.set("sort_by", sortBy);
+      if (trend !== "all") params.set("trend", trend);
       const res = await api.get(`/screener?${params}`);
       setResults(res.data.results || []);
     } catch (e) {
@@ -81,6 +83,14 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
             <select className="sc-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
               <option value="market_cap">Market Cap</option>
               <option value="evs">EVS Score</option>
+            </select>
+          </div>
+          <div className="sc-filter-group">
+            <label className="sc-filter-label">Trend</label>
+            <select className="sc-select" value={trend} onChange={e => setTrend(e.target.value)} style={{ minWidth: 140 }}>
+              <option value="all">All</option>
+              <option value="up">Trending Up</option>
+              <option value="down">Trending Down</option>
             </select>
           </div>
 

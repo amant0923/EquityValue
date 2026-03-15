@@ -10,6 +10,8 @@ import KeyMetricsRow from "../components/company/KeyMetricsRow";
 import FinancialSnapshot from "../components/company/FinancialSnapshot";
 import MarginGrowthTrends from "../components/company/MarginGrowthTrends";
 import SkeletonLoader from "../components/SkeletonLoader";
+import SectorComparison from "../components/evs/SectorComparison";
+import PeerComparison from "../components/evs/PeerComparison";
 import api from "../lib/api";
 
 /* ── Inline mini-sparkline ────────────────────────────────────────── */
@@ -148,6 +150,19 @@ function EVSCard({ evs, ticker }) {
               )}
             </div>
           )}
+        </>
+      )}
+
+      {/* Sector & Peer comparison */}
+      {unlocked && expanded && (
+        <>
+          <SectorComparison
+            sectorRank={evs?.sector_rank}
+            sectorTotal={evs?.sector_total}
+            sectorPercentile={evs?.sector_percentile}
+            sector={evs?.sector}
+          />
+          <PeerComparison peerContext={evs?.peer_context} currentTicker={ticker} />
         </>
       )}
 
