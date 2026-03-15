@@ -23,6 +23,7 @@ from routes.evs import router as evs_router
 from routes.accuracy import router as accuracy_router
 from routes.alerts import router as alerts_router
 from routes.health import router as health_router
+from utils.thesis_cache import get_cached_thesis, cache_thesis
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
 try:
     from supabase import create_client as _create_sb
@@ -314,6 +315,17 @@ async def generate_thesis(ticker: str, request: Request, user: dict = Depends(ge
     if cached:
         return cached
 
+    # Check persistent Supabase cache (survives Render restarts)
+    sb = _supabase
+    if sb:
+        try:
+            sb_cached = await get_cached_thesis(sb, ticker)
+            if sb_cached:
+                _set_cached(f"thesis:{ticker}", sb_cached)
+                return sb_cached
+        except Exception as e:
+            print(f"[thesis cache read] {e}")
+
     raw = fetch_stock_data(ticker)
     if not raw or not raw.get("current_price"):
         raise HTTPException(status_code=404, detail="Ticker not found.")
@@ -388,6 +400,12 @@ Be direct, analytical, and use specific financial data. Write like a professiona
             "generated_at": time.strftime("%Y-%m-%d %H:%M UTC"),
         }
         _set_cached(f"thesis:{ticker}", result)
+        # Persist to Supabase for cross-restart durability
+        if sb:
+            try:
+                await cache_thesis(sb, ticker, thesis_text)
+            except Exception as e:
+                print(f"[thesis cache write] {e}")
         return result
     except Exception as e:
         print(f"[thesis error] {e}")
