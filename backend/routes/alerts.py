@@ -31,6 +31,19 @@ async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
     return {"status": "subscribed"}
 
 
+@router.get("/subscriptions")
+async def subscriptions(user=Depends(get_current_user)):
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    rows = sb.table("user_alerts") \
+        .select("*") \
+        .eq("user_id", user["sub"]) \
+        .eq("enabled", True) \
+        .order("created_at", desc=True) \
+        .execute().data
+    return rows
+
+
 @router.get("/history")
 async def history(user=Depends(get_current_user)):
     if not sb:

@@ -530,6 +530,18 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
             query = query.lte("pb_ratio", max_pb)
 
         rows = query.order("market_cap", desc=True).limit(limit).execute().data
+
+        # Merge EVS scores from equity_value_scores table
+        tickers = [r["ticker"] for r in rows if r.get("ticker")]
+        evs_map = {}
+        if tickers:
+            evs_rows = sb.table("equity_value_scores").select("ticker,score,verdict").in_("ticker", tickers).execute().data or []
+            evs_map = {r["ticker"]: r for r in evs_rows}
+        for row in rows:
+            evs = evs_map.get(row.get("ticker"))
+            row["evs_score"] = evs["score"] if evs else None
+            row["evs_verdict"] = evs["verdict"] if evs else None
+
         return {"results": rows, "count": len(rows)}
     except Exception as e:
         print(f"[screener] {e}")

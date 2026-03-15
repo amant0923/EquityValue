@@ -70,9 +70,11 @@ export default function CompanyPage() {
       <CompanyNav />
 
       {evs && (
-        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
-          <EVScoreBadge score={evs.score} verdict={evs.verdict} />
-          <EVScoreBreakdown components={evs.components ? (typeof evs.components === 'string' ? JSON.parse(evs.components) : evs.components) : null} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <EVScoreBadge score={evs.score} verdict={evs.verdict} />
+            <EVScoreBreakdown components={evs.components ? (typeof evs.components === 'string' ? JSON.parse(evs.components) : evs.components) : null} />
+          </div>
           <AlertPreferences ticker={ticker} />
         </div>
       )}
