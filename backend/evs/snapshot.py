@@ -114,6 +114,10 @@ def backfill_accuracy():
 
     today = datetime.now(timezone.utc).date()
 
+    # Pre-fetch sector for all tickers
+    fund_rows = sb.table("stock_fundamentals").select("ticker, sector").execute().data
+    sector_map = {f["ticker"]: f.get("sector", "Unknown") for f in fund_rows}
+
     for months, col_price, col_correct in [(6, "price_6mo", "direction_correct_6mo"),
                                             (12, "price_12mo", "direction_correct_12mo")]:
         target_date = (today - timedelta(days=months * 30)).isoformat()
@@ -145,6 +149,7 @@ def backfill_accuracy():
                     "price_at_snapshot": price_at,
                     col_price: current_price,
                     col_correct: correct,
+                    "sector": sector_map.get(ticker, "Unknown"),
                 }, on_conflict="ticker,snapshot_date,model_name").execute()
             except Exception as e:
                 print(f"  BACKFILL ERROR {ticker}: {e}")
