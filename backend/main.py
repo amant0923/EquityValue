@@ -22,6 +22,7 @@ from routes.admin import router as admin_router
 from routes.evs import router as evs_router
 from routes.accuracy import router as accuracy_router
 from routes.alerts import router as alerts_router
+from routes.health import router as health_router
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
 try:
     from supabase import create_client as _create_sb
@@ -44,6 +45,9 @@ ALLOWED_ORIGINS = [
 app = FastAPI(title="Stock Valuation API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+from starlette.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -56,6 +60,7 @@ app.include_router(admin_router)
 app.include_router(evs_router)
 app.include_router(accuracy_router)
 app.include_router(alerts_router)
+app.include_router(health_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
