@@ -246,12 +246,15 @@
 /* ── Main content ── */
 .app-content {
   flex: 1;
-  padding: 28px 32px 48px;
+  padding: 28px 48px 48px;
   overflow-x: hidden;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 /* ── Analysis page ── */
-.analysis-page { display: flex; flex-direction: column; gap: 0; }
+.analysis-page { display: flex; flex-direction: column; gap: 0; max-width: 1200px; margin: 0 auto; }
 
 /* ── Analysis empty state ── */
 .ae-wrap {

@@ -26,7 +26,7 @@ export default function AccuracyPage() {
   const fmtPct = (v) => v != null ? `${v}%` : "—";
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.1 } } }}>
         <motion.div variants={fadeUp} style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text)", letterSpacing: "-0.8px", marginBottom: 4 }}>

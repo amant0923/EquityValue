@@ -195,7 +195,7 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
       </motion.div>
 
       <style>{`
-        .db-wrap { max-width: 900px; }
+        .db-wrap { max-width: 1100px; margin: 0 auto; }
         .db-header {
           display: flex;
           justify-content: space-between;

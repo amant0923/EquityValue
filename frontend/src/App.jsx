@@ -817,7 +817,7 @@ function ComparePage() {
       </motion.div>
 
       <style>{`
-        .cmp-wrap { max-width: 1100px; }
+        .cmp-wrap { max-width: 1100px; margin: 0 auto; }
         .cmp-header { margin-bottom: 28px; }
         .cmp-title { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.8px; margin-bottom: 4px; }
         .cmp-sub { font-size: 0.85rem; color: var(--text2); }

@@ -168,7 +168,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       </motion.div>
 
       <style>{`
-        .sc-wrap { max-width: 1100px; }
+        .sc-wrap { max-width: 1100px; margin: 0 auto; }
         .sc-header { margin-bottom: 28px; }
         .sc-title { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.8px; margin-bottom: 4px; }
         .sc-sub { font-size: 0.85rem; color: var(--text2); }

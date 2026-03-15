@@ -357,7 +357,7 @@ export default function AdminPage() {
       )}
 
       <style>{`
-        .adm-page { max-width: 1200px; }
+        .adm-page { max-width: 1200px; margin: 0 auto; }
         .adm-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
         .adm-title { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.8px; margin-bottom: 4px; }
         .adm-sub { font-size: 0.85rem; color: var(--text3); }
