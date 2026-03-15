@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /stocks/
+Allow: /accuracy
+Allow: /screener
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://equityvalue.ai/sitemap.xml
