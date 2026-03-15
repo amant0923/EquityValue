@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ verdict_label }} Stocks | Equity Value</title>
+  <meta name="description" content="{{ stocks|length }} S&P 500 stocks rated {{ verdict_label }} by Equity Value Score (EVS {{ score_range }}). Updated daily.">
+  <link rel="canonical" href="{{ app_url }}/stocks/{{ verdict_slug }}">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #94a3b8; margin-bottom: 32px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 10px 14px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #334155; }
+    td { padding: 10px 14px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+    tr:hover { background: #1e293b; }
+    .ticker-link { color: #60a5fa; text-decoration: none; font-weight: 600; }
+    .ticker-link:hover { text-decoration: underline; }
+    .score { font-weight: 700; }
+    .back-link { display: inline-block; margin-bottom: 24px; color: #60a5fa; text-decoration: none; font-size: 14px; }
+    .back-link:hover { text-decoration: underline; }
+    .cta { text-align: center; margin-top: 32px; }
+    .cta a { display: inline-block; padding: 12px 28px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; }
+    .disclaimer { text-align: center; font-size: 11px; color: #64748b; margin-top: 32px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="{{ app_url }}/stocks">&larr; All Stocks</a>
+    <h1>{{ verdict_label }} Stocks</h1>
+    <p class="subtitle">{{ stocks|length }} S&P 500 stocks with EVS {{ score_range }}, sorted by score</p>
+    <table>
+      <thead>
+        <tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Sector</th><th>EVS</th></tr>
+      </thead>
+      <tbody>
+        {% for s in stocks %}
+        {% set info = fundamentals.get(s.ticker, {}) %}
+        <tr>
+          <td style="color:#64748b">{{ loop.index }}</td>
+          <td><a class="ticker-link" href="{{ app_url }}/stocks/{{ s.ticker|lower }}">{{ s.ticker }}</a></td>
+          <td>{{ info.get('name', s.ticker) }}</td>
+          <td style="color:#94a3b8">{{ info.get('sector', '') }}</td>
+          <td class="score" style="color:{% if s.score >= 70 %}#22c55e{% elif s.score >= 40 %}#eab308{% else %}#ef4444{% endif %}">{{ s.score }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="cta"><a href="{{ app_url }}/dashboard">Open Equity Value Dashboard</a></div>
+    <div class="disclaimer">Equity Value is an educational tool, not investment advice.</div>
+  </div>
+</body>
+</html>
