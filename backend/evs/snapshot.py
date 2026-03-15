@@ -47,7 +47,7 @@ def compute_and_store(ticker):
             print(f"  SKIP {ticker}: no data")
             return None
         data = normalise(raw_data)
-        valuation = run_valuation(data)
+        valuation = run_valuation(ticker, data)
         scores = fetch_scores(ticker)
         evs_inputs = extract_evs_inputs(data, valuation, scores)
         evs_result = compute_evs(evs_inputs)
