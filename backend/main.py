@@ -24,6 +24,18 @@ from routes.accuracy import router as accuracy_router
 from routes.alerts import router as alerts_router
 from routes.health import router as health_router
 from utils.thesis_cache import get_cached_thesis, cache_thesis
+
+# ── Sentry error tracking initialization ──────────────────────────────────────
+import sentry_sdk
+
+sentry_dsn = os.environ.get("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+    )
+
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
 try:
     from supabase import create_client as _create_sb
