@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
@@ -108,6 +108,10 @@ export default function AppLayout() {
             Equity Value is an educational tool. Nothing on this site constitutes investment advice.
             Valuations are model estimates, not guarantees. Past accuracy does not predict future results.
             Always do your own research and consult a licensed financial advisor.
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "center", gap: 16 }}>
+              <Link to="/terms" style={{ color: "var(--text-muted)", textDecoration: "none" }}>Terms of Service</Link>
+              <Link to="/privacy" style={{ color: "var(--text-muted)", textDecoration: "none" }}>Privacy Policy</Link>
+            </div>
           </footer>
         </div>
       </div>
