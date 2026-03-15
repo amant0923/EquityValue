@@ -215,6 +215,36 @@ def fire_alerts():
     print(f"Fired {fired} alerts")
 
 
+def compute_sector_rankings():
+    """Compute sector percentile rankings for all tickers after nightly EVS run."""
+    from evs.sector import compute_sector_percentiles
+
+    evs_rows = sb.table("equity_value_scores").select("ticker, score").execute().data
+    fund_rows = sb.table("stock_fundamentals").select("ticker, sector, industry").execute().data
+    sector_map = {f["ticker"]: f for f in fund_rows}
+
+    scores = []
+    for row in evs_rows:
+        fund = sector_map.get(row["ticker"], {})
+        scores.append({
+            "ticker": row["ticker"],
+            "score": row["score"],
+            "sector": fund.get("sector", "Unknown"),
+            "industry": fund.get("industry", "Unknown"),
+        })
+
+    enriched = compute_sector_percentiles(scores)
+
+    for item in enriched:
+        sb.table("equity_value_scores").update({
+            "sector_rank": item["sector_rank"],
+            "sector_percentile": item["sector_percentile"],
+            "sector_total": item["sector_total"],
+        }).eq("ticker", item["ticker"]).execute()
+
+    print(f"Updated sector rankings for {len(enriched)} tickers")
+
+
 def main():
     tickers = fetch_all_tickers()
     print(f"Computing EVS for {len(tickers)} tickers...")
@@ -232,6 +262,10 @@ def main():
     if failed > len(tickers) * 0.10:
         print("WARNING: >10% failure rate — check data sources")
         sys.exit(1)
+
+    # Phase 1.5: compute sector-relative rankings
+    print("Computing sector rankings...")
+    compute_sector_rankings()
 
     # Phase 2: backfill accuracy for snapshots from 6/12 months ago
     print("Backfilling accuracy data...")

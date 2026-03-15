@@ -36,9 +36,43 @@ async def evs_bottom(limit: int = Query(default=20, le=50)):
     return rows
 
 
+@router.get("/sectors")
+async def evs_sector_summaries():
+    """Summary stats per sector (avg score, top ticker, count)."""
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    evs_result = sb.table("equity_value_scores").select("ticker, score, verdict").execute()
+    fund_result = sb.table("stock_fundamentals").select("ticker, sector").execute()
+    sector_map = {f["ticker"]: f["sector"] for f in fund_result.data}
+    scores = [{"ticker": r["ticker"], "score": r["score"], "sector": sector_map.get(r["ticker"], "Unknown")}
+              for r in evs_result.data if r["ticker"] in sector_map]
+    from evs.sector import get_sector_summaries
+    return get_sector_summaries(scores)
+
+
+@router.get("/sector/{sector}")
+async def evs_by_sector(sector: str, limit: int = Query(default=50, le=100)):
+    """All tickers in a sector, sorted by EVS score."""
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    # Get tickers in this sector from fundamentals
+    fund_rows = sb.table("stock_fundamentals").select("ticker").eq("sector", sector).execute().data
+    if not fund_rows:
+        raise HTTPException(404, f"No tickers found for sector: {sector}")
+    tickers = [f["ticker"] for f in fund_rows]
+    # Get their EVS scores
+    result = sb.table("equity_value_scores") \
+        .select("ticker, score, verdict, sector_rank, sector_percentile, sector_total, computed_at") \
+        .in_("ticker", tickers) \
+        .order("score", desc=True) \
+        .limit(limit) \
+        .execute()
+    return result.data
+
+
 @router.get("/{ticker}")
 async def evs_detail(ticker: str):
-    """EVS score + component breakdown for a single ticker."""
+    """EVS score + component breakdown + sector context for a single ticker."""
     ticker = ticker.upper().strip()
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -49,11 +83,37 @@ async def evs_detail(ticker: str):
         .execute().data
     if not row:
         raise HTTPException(404, f"No EVS data for {ticker}")
-    # Get score history for sparkline
+
+    # Score history for sparkline
     history = sb.table("equity_value_score_history") \
         .select("score, verdict, computed_at") \
         .eq("ticker", ticker) \
         .order("computed_at", desc=True) \
         .limit(365) \
         .execute().data
-    return {**row[0], "history": history}
+
+    # Compute trend metrics from history
+    from evs.trends import compute_trend_metrics
+    trend = compute_trend_metrics(history)
+
+    # Peer context: fetch all scores in same sector
+    fund = sb.table("stock_fundamentals") \
+        .select("ticker, sector, industry") \
+        .eq("ticker", ticker).limit(1).execute().data
+    peer_context = None
+    if fund:
+        sector = fund[0].get("sector")
+        if sector:
+            sector_tickers = sb.table("stock_fundamentals") \
+                .select("ticker, sector, industry") \
+                .eq("sector", sector).execute().data
+            sector_evs = sb.table("equity_value_scores") \
+                .select("ticker, score").execute().data
+            evs_map = {e["ticker"]: e["score"] for e in sector_evs}
+            scores = [{"ticker": t["ticker"], "score": evs_map.get(t["ticker"], 0),
+                       "sector": t["sector"], "industry": t.get("industry", "")}
+                      for t in sector_tickers if t["ticker"] in evs_map]
+            from evs.sector import get_peer_context
+            peer_context = get_peer_context(ticker, scores)
+
+    return {**row[0], "history": history, "peer_context": peer_context, "trend": trend}
