@@ -370,7 +370,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
     try:
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-20250514",
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -459,10 +459,10 @@ async def ai_thesis_stream(payload: ThesisRequest, request: Request, user: dict 
         return JSONResponse({"detail": "ANTHROPIC_API_KEY not configured"}, status_code=503)
     client = anthropic.Anthropic(api_key=api_key)
 
-    async def stream():
+    def stream():
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-4-20250514",
                 max_tokens=1500,
                 messages=messages
             ) as s:
@@ -470,8 +470,10 @@ async def ai_thesis_stream(payload: ThesisRequest, request: Request, user: dict 
                     yield f"data: {json.dumps({'type':'content_block_delta','delta':{'type':'text_delta','text':text}})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
-            print(f"[ai/thesis error] {e}")
-            yield f"data: {json.dumps({'type':'error','error':'AI generation failed. Please try again.'})}\n\n"
+            import traceback
+            print(f"[ai/thesis error] {type(e).__name__}: {e}")
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type':'error','error':str(e)})}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

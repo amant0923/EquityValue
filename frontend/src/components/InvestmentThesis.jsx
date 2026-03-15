@@ -265,6 +265,10 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
             const evt = JSON.parse(raw);
             if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
               setMemo(prev => { const next = prev + evt.delta.text; if (onMemoGenerated) onMemoGenerated(next); return next; });
+            } else if (evt.type === "error") {
+              setError(evt.error || "AI generation failed. Please try again.");
+              setLoading(false);
+              return;
             }
           } catch {}
         }
