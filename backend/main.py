@@ -542,7 +542,7 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
         tickers = [r["ticker"] for r in rows if r.get("ticker")]
         evs_map = {}
         if tickers:
-            evs_rows = sb.table("equity_value_scores").select("ticker,score,verdict").in_("ticker", tickers).execute().data or []
+            evs_rows = _supabase.table("equity_value_scores").select("ticker,score,verdict").in_("ticker", tickers).execute().data or []
             evs_map = {r["ticker"]: r for r in evs_rows}
         for row in rows:
             evs = evs_map.get(row.get("ticker"))
@@ -558,6 +558,8 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
 
         if sort_by == "evs":
             rows.sort(key=lambda r: r.get("evs_score") or 0, reverse=True)
+        else:
+            rows.sort(key=lambda r: r.get("market_cap") or 0, reverse=True)
 
         return {"results": rows, "count": len(rows)}
     except Exception as e:

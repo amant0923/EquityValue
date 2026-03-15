@@ -29,7 +29,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       if (sector !== "All Sectors") params.set("sector", sector);
       if (minEvs) params.set("min_evs", minEvs);
       if (maxEvs) params.set("max_evs", maxEvs);
-      if (sortBy === "evs") params.set("sort_by", "evs");
+      if (sortBy) params.set("sort_by", sortBy);
       const res = await api.get(`/screener?${params}`);
       setResults(res.data.results || []);
     } catch (e) {
