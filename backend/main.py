@@ -22,6 +22,16 @@ from routes.admin import router as admin_router
 from routes.evs import router as evs_router
 from routes.accuracy import router as accuracy_router
 from routes.alerts import router as alerts_router
+# ── Shared Supabase client (created once, reused by all endpoints) ───────────
+try:
+    from supabase import create_client as _create_sb
+    _supabase = _create_sb(
+        os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
+        os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
+    )
+except Exception as _e:
+    print(f"[supabase init] {_e}")
+    _supabase = None
 
 ALLOWED_ORIGINS = [
     "https://equityvalue.ai",
@@ -157,12 +167,7 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
         return cached
     # Restrict to S&P 500 stocks only
     try:
-        from supabase import create_client
-        sb = create_client(
-            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
-        )
-        exists = sb.table("stock_fundamentals").select("ticker").eq("ticker", ticker).limit(1).execute().data
+        exists = _supabase.table("stock_fundamentals").select("ticker").eq("ticker", ticker).limit(1).execute().data
         if not exists:
             raise HTTPException(status_code=404, detail=f"'{ticker}' is not in the S&P 500. Equity Valuation currently supports S&P 500 stocks only.")
     except HTTPException:
@@ -178,15 +183,10 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
 
     # Increment usage counter (best-effort, don't fail the response)
     try:
-        from supabase import create_client as _sc
         from datetime import date
-        _sb = _sc(
-            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
-        )
         today = date.today().isoformat()
         new_count = (analyses_today + 1) if profile.get("last_analysis_date") == today else 1
-        _sb.table("user_profiles").update({
+        _supabase.table("user_profiles").update({
             "analyses_today": new_count,
             "last_analysis_date": today,
         }).eq("id", user["sub"]).execute()
@@ -396,18 +396,13 @@ async def search(query: str, user: dict = Depends(get_current_user)):
     if cached:
         return cached
     try:
-        from supabase import create_client
-        sb = create_client(
-            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
-        )
         q = query.upper()
         # Search by ticker prefix first, then by name
-        by_ticker = sb.table("stock_fundamentals")\
+        by_ticker = _supabase.table("stock_fundamentals")\
             .select("ticker,name,sector")\
             .ilike("ticker", f"{q}%")\
             .limit(5).execute().data
-        by_name = sb.table("stock_fundamentals")\
+        by_name = _supabase.table("stock_fundamentals")\
             .select("ticker,name,sector")\
             .ilike("name", f"%{query}%")\
             .limit(5).execute().data
@@ -524,12 +519,7 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
     """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
     limit = min(limit, 500)
     try:
-        from supabase import create_client
-        sb = create_client(
-            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
-        )
-        query = sb.table("stock_fundamentals").select(
+        query = _supabase.table("stock_fundamentals").select(
             "ticker,name,sector,current_price,market_cap,pe_ratio,pb_ratio,roe,revenue_growth,eps,debt_to_equity"
         )
         if sector and sector not in ("All Sectors", ""):
@@ -578,12 +568,7 @@ async def screener(sector: str = None, min_pe: float = None, max_pe: float = Non
 async def top_picks(user: dict = Depends(get_current_user)):
     """Return top 5 stocks to buy and top 5 to avoid based on analyst target upside."""
     try:
-        from supabase import create_client
-        sb = create_client(
-            os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co"),
-            os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I"),
-        )
-        rows = sb.table("stock_fundamentals").select(
+        rows = _supabase.table("stock_fundamentals").select(
             "ticker,name,sector,current_price,target_price,pe_ratio,roe,revenue_growth"
         ).not_.is_("target_price", "null").not_.is_("current_price", "null").gt("current_price", 0).execute().data or []
 
@@ -630,19 +615,13 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
 
     try:
-        from supabase import create_client
-        sb = create_client(
-            os.environ.get("SUPABASE_URL", ""),
-            os.environ.get("SUPABASE_KEY", ""),
-        )
-
         if event["type"] == "checkout.session.completed":
             session_obj = event["data"]["object"]
             user_id = session_obj["metadata"]["user_id"]
             subscription = stripe.Subscription.retrieve(session_obj["subscription"])
             price_id = subscription["items"]["data"][0]["price"]["id"]
             plan = price_id_to_plan(price_id)
-            sb.table("user_profiles").update({
+            _supabase.table("user_profiles").update({
                 "plan": plan,
                 "stripe_customer_id": session_obj.get("customer", ""),
             }).eq("id", user_id).execute()
@@ -651,7 +630,7 @@ async def stripe_webhook(request: Request):
             sub_obj = event["data"]["object"]
             customer_id = sub_obj.get("customer")
             if customer_id:
-                sb.table("user_profiles").update({"plan": "free"}).eq("stripe_customer_id", customer_id).execute()
+                _supabase.table("user_profiles").update({"plan": "free"}).eq("stripe_customer_id", customer_id).execute()
 
     except Exception as e:
         print(f"[stripe webhook processing error] {e}")
