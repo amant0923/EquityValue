@@ -1,6 +1,7 @@
 """Alert subscription and history endpoints."""
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from typing import List
 import os
 from supabase import create_client
 from auth import get_current_user
@@ -18,6 +19,10 @@ class AlertSubscription(BaseModel):
     threshold: int | None = None
 
 
+class WatchlistSync(BaseModel):
+    tickers: List[str]
+
+
 @router.post("/subscribe")
 async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
     if not sb:
@@ -29,6 +34,46 @@ async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
         "threshold": body.threshold,
     }).execute()
     return {"status": "subscribed"}
+
+
+@router.post("/sync-watchlist")
+async def sync_watchlist(body: WatchlistSync, user=Depends(get_current_user)):
+    """Auto-create score_change and verdict_flip alert subscriptions for
+    each ticker in the user's watchlist, skipping any that already exist."""
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+
+    user_id = user["sub"]
+    tickers = [t.upper().strip() for t in body.tickers if t.strip()]
+    if not tickers:
+        return {"created": 0, "skipped": 0}
+
+    # Fetch existing subscriptions for this user in one query
+    existing_rows = sb.table("user_alerts") \
+        .select("ticker, alert_type") \
+        .eq("user_id", user_id) \
+        .eq("enabled", True) \
+        .execute().data
+    existing_keys = {(r["ticker"], r["alert_type"]) for r in existing_rows}
+
+    created = 0
+    skipped = 0
+    auto_types = ["score_change", "verdict_flip"]
+
+    for ticker in tickers:
+        for alert_type in auto_types:
+            if (ticker, alert_type) in existing_keys:
+                skipped += 1
+                continue
+            sb.table("user_alerts").insert({
+                "user_id": user_id,
+                "ticker": ticker,
+                "alert_type": alert_type,
+                "threshold": None,
+            }).execute()
+            created += 1
+
+    return {"created": created, "skipped": skipped}
 
 
 @router.get("/subscriptions")

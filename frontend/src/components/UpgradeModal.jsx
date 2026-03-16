@@ -29,6 +29,15 @@ const PLANS = [
 export default function UpgradeModal({ onClose, reason = "limit" }) {
   const [upgrading, setUpgrading] = useState(false);
   const [annual, setAnnual] = useState(false);
+  const [lifetimeStatus, setLifetimeStatus] = useState(null);
+  const [showStudent, setShowStudent] = useState(false);
+  const [studentEmail, setStudentEmail] = useState("");
+
+  useState(() => {
+    api.get("/pricing/lifetime/status")
+      .then(({ data }) => setLifetimeStatus(data))
+      .catch(() => {});
+  }, []);
 
   const handleUpgrade = async (planKey) => {
     setUpgrading(true);
@@ -135,6 +144,67 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
           ))}
         </div>
 
+        {/* Lifetime Deal */}
+        {lifetimeStatus?.available && (
+          <div className="upg-lifetime">
+            <div className="upg-lifetime-badge">Limited Offer</div>
+            <div className="upg-lifetime-title">Founding Pro — $199 lifetime</div>
+            <div className="upg-lifetime-desc">
+              One-time payment. Permanent Pro access. {lifetimeStatus.remaining} of {lifetimeStatus.total} remaining.
+            </div>
+            <button
+              className="upg-lifetime-cta"
+              onClick={async () => {
+                setUpgrading(true);
+                try {
+                  const res = await api.post("/pricing/lifetime/checkout");
+                  if (res.data.checkout_url) window.location.href = res.data.checkout_url;
+                  else setUpgrading(false);
+                } catch { setUpgrading(false); }
+              }}
+              disabled={upgrading}
+            >
+              {upgrading ? "Redirecting..." : "Get Lifetime Pro — $199"}
+            </button>
+          </div>
+        )}
+
+        {/* Student Discount */}
+        <div className="upg-student">
+          {!showStudent ? (
+            <button className="upg-student-toggle" onClick={() => setShowStudent(true)}>
+              Student? Get 50% off
+            </button>
+          ) : (
+            <div className="upg-student-form">
+              <p className="upg-student-desc">Enter your .edu email to verify student status</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="upg-student-input"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="you@university.edu"
+                />
+                <button
+                  className="upg-student-btn"
+                  onClick={async () => {
+                    try {
+                      await api.post("/pricing/student/verify", { email: studentEmail });
+                      const res = await api.post("/pricing/student/checkout", { plan: "pro" });
+                      if (res.data.checkout_url) window.location.href = res.data.checkout_url;
+                    } catch (e) {
+                      alert(e.response?.data?.detail || "Verification failed. Must be a .edu email.");
+                    }
+                  }}
+                  disabled={!studentEmail.endsWith(".edu")}
+                >
+                  Verify & Checkout
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <p className="upg-note">Secure payment via Stripe. Cancel anytime.</p>
       </motion.div>
 
@@ -217,6 +287,52 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
           transition: opacity 0.2s;
         }
         .upg-plan-cta:hover { opacity: 0.88; }
+
+        .upg-lifetime {
+          background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(129,140,248,0.08));
+          border: 1px solid rgba(59,130,246,0.2);
+          border-radius: var(--radius-lg);
+          padding: 16px;
+          text-align: center;
+          margin-bottom: 16px;
+          position: relative;
+        }
+        .upg-lifetime-badge {
+          position: absolute; top: -8px; right: 16px;
+          background: #f59e0b; color: #000; font-size: 0.6rem;
+          font-weight: 800; padding: 2px 8px; border-radius: 4px;
+          text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .upg-lifetime-title { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+        .upg-lifetime-desc { font-size: 0.75rem; color: var(--text2); margin-bottom: 12px; }
+        .upg-lifetime-cta {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          color: #000; border: none; padding: 10px 24px;
+          border-radius: var(--radius); font-weight: 700; font-size: 0.85rem;
+          cursor: pointer; font-family: inherit; transition: opacity 0.2s;
+        }
+        .upg-lifetime-cta:hover { opacity: 0.88; }
+
+        .upg-student { text-align: center; margin-bottom: 12px; }
+        .upg-student-toggle {
+          background: none; border: none; color: var(--primary2);
+          font-size: 0.78rem; font-weight: 600; cursor: pointer;
+          font-family: inherit; text-decoration: underline;
+        }
+        .upg-student-form { text-align: left; }
+        .upg-student-desc { font-size: 0.75rem; color: var(--text3); margin-bottom: 8px; }
+        .upg-student-input {
+          flex: 1; background: var(--surface2); border: 1px solid var(--border);
+          color: var(--text); padding: 8px 12px; border-radius: 6px;
+          font-size: 0.78rem; font-family: inherit;
+        }
+        .upg-student-btn {
+          background: var(--primary); color: #fff; border: none;
+          padding: 8px 16px; border-radius: 6px; font-weight: 700;
+          font-size: 0.75rem; cursor: pointer; font-family: inherit;
+          white-space: nowrap;
+        }
+        .upg-student-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         .upg-note {
           text-align: center;

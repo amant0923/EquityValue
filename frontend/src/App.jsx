@@ -24,6 +24,9 @@ import LBOModel from "./components/LBOModel";
 import InvestmentThesis from "./components/InvestmentThesis";
 import CompsTable from "./components/CompsTable";
 import LockedFeatureCard from "./components/LockedFeatureCard";
+import OnboardingFlow from "./components/OnboardingFlow";
+import WatchlistGroups from "./components/WatchlistGroups";
+import WatchlistExport from "./components/WatchlistExport";
 
 // Lazy-loaded page components — only downloaded when the route is visited
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -40,6 +43,10 @@ const AccuracyPage = lazy(() => import("./pages/AccuracyPage"));
 const PublicAccuracyPage = lazy(() => import("./pages/PublicAccuracyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const BlogPage = lazy(() => import("./pages/BlogPage"));
+const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
+const ReferralPage = lazy(() => import("./pages/ReferralPage"));
+const AdminMarginPage = lazy(() => import("./pages/AdminMarginPage"));
 
 import AppLayout from "./layouts/AppLayout";
 
@@ -86,6 +93,8 @@ function AppInner() {
   const [authMode, setAuthMode]         = useState("login");
   const [showUpgrade, setShowUpgrade]   = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("limit");
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [groupFilter, setGroupFilter]   = useState(null);
 
   // Analysis state
   const [ticker, setTicker]     = useState("");
@@ -99,7 +108,31 @@ function AppInner() {
   useEffect(() => {
     if (!lsGet("ve_disclaimer", null)) setDisclaimer(true);
     setWatchlist(lsGet("ve_watchlist", []));
+    // Check for shared watchlist in URL
+    const params = new URLSearchParams(window.location.search);
+    const shared = params.get("shared");
+    if (shared) {
+      try {
+        const tickers = JSON.parse(atob(shared));
+        if (Array.isArray(tickers) && tickers.length) {
+          lsSet("ve_watchlist", tickers);
+          setWatchlist(tickers);
+        }
+      } catch {}
+    }
+    // Track referral code
+    const ref = params.get("ref");
+    if (ref) {
+      try { localStorage.setItem("ve_referral", ref); } catch {}
+    }
   }, []);
+
+  // Show onboarding for newly signed-in users
+  useEffect(() => {
+    if (user && !lsGet("ve_onboarded", null)) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -181,6 +214,7 @@ function AppInner() {
       {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
       <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
+      {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
 
       <Suspense fallback={<AnalysisSkeleton />}>
       <Routes>
@@ -268,6 +302,10 @@ function AppInner() {
           <Route path="/accuracy" element={<PublicAccuracyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/referral" element={<ReferralPage />} />
+          <Route path="/admin/margins" element={<AdminMarginPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" />} />

@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import EVScoreBadge from "../components/EVScoreBadge";
+import WatchlistGroups from "../components/WatchlistGroups";
+import WatchlistExport from "../components/WatchlistExport";
 
 const blurReveal = {
   hidden: { opacity: 0, filter: "blur(12px)", y: 20 },
@@ -24,6 +26,18 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
   const [topPicks, setTopPicks] = useState({ buy: [], avoid: [] });
   const [loading, setLoading] = useState(true);
   const [watchlistEvs, setWatchlistEvs] = useState({});
+  const [groupFilter, setGroupFilter] = useState(null);
+
+  // Aggregate EVS: weighted-average score for the displayed watchlist
+  const displayedWatchlist = groupFilter ? watchlist.filter(s => groupFilter.includes(s)) : watchlist;
+  const aggregateEvs = useMemo(() => {
+    const scores = displayedWatchlist
+      .map(sym => watchlistEvs[sym]?.score)
+      .filter(s => s != null);
+    if (!scores.length) return null;
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return Math.round(avg * 10) / 10;
+  }, [displayedWatchlist, watchlistEvs]);
 
   useEffect(() => {
     if (!watchlist.length) return;
@@ -68,9 +82,24 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
         {/* Watchlist */}
         {watchlist.length > 0 && (
           <motion.section variants={blurReveal} className="db-section">
-            <h2 className="db-section-title">Recent Analyses</h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <h2 className="db-section-title" style={{ margin: 0 }}>Recent Analyses</h2>
+                {aggregateEvs != null && (
+                  <span style={{
+                    fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)",
+                    color: aggregateEvs >= 70 ? "#22c55e" : aggregateEvs >= 40 ? "#eab308" : "#ef4444",
+                    background: "var(--surface2)", padding: "3px 10px", borderRadius: 6,
+                  }}>
+                    Avg EVS: {aggregateEvs}
+                  </span>
+                )}
+              </div>
+              <WatchlistExport watchlist={displayedWatchlist} watchlistEvs={watchlistEvs} />
+            </div>
+            <WatchlistGroups watchlist={watchlist} onGroupFilter={setGroupFilter} />
             <div className="db-watchlist-grid">
-              {watchlist.map((sym, i) => {
+              {displayedWatchlist.map((sym, i) => {
                 const evsData = watchlistEvs[sym];
                 return (
                   <motion.button

@@ -23,6 +23,8 @@ from routes.evs import router as evs_router
 from routes.accuracy import router as accuracy_router
 from routes.alerts import router as alerts_router
 from routes.health import router as health_router
+from routes.referral import router as referral_router
+from routes.pricing import router as pricing_router
 from utils.thesis_cache import get_cached_thesis, cache_thesis
 
 # ── Sentry error tracking initialization ──────────────────────────────────────
@@ -61,6 +63,59 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credenti
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# ── Audit logging + cost tagging middleware ──────────────────────────────────
+import asyncio as _asyncio
+import hashlib as _hashlib
+
+COST_MAP = {
+    "/thesis": 0.01, "/ai/thesis": 0.01,
+    "/valuation": 0.001, "/comps": 0.001,
+}
+
+@app.middleware("http")
+async def audit_and_cost_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    elapsed_ms = round((time.time() - start) * 1000, 1)
+    # Fire-and-forget log to Supabase
+    if _supabase:
+        try:
+            path = request.url.path
+            # Extract user_id from JWT without verification (best-effort)
+            user_id = None
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                try:
+                    import jwt as _jwt
+                    payload = _jwt.decode(auth_header.split(" ")[1], options={"verify_signature": False})
+                    user_id = payload.get("sub")
+                except Exception:
+                    pass
+            # Hash IP for privacy
+            ip = request.client.host if request.client else "unknown"
+            daily_salt = datetime.utcnow().strftime("%Y-%m-%d")
+            hashed_ip = _hashlib.sha256(f"{ip}{daily_salt}".encode()).hexdigest()[:16]
+            # Estimate cost
+            cost = 0.0001
+            for prefix, c in COST_MAP.items():
+                if prefix in path:
+                    cost = c
+                    break
+            _asyncio.create_task(_asyncio.to_thread(
+                lambda: _supabase.table("api_usage_log").insert({
+                    "endpoint": path,
+                    "method": request.method,
+                    "user_id": user_id,
+                    "response_time_ms": elapsed_ms,
+                    "hashed_ip": hashed_ip,
+                    "response_code": response.status_code,
+                    "estimated_cost": cost,
+                }).execute()
+            ))
+        except Exception:
+            pass
+    return response
+
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -74,6 +129,8 @@ app.include_router(evs_router)
 app.include_router(accuracy_router)
 app.include_router(alerts_router)
 app.include_router(health_router)
+app.include_router(referral_router)
+app.include_router(pricing_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
@@ -84,22 +141,20 @@ def _validate_ticker(ticker: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid ticker format.")
     return t
 
-# ── In-memory cache (1 hour TTL, max 2000 entries) ──────────────────────────
-_cache = {}
-CACHE_TTL = 3600
-CACHE_MAX = 2000
+# ── Cache layer (Redis or in-memory fallback) ───────────────────────────────
+from redis_cache import cache_get, cache_set, cache_clear
+_get_cached = cache_get
+_set_cached = cache_set
 
-def _get_cached(key):
-    entry = _cache.get(key)
-    if entry and (time.time() - entry["ts"]) < CACHE_TTL:
-        return entry["data"]
-    return None
+# ── Tiered AI model selection ────────────────────────────────────────────────
+AI_MODELS = {
+    "free": "claude-haiku-4-5-20251001",
+    "pro": "claude-sonnet-4-20250514",
+    "max": "claude-opus-4-20250115",
+}
 
-def _set_cached(key, data):
-    if len(_cache) >= CACHE_MAX:
-        oldest = min(_cache, key=lambda k: _cache[k]["ts"])
-        del _cache[oldest]
-    _cache[key] = {"data": data, "ts": time.time()}
+def get_ai_model_for_plan(plan: str) -> str:
+    return AI_MODELS.get(plan, AI_MODELS["free"])
 
 # ── Field normalisation ───────────────────────────────────────────────────────
 # Our fetcher uses current_price / book_value / total_cash
@@ -214,7 +269,8 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
     return result
 
 @app.get("/history/{ticker}")
-async def get_history(ticker: str, period: str = "1y", user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def get_history(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
     if period not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
         raise HTTPException(status_code=400, detail="Invalid period.")
@@ -230,7 +286,8 @@ async def get_history(ticker: str, period: str = "1y", user: dict = Depends(get_
     return result
 
 @app.get("/comps/{ticker}")
-async def get_comps(ticker: str, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def get_comps(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = _validate_ticker(ticker)
     cached = _get_cached(f"comps:{ticker}")
     if cached:
@@ -396,10 +453,17 @@ Be direct, analytical, and use specific financial data. Write like a professiona
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured on server")
+    # Select AI model based on user's plan
+    try:
+        thesis_profile = await get_user_profile(user["sub"])
+    except Exception:
+        thesis_profile = {"plan": "free"}
+    ai_model = get_ai_model_for_plan(thesis_profile.get("plan", "free"))
+
     try:
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=ai_model,
             max_tokens=1500,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -424,7 +488,8 @@ Be direct, analytical, and use specific financial data. Write like a professiona
         raise HTTPException(status_code=500, detail="Failed to generate thesis. Please try again.")
 
 @app.get("/search/{query}")
-async def search(query: str, user: dict = Depends(get_current_user)):
+@limiter.limit("60/minute")
+async def search(query: str, request: Request, user: dict = Depends(get_current_user)):
     if len(query) < 1 or len(query) > 20:
         return {"results": []}
     cached = _get_cached(f"search:{query.upper()}")
@@ -488,11 +553,17 @@ async def ai_thesis_stream(payload: ThesisRequest, request: Request, user: dict 
         from fastapi.responses import JSONResponse
         return JSONResponse({"detail": "ANTHROPIC_API_KEY not configured"}, status_code=503)
     client = anthropic.Anthropic(api_key=api_key)
+    # Select AI model based on user's plan
+    try:
+        stream_profile = await get_user_profile(user["sub"])
+    except Exception:
+        stream_profile = {"plan": "free"}
+    stream_model = get_ai_model_for_plan(stream_profile.get("plan", "free"))
 
     def stream():
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-20250514",
+                model=stream_model,
                 max_tokens=1500,
                 messages=messages
             ) as s:
@@ -546,7 +617,8 @@ async def export_pdf(payload: PDFRequest, user: dict = Depends(get_current_user)
     )
 
 @app.get("/screener")
-async def screener(sector: str = None, min_pe: float = None, max_pe: float = None,
+@limiter.limit("60/minute")
+async def screener(request: Request, sector: str = None, min_pe: float = None, max_pe: float = None,
              min_roe: float = None, min_rev_growth: float = None,
              max_pb: float = None, limit: int = 200,
              min_evs: int = None, max_evs: int = None, sort_by: str = None,
@@ -627,6 +699,7 @@ async def top_picks(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Failed to load top picks")
 
 @app.post("/stripe/create-checkout")
+@limiter.limit("5/minute")
 async def create_checkout(request: Request, user: dict = Depends(get_current_user)):
     body = await request.json()
     plan = body.get("plan", "pro")
@@ -680,5 +753,5 @@ async def stripe_webhook(request: Request):
 
 @app.post("/cache/clear")
 async def clear_cache(user: dict = Depends(get_current_user)):
-    _cache.clear()
+    cache_clear()
     return {"message": "Cache cleared"}

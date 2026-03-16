@@ -210,3 +210,57 @@ async def check_admin(request: Request):
         return {"is_admin": True}
     except HTTPException:
         return {"is_admin": False}
+
+
+@router.get("/margins")
+async def admin_margins(request: Request):
+    """Admin margin dashboard — revenue vs costs this month."""
+    await _require_admin(request)
+    sb = _get_sb()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # API usage this month
+    try:
+        usage = sb.table("api_usage_log").select("endpoint, estimated_cost, response_time_ms").gte("timestamp", month_start).execute().data or []
+    except Exception:
+        usage = []
+
+    total_calls = len(usage)
+    total_cost = sum(u.get("estimated_cost", 0) or 0 for u in usage)
+
+    # Breakdown by endpoint
+    by_ep = {}
+    for u in usage:
+        ep = u.get("endpoint", "unknown")
+        if ep not in by_ep:
+            by_ep[ep] = {"endpoint": ep, "calls": 0, "cost": 0}
+        by_ep[ep]["calls"] += 1
+        by_ep[ep]["cost"] += u.get("estimated_cost", 0) or 0
+    by_endpoint = sorted(by_ep.values(), key=lambda x: x["cost"], reverse=True)[:20]
+
+    # Subscribers
+    try:
+        profiles = sb.table("user_profiles").select("plan").execute().data or []
+    except Exception:
+        profiles = []
+    plan_counts = {}
+    for p in profiles:
+        plan = p.get("plan", "free")
+        plan_counts[plan] = plan_counts.get(plan, 0) + 1
+    price_map = {"pro": 30, "max": 50, "lifetime": 0}
+    subscribers = [{"plan": k, "count": v, "mrr": v * price_map.get(k, 0)} for k, v in plan_counts.items()]
+    revenue = sum(s["mrr"] for s in subscribers)
+
+    return {
+        "total_calls": total_calls,
+        "total_cost": round(total_cost, 4),
+        "revenue": revenue,
+        "margin": round(revenue - total_cost, 2),
+        "margin_pct": round((revenue - total_cost) / max(revenue, 0.01) * 100, 1),
+        "by_endpoint": by_endpoint,
+        "subscribers": subscribers,
+    }
