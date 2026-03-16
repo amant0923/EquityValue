@@ -133,8 +133,9 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
 
         {/* Results table */}
         {results.length > 0 && (
-          <div className="sc-table-wrap">
+          <div>
             <div className="sc-results-count">{results.length} stocks match your criteria</div>
+            <div className="sc-table-wrap">
             <div className="sc-table-scroll">
               <table className="sc-table">
                 <thead>
@@ -189,6 +190,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
                 </tbody>
               </table>
             </div>
+            </div>
           </div>
         )}
 
@@ -203,7 +205,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       </motion.div>
 
       <style>{`
-        .sc-wrap { max-width: 1100px; margin: 0 auto; }
+        .sc-wrap { max-width: 100%; margin: 0 auto; }
         .sc-header { margin-bottom: 28px; }
         .sc-title { font-size: 1.6rem; font-weight: 700; color: var(--text); letter-spacing: -0.8px; margin-bottom: 4px; }
         .sc-sub { font-size: 0.85rem; color: var(--text2); }
@@ -279,29 +281,40 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
         .sc-notice code { background: var(--surface2); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 0.8rem; }
 
         .sc-results-count { font-size: 0.78rem; color: var(--text3); margin-bottom: 12px; }
+        .sc-table-wrap {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+        }
         .sc-table-scroll { overflow-x: auto; }
         .sc-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 0.82rem;
+          font-size: 0.8rem;
         }
         .sc-table th {
-          padding: 10px 14px;
+          padding: 10px 12px;
           text-align: left;
-          font-size: 0.65rem;
+          font-size: 0.62rem;
           font-weight: 700;
           letter-spacing: 0.8px;
           text-transform: uppercase;
           color: var(--text3);
-          background: var(--surface);
+          background: var(--surface2);
           border-bottom: 1px solid var(--border);
           white-space: nowrap;
+          position: sticky;
+          top: 0;
+          z-index: 1;
         }
         .sc-table td {
-          padding: 12px 14px;
+          padding: 10px 12px;
           border-bottom: 1px solid var(--border);
           white-space: nowrap;
+          color: var(--text2);
         }
+        .sc-table tr:last-child td { border-bottom: none; }
         .sc-row { cursor: pointer; transition: background 0.12s; }
         .sc-row:hover td { background: var(--surface2); }
         .sc-ticker { font-weight: 700; color: var(--primary2); display: flex; align-items: center; gap: 6px; }

@@ -32,11 +32,16 @@ export default function AppLayout() {
   };
 
   const handlePageChange = (p) => {
-    if (p === "dashboard") navigate("/dashboard");
-    else if (p === "screener") navigate("/screener");
-    else if (p === "compare") navigate("/compare");
-    else if (p === "analysis") navigate("/analysis");
-    else if (p === "portfolio") navigate("/portfolio");
+    const routes = {
+      dashboard: "/dashboard",
+      screener: "/screener",
+      compare: "/compare",
+      analysis: "/analysis",
+      portfolio: "/portfolio",
+      blog: "/blog",
+      referral: "/referral",
+    };
+    navigate(routes[p] || `/${p}`);
   };
 
   return (
@@ -59,7 +64,7 @@ export default function AppLayout() {
                 <span className="topbar-breadcrumb-home" onClick={() => navigate("/")}>Equity Valuation</span>
                 <span className="topbar-breadcrumb-sep">/</span>
                 <span className="topbar-breadcrumb-current">
-                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio" }[currentPage] || currentPage}
+                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio", blog: "Blog", referral: "Refer a Friend", admin: "Admin" }[currentPage] || currentPage}
                 </span>
               </div>
             </div>
