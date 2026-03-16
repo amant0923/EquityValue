@@ -18,53 +18,40 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: "Free",
+    name: "Trial",
     price: "$0",
     period: "",
-    desc: "Try the platform with limited access",
-    cta: "Sign Up Free",
+    desc: "7 days to explore the full platform",
+    cta: "Start Free Trial",
     ctaStyle: "outline",
     features: [
-      "1 analysis per day",
-      "8 valuation models",
-      "Price chart & fundamentals",
-      "Peer comparison table",
+      "1 analysis per day (5 total)",
+      "All 12 valuation models",
+      "EVS score & breakdown",
+      "Sector percentile ranking",
+      "Peer comparison",
     ],
-    notIncluded: ["AI investment thesis", "Monte Carlo & LBO", "PDF export", "Compare & full screener"],
+    notIncluded: ["AI investment thesis", "Monte Carlo & LBO", "PDF export", "Compare stocks"],
   },
   {
     name: "Pro",
-    price: "$30",
+    price: "$15",
     period: "/month",
-    desc: "For active investors and researchers",
+    desc: "Unlimited access for serious investors",
     cta: "Get Pro",
     ctaStyle: "primary",
-    badge: "Most Popular",
+    badge: "Best Value",
     features: [
-      "5 analyses per day",
+      "Unlimited analyses",
       "All 12 valuation models",
       "AI investment thesis (Claude)",
       "Monte Carlo simulation",
       "LBO return modelling",
       "PDF report export",
-      "Compare stocks",
-      "Full screener filters",
-    ],
-  },
-  {
-    name: "Max",
-    price: "$50",
-    period: "/month",
-    desc: "Unlimited access for professionals",
-    cta: "Get Max",
-    ctaStyle: "featured",
-    features: [
-      "Unlimited analyses",
-      "Everything in Pro",
-      "Priority data refresh",
-      "DCF sensitivity table",
-      "Three-statement projections",
-      "Early access to new features",
+      "Compare stocks side-by-side",
+      "Full screener with all filters",
+      "EVS score history & trends",
+      "Quarterly financial statements",
     ],
   },
 ];
@@ -288,7 +275,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
       <section id="pricing" className="relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Simple, transparent pricing</h2>
-          <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start free. Upgrade when you need the full suite.</p>
+          <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start with a 7-day free trial. No credit card required.</p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
             <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
             <button
@@ -333,13 +320,13 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
               <div className="text-[0.8rem] font-bold tracking-[1px] uppercase text-text3 mb-1.5">{plan.name}</div>
               <div className="flex items-baseline gap-1 mb-0.5">
                 <span className="text-[2.8rem] font-bold tracking-[-2px] text-text font-mono">
-                  {annual && plan.name === "Pro" ? "$24" : annual && plan.name === "Max" ? "$40" : plan.price}
+                  {annual && plan.name === "Pro" ? "$12" : plan.price}
                 </span>
                 <span className="text-[0.9rem] text-text3">
-                  {plan.name === "Free" ? "" : annual ? "/mo" : plan.period}
+                  {plan.name === "Trial" ? "" : annual ? "/mo" : plan.period}
                 </span>
               </div>
-              {annual && plan.name !== "Free" && (
+              {annual && plan.name !== "Trial" && (
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[0.72rem] text-text3">billed annually</span>
                   <span className="text-[0.65rem] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded-full">Save 20%</span>
@@ -393,12 +380,12 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         <h2 className="text-[clamp(1.4rem,3vw,2rem)] font-bold text-text tracking-[-0.8px]">
           <span className="bg-gradient-to-r from-primary2 to-indigo2 bg-clip-text text-transparent">Ready to see what the market is missing?</span>
         </h2>
-        <p className="text-[0.92rem] text-text2">Run your first valuation in seconds. No sign-up required.</p>
+        <p className="text-[0.92rem] text-text2">Run your first valuation in seconds. Start your 7-day free trial.</p>
         <button
           className="flex items-center gap-2 bg-gradient-to-r from-primary to-indigo text-white border-none px-8 py-3.5 rounded-lg font-sans text-[0.92rem] font-bold cursor-pointer transition-all shadow-[var(--shadow-blue)] mt-2 hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
           onClick={onEnterApp}
         >
-          Start Analysing — It's Free
+          Start Free Trial
           <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
         </button>
       </motion.section>

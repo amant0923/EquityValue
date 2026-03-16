@@ -7,9 +7,9 @@ const AuthContext = createContext({});
 export const useAuth = () => useContext(AuthContext);
 
 const PLANS = {
-  free: { label: "Free", limit: 3 },
-  pro:  { label: "Pro",  limit: 5 },
-  max:  { label: "Max",  limit: Infinity },
+  trial:   { label: "Trial",   limit: 1 },
+  expired: { label: "Expired", limit: 0 },
+  pro:     { label: "Pro",     limit: Infinity },
 };
 
 export function AuthProvider({ children }) {
@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
       // No profile yet — create one
       const { data: newProfile } = await supabase
         .from("user_profiles")
-        .insert({ id: userId, plan: "free", analyses_today: 0, last_analysis_date: new Date().toISOString().slice(0, 10) })
+        .insert({ id: userId, plan: "trial", analyses_today: 0, analyses_total: 0, trial_started: new Date().toISOString(), last_analysis_date: new Date().toISOString().slice(0, 10) })
         .select()
         .single();
       return newProfile;
@@ -39,11 +39,23 @@ export function AuthProvider({ children }) {
 
   // Check and reset daily count if needed
   const getEffectiveProfile = (p) => {
-    if (!p) return { plan: "free", analyses_today: 0, limit: 1 };
+    if (!p) return { plan: "trial", analyses_today: 0, analyses_total: 0, limit: 1 };
+    let plan = p.plan;
+    // Backward compatibility: map old tier names
+    if (plan === "free") plan = "trial";
+    if (plan === "max") plan = "pro";
+    // Auto-expire trial after 7 days
+    if (plan === "trial" && p.trial_started) {
+      const trialEnd = new Date(p.trial_started);
+      trialEnd.setDate(trialEnd.getDate() + 7);
+      if (new Date() > trialEnd) plan = "expired";
+    }
+    // Also expire if total analyses used up (5 max during trial)
+    if (plan === "trial" && (p.analyses_total || 0) >= 5) plan = "expired";
     const today = new Date().toISOString().slice(0, 10);
     const count = p.last_analysis_date === today ? p.analyses_today : 0;
-    const planInfo = PLANS[p.plan] || PLANS.free;
-    return { ...p, analyses_today: count, limit: planInfo.limit, planLabel: planInfo.label };
+    const planInfo = PLANS[plan] || PLANS.expired;
+    return { ...p, plan, analyses_today: count, analyses_total: p.analyses_total || 0, limit: planInfo.limit, planLabel: planInfo.label };
   };
 
   // Increment analysis count
@@ -51,12 +63,14 @@ export function AuthProvider({ children }) {
     if (!supabase || !user) return true; // Allow if no auth
     const today = new Date().toISOString().slice(0, 10);
     const ep = getEffectiveProfile(profile);
+    if (ep.plan === "expired") return false;
     if (ep.analyses_today >= ep.limit) return false; // Over limit
 
     const newCount = ep.last_analysis_date === today ? ep.analyses_today + 1 : 1;
+    const newTotal = (ep.analyses_total || 0) + 1;
     const { data } = await supabase
       .from("user_profiles")
-      .update({ analyses_today: newCount, last_analysis_date: today })
+      .update({ analyses_today: newCount, analyses_total: newTotal, last_analysis_date: today })
       .eq("id", user.id)
       .select()
       .single();
@@ -67,18 +81,20 @@ export function AuthProvider({ children }) {
   const canAnalyse = () => {
     if (!supabase || !user) return true; // No auth = allow
     const ep = getEffectiveProfile(profile);
+    if (ep.plan === "expired") return false;
     return ep.analyses_today < ep.limit;
   };
 
   const isFeatureUnlocked = (feature) => {
     if (!supabase || !user) return true; // No auth = allow all
-    const plan = profile?.plan || "free";
-    return isFeatureAllowed(plan, feature);
+    const ep = getEffectiveProfile(profile);
+    return isFeatureAllowed(ep.plan, feature);
   };
 
   const getLimit = (feature) => {
     if (!supabase || !user) return Infinity; // No auth = unlimited
-    const plan = profile?.plan || "free";
+    const ep = getEffectiveProfile(profile);
+    const plan = ep.plan;
     return getFeatureLimit(plan, feature);
   };
 
@@ -152,6 +168,17 @@ export function AuthProvider({ children }) {
     return token;
   };
 
+  const trialInfo = () => {
+    if (!profile) return null;
+    const ep = getEffectiveProfile(profile);
+    if (ep.plan !== "trial") return null;
+    const trialEnd = new Date(profile.trial_started || Date.now());
+    trialEnd.setDate(trialEnd.getDate() + 7);
+    const daysLeft = Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24)));
+    const analysesLeft = Math.max(0, 5 - (ep.analyses_total || 0));
+    return { daysLeft, analysesLeft };
+  };
+
   const value = {
     user,
     profile: profile ? getEffectiveProfile(profile) : null,
@@ -164,6 +191,7 @@ export function AuthProvider({ children }) {
     isFeatureUnlocked,
     getLimit,
     getToken,
+    trialInfo,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -27,14 +27,14 @@ async def lifetime_status():
         rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
         sold = len(rows)
         remaining = max(0, LIFETIME_CAP - sold)
-        return {"available": remaining > 0, "remaining": remaining, "price": 199, "total": LIFETIME_CAP}
+        return {"available": remaining > 0, "remaining": remaining, "price": 99, "total": LIFETIME_CAP}
     except Exception:
-        return {"available": True, "remaining": LIFETIME_CAP, "price": 199, "total": LIFETIME_CAP}
+        return {"available": True, "remaining": LIFETIME_CAP, "price": 99, "total": LIFETIME_CAP}
 
 
 @router.post("/lifetime/checkout")
 async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
-    """Create Stripe checkout for $199 lifetime Pro deal."""
+    """Create Stripe checkout for $99 lifetime Pro deal."""
     if not stripe.api_key or not STRIPE_LIFETIME_PRICE_ID:
         raise HTTPException(503, "Lifetime deal not configured")
     # Check cap

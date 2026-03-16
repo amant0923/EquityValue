@@ -152,7 +152,7 @@ export default function AdminPage() {
     catch { return "--"; }
   };
 
-  const planCounts = { free: 0, pro: 0, max: 0 };
+  const planCounts = { trial: 0, expired: 0, pro: 0 };
   users.forEach(u => { planCounts[u.plan] = (planCounts[u.plan] || 0) + 1; });
 
   // ── Login screen ──
@@ -329,9 +329,9 @@ export default function AdminPage() {
                           value={u.plan}
                           onChange={e => changePlan(u.id, e.target.value)}
                         >
-                          <option value="free">Free</option>
+                          <option value="trial">Trial</option>
+                          <option value="expired">Expired</option>
                           <option value="pro">Pro</option>
-                          <option value="max">Max</option>
                         </select>
                         <button className="adm-act-btn" onClick={() => resetPassword(u.id, u.email)} title="Send password reset email">
                           Reset PW

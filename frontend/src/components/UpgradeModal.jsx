@@ -5,28 +5,18 @@ import api from "../lib/api";
 const PLANS = [
   {
     name: "Pro",
-    price: "$30",
+    price: "$15",
     period: "/month",
-    limit: "5 analyses/day",
+    limit: "Unlimited analyses",
     priceEnv: "pro",
-    features: ["5 analyses per day", "All 12 valuation models", "AI investment thesis", "Monte Carlo simulation", "LBO model", "PDF export", "Compare stocks", "Full screener"],
-    cta: "Upgrade to Pro",
+    features: ["Unlimited analyses", "All 12 valuation models", "AI investment thesis (Claude)", "Monte Carlo simulation", "LBO return modelling", "PDF report export", "Compare stocks side-by-side", "Full screener with all filters", "EVS score history & trends", "Quarterly financial statements"],
+    cta: "Get Pro",
     color: "var(--primary)",
-  },
-  {
-    name: "Max",
-    price: "$50",
-    period: "/month",
-    limit: "Unlimited",
-    priceEnv: "max",
-    features: ["Unlimited analyses", "Everything in Pro", "Priority data refresh", "Early access to new features"],
-    cta: "Upgrade to Max",
-    color: "var(--indigo)",
     featured: true,
   },
 ];
 
-export default function UpgradeModal({ onClose, reason = "limit" }) {
+export default function UpgradeModal({ onClose, reason = "limit", currentPlan = "trial" }) {
   const [upgrading, setUpgrading] = useState(false);
   const [annual, setAnnual] = useState(false);
   const [lifetimeStatus, setLifetimeStatus] = useState(null);
@@ -76,12 +66,18 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
 
         <div className="upg-header">
           <h2 className="upg-title">
-            {reason === "limit" ? "Daily limit reached" : "Upgrade to unlock"}
+            {reason === "limit" && currentPlan === "expired"
+              ? "Your trial has ended"
+              : reason === "limit"
+              ? "Daily limit reached"
+              : "Upgrade to unlock"}
           </h2>
           <p className="upg-sub">
-            {reason === "limit"
-              ? "You've used all your free analyses for today. Upgrade for more."
-              : "This feature is available on Pro and Max plans."}
+            {reason === "limit" && currentPlan === "expired"
+              ? "Your 7-day trial has ended. Upgrade to Pro to continue analysing stocks."
+              : reason === "limit"
+              ? "You've used your analysis for today. Upgrade for unlimited access."
+              : "This feature is available on the Pro plan."}
           </p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
             <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
@@ -110,9 +106,7 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
               <div className="upg-plan-name">{plan.name}</div>
               <div className="upg-plan-price">
                 <span className="upg-plan-amount mono">
-                  {annual
-                    ? (plan.priceEnv === "pro" ? "$24" : "$40")
-                    : plan.price}
+                  {annual ? "$12" : plan.price}
                 </span>
                 <span className="upg-plan-period">{plan.period}</span>
               </div>
@@ -148,7 +142,7 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
         {lifetimeStatus?.available && (
           <div className="upg-lifetime">
             <div className="upg-lifetime-badge">Limited Offer</div>
-            <div className="upg-lifetime-title">Founding Pro — $199 lifetime</div>
+            <div className="upg-lifetime-title">Founding Pro — $99 lifetime</div>
             <div className="upg-lifetime-desc">
               One-time payment. Permanent Pro access. {lifetimeStatus.remaining} of {lifetimeStatus.total} remaining.
             </div>
@@ -164,7 +158,7 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
               }}
               disabled={upgrading}
             >
-              {upgrading ? "Redirecting..." : "Get Lifetime Pro — $199"}
+              {upgrading ? "Redirecting..." : "Get Lifetime Pro — $99"}
             </button>
           </div>
         )}
@@ -242,8 +236,10 @@ export default function UpgradeModal({ onClose, reason = "limit" }) {
         .upg-title { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
         .upg-sub { font-size: 0.82rem; color: var(--text2); }
 
-        .upg-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .upg-plans { display: flex; justify-content: center; margin-bottom: 20px; }
         .upg-plan {
+          max-width: 340px;
+          width: 100%;
           border: 1px solid var(--border);
           border-radius: var(--radius-lg);
           padding: 24px;
