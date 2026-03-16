@@ -47,6 +47,7 @@ const BlogPage = lazy(() => import("./pages/BlogPage"));
 const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
 const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 const AdminMarginPage = lazy(() => import("./pages/AdminMarginPage"));
+const HelpPage = lazy(() => import("./pages/HelpPage"));
 
 import AppLayout from "./layouts/AppLayout";
 
@@ -306,6 +307,7 @@ function AppInner() {
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/referral" element={<ReferralPage />} />
           <Route path="/admin/margins" element={<AdminMarginPage />} />
+          <Route path="/help" element={<HelpPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" />} />
@@ -344,7 +346,7 @@ function LandingPageWrapper({ user, profile, signOut, theme, toggleTheme, ticker
               <button className="lp-nav-btn" onClick={() => navigate("/dashboard")}>Dashboard</button>
               <div className="lp-user-menu">
                 <span className="lp-user-email">{user.email?.split("@")[0]}</span>
-                <span className={`lp-user-plan lp-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
+                <span className={`lp-user-plan lp-user-plan--${profile?.plan || "trial"}`}>{profile?.planLabel || "Trial"}</span>
               </div>
               <button className="lp-nav-btn" onClick={signOut}>Log Out</button>
             </>

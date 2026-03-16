@@ -40,6 +40,7 @@ export default function AppLayout() {
       portfolio: "/portfolio",
       blog: "/blog",
       referral: "/referral",
+      help: "/help",
     };
     navigate(routes[p] || `/${p}`);
   };
@@ -64,7 +65,7 @@ export default function AppLayout() {
                 <span className="topbar-breadcrumb-home" onClick={() => navigate("/")}>Equity Valuation</span>
                 <span className="topbar-breadcrumb-sep">/</span>
                 <span className="topbar-breadcrumb-current">
-                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio", blog: "Blog", referral: "Refer a Friend", admin: "Admin" }[currentPage] || currentPage}
+                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio", blog: "Blog", referral: "Refer a Friend", help: "Help", admin: "Admin" }[currentPage] || currentPage}
                 </span>
               </div>
             </div>
@@ -82,7 +83,7 @@ export default function AppLayout() {
                   <span className="topbar-user-usage mono">
                     {profile?.limit === Infinity ? "∞" : `${profile?.analyses_today || 0}/${profile?.limit || 1}`}
                   </span>
-                  <span className={`topbar-user-plan topbar-user-plan--${profile?.plan || "free"}`}>{profile?.planLabel || "Free"}</span>
+                  <span className={`topbar-user-plan topbar-user-plan--${profile?.plan || "trial"}`}>{profile?.planLabel || "Trial"}</span>
                   <button className="topbar-user-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
