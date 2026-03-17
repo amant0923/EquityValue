@@ -1,7 +1,7 @@
 export default function ReverseDCF({ data }) {
   if (!data) return null;
 
-  const growth = data.implied_growth_rate;
+  const growth = data.implied_growth_rate ?? 0;
   const isAggressive = growth > 25;
   const barColor = growth > 40 ? "#ef4444" : growth > 25 ? "#f59e0b" : growth > 10 ? "#10b981" : "var(--primary2)";
   const barWidth = Math.min(Math.max(growth, 0), 60) / 60 * 100;

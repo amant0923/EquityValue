@@ -37,7 +37,7 @@ export default function AddHoldingModal({ open, onClose, onAdd, editing }) {
           );
           if (res.ok) {
             const data = await res.json();
-            setSearchResults(data.slice(0, 6));
+            setSearchResults((data.results || []).slice(0, 6));
           }
         } catch {}
       }, 300);
