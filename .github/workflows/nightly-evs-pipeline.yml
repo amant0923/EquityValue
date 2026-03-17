@@ -25,6 +25,8 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           FMP_KEY: ${{ secrets.FMP_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
           cd backend
           python -m evs.snapshot

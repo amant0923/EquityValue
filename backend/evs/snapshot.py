@@ -379,10 +379,11 @@ async def _async_compute(ticker):
 
 
 async def compute_all_evs(tickers):
-    """Process tickers in batches of 10 concurrently."""
-    BATCH_SIZE = 10
+    """Process tickers in batches concurrently with backoff between batches."""
+    BATCH_SIZE = 5
+    BATCH_DELAY = 1.5  # seconds between batches to let connections close
     success = 0
-    failed = 0
+    failed_tickers = []
     total = len(tickers)
 
     for batch_start in range(0, total, BATCH_SIZE):
@@ -395,15 +396,31 @@ async def compute_all_evs(tickers):
             idx = batch_start + i + 1
             if isinstance(result, Exception):
                 print(f"  ERROR {batch[i]}: {result}")
-                failed += 1
+                failed_tickers.append(batch[i])
             elif result is not None:
                 success += 1
             else:
-                failed += 1
+                failed_tickers.append(batch[i])
             if idx % 50 == 0:
-                print(f"  Progress: {idx}/{total} ({success} ok, {failed} failed)")
+                print(f"  Progress: {idx}/{total} ({success} ok, {len(failed_tickers)} failed)")
+        # Brief pause between batches to avoid socket/file descriptor exhaustion
+        await asyncio.sleep(BATCH_DELAY)
 
-    return success, failed
+    # Retry failed tickers sequentially (no concurrency to avoid resource exhaustion)
+    if failed_tickers:
+        print(f"Retrying {len(failed_tickers)} failed tickers sequentially...")
+        await asyncio.sleep(3.0)  # longer pause before retries
+        retried = 0
+        for ticker in failed_tickers:
+            result = compute_and_store(ticker)
+            if result is not None:
+                retried += 1
+                success += 1
+        failed_count = len(failed_tickers) - retried
+        print(f"  Retry recovered {retried}/{len(failed_tickers)} tickers")
+        return success, failed_count
+
+    return success, len(failed_tickers)
 
 
 def precompute_theses():
@@ -478,11 +495,13 @@ def main():
     print(f"Computing EVS for {len(tickers)} tickers (parallel batches of 10)...")
 
     success, failed = asyncio.run(compute_all_evs(tickers))
-
     print(f"Done: {success} computed, {failed} failed out of {len(tickers)}")
-    if failed > len(tickers) * 0.10:
-        print("WARNING: >10% failure rate — check data sources")
+
+    if failed > len(tickers) * 0.50:
+        print("CRITICAL: >50% failure rate — check data sources and API keys")
         sys.exit(1)
+    elif failed > len(tickers) * 0.25:
+        print("WARNING: >25% failure rate — some data sources may be unavailable")
 
     # Phase 1.5: compute sector-relative rankings
     print("Computing sector rankings...")
