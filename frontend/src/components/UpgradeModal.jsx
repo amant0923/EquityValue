@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../lib/api";
 
@@ -22,8 +22,9 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
   const [lifetimeStatus, setLifetimeStatus] = useState(null);
   const [showStudent, setShowStudent] = useState(false);
   const [studentEmail, setStudentEmail] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
 
-  useState(() => {
+  useEffect(() => {
     api.get("/pricing/lifetime/status")
       .then(({ data }) => setLifetimeStatus(data))
       .catch(() => {});
@@ -36,11 +37,11 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
       if (res.data.checkout_url) {
         window.location.href = res.data.checkout_url;
       } else {
-        alert(res.data?.detail || "Could not start checkout. Please try again.");
+        setCheckoutError(res.data?.detail || "Could not start checkout. Please try again.");
         setUpgrading(false);
       }
     } catch {
-      alert("Could not connect to payment server. Please try again.");
+      setCheckoutError("Could not connect to payment server. Please try again.");
       setUpgrading(false);
     }
   };
@@ -150,11 +151,12 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
               className="upg-lifetime-cta"
               onClick={async () => {
                 setUpgrading(true);
+                setCheckoutError("");
                 try {
                   const res = await api.post("/pricing/lifetime/checkout");
                   if (res.data.checkout_url) window.location.href = res.data.checkout_url;
-                  else setUpgrading(false);
-                } catch { setUpgrading(false); }
+                  else { setCheckoutError("Could not start checkout."); setUpgrading(false); }
+                } catch { setCheckoutError("Could not connect to payment server."); setUpgrading(false); }
               }}
               disabled={upgrading}
             >
@@ -182,12 +184,16 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
                 <button
                   className="upg-student-btn"
                   onClick={async () => {
+                    setUpgrading(true);
+                    setCheckoutError("");
                     try {
                       await api.post("/pricing/student/verify", { email: studentEmail });
                       const res = await api.post("/pricing/student/checkout", { plan: "pro" });
                       if (res.data.checkout_url) window.location.href = res.data.checkout_url;
+                      else setUpgrading(false);
                     } catch (e) {
-                      alert(e.response?.data?.detail || "Verification failed. Must be a .edu email.");
+                      setCheckoutError(e.response?.data?.detail || "Verification failed. Must be a .edu email.");
+                      setUpgrading(false);
                     }
                   }}
                   disabled={!studentEmail.endsWith(".edu")}
@@ -199,6 +205,15 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
           )}
         </div>
 
+        {checkoutError && (
+          <div style={{
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+            color: "#ef4444", padding: "10px 14px", borderRadius: "var(--radius)",
+            fontSize: "0.78rem", textAlign: "center", marginBottom: 12,
+          }}>
+            {checkoutError}
+          </div>
+        )}
         <p className="upg-note">Secure payment via Stripe. Cancel anytime.</p>
       </motion.div>
 

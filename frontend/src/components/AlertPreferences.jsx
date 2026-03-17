@@ -16,6 +16,7 @@ export default function AlertPreferences({ ticker }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [subs, setSubs] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!user || !ticker) return;
@@ -28,6 +29,7 @@ export default function AlertPreferences({ ticker }) {
 
   const handleSubscribe = async () => {
     setSaving(true);
+    setError("");
     try {
       await api.post("/alerts/subscribe", {
         ticker,
@@ -36,21 +38,24 @@ export default function AlertPreferences({ ticker }) {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      // Refresh subscriptions
       const { data } = await api.get("/alerts/subscriptions");
       setSubs((data || []).filter(s => s.ticker === ticker));
     } catch {
-      alert("Failed to subscribe. Please try again.");
+      setError("Failed to subscribe. Please try again.");
+      setTimeout(() => setError(""), 5000);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleUnsubscribe = async (id) => {
+    setError("");
     try {
       await api.delete(`/alerts/${id}`);
       setSubs(prev => prev.filter(s => s.id !== id));
     } catch {
-      alert("Failed to unsubscribe.");
+      setError("Failed to unsubscribe.");
+      setTimeout(() => setError(""), 5000);
     }
   };
 
@@ -96,6 +101,16 @@ export default function AlertPreferences({ ticker }) {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+          color: "#ef4444", padding: "8px 12px", borderRadius: "var(--radius)",
+          fontSize: 12, marginBottom: 10,
+        }}>
+          {error}
         </div>
       )}
 

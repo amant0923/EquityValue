@@ -39,6 +39,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [actionMsg, setActionMsg] = useState("");
   const [search, setSearch] = useState("");
+  const [busyUser, setBusyUser] = useState(null);
 
   // Check if already have a valid admin token
   useEffect(() => {
@@ -102,6 +103,7 @@ export default function AdminPage() {
   }
 
   async function changePlan(userId, plan) {
+    setBusyUser(userId);
     try {
       await adminApi("PATCH", `/admin/users/${userId}/plan`, { plan });
       setActionMsg(`Plan updated to ${plan}`);
@@ -109,22 +111,28 @@ export default function AdminPage() {
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
       setActionMsg(`Error: ${err.message}`);
+    } finally {
+      setBusyUser(null);
     }
   }
 
   async function resetPassword(userId, email) {
     if (!confirm(`Send password reset email to ${email}?`)) return;
+    setBusyUser(userId);
     try {
       await adminApi("POST", `/admin/users/${userId}/reset-password`);
       setActionMsg(`Reset email sent to ${email}`);
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
       setActionMsg(`Error: ${err.message}`);
+    } finally {
+      setBusyUser(null);
     }
   }
 
   async function deleteUser(userId, email) {
     if (!confirm(`Delete user ${email}? This cannot be undone.`)) return;
+    setBusyUser(userId);
     try {
       await adminApi("DELETE", `/admin/users/${userId}`);
       setUsers(prev => prev.filter(u => u.id !== userId));
@@ -133,6 +141,8 @@ export default function AdminPage() {
       setTimeout(() => setActionMsg(""), 3000);
     } catch (err) {
       setActionMsg(`Error: ${err.message}`);
+    } finally {
+      setBusyUser(null);
     }
   }
 
@@ -328,16 +338,17 @@ export default function AdminPage() {
                           className="adm-plan-select"
                           value={u.plan}
                           onChange={e => changePlan(u.id, e.target.value)}
+                          disabled={busyUser === u.id}
                         >
                           <option value="trial">Trial</option>
                           <option value="expired">Expired</option>
                           <option value="pro">Pro</option>
                         </select>
-                        <button className="adm-act-btn" onClick={() => resetPassword(u.id, u.email)} title="Send password reset email">
-                          Reset PW
+                        <button className="adm-act-btn" onClick={() => resetPassword(u.id, u.email)} title="Send password reset email" disabled={busyUser === u.id}>
+                          {busyUser === u.id ? "..." : "Reset PW"}
                         </button>
-                        <button className="adm-act-btn adm-act-btn--danger" onClick={() => deleteUser(u.id, u.email)} title="Delete user">
-                          Delete
+                        <button className="adm-act-btn adm-act-btn--danger" onClick={() => deleteUser(u.id, u.email)} title="Delete user" disabled={busyUser === u.id}>
+                          {busyUser === u.id ? "..." : "Delete"}
                         </button>
                       </div>
                     </td>
@@ -429,6 +440,7 @@ export default function AdminPage() {
         .adm-act-btn:hover { background: var(--surface3); }
         .adm-act-btn--danger { color: #ef4444; border-color: rgba(239,68,68,0.3); }
         .adm-act-btn--danger:hover { background: rgba(239,68,68,0.1); }
+        .adm-act-btn:disabled, .adm-plan-select:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
         @media (max-width: 768px) {
           .adm-stats { flex-wrap: wrap; }

@@ -299,7 +299,7 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
         <div className="it-header-right">
           {rec && <RecBadge text={rec} />}
           {!loading ? (
-            <button className="it-btn" onClick={generate}>
+            <button className="it-btn" onClick={generate} disabled={loading}>
               {memo ? "Regenerate Memo" : "Generate Memo"}
             </button>
           ) : (

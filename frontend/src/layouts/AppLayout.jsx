@@ -20,6 +20,7 @@ export default function AppLayout() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState("limit");
   const [theme, setTheme] = useState("dark");
+  const [signingOut, setSigningOut] = useState(false);
 
   // Determine active page from pathname
   const pathParts = location.pathname.split("/").filter(Boolean);
@@ -84,7 +85,18 @@ export default function AppLayout() {
                     {profile?.limit === Infinity ? "∞" : `${profile?.analyses_today || 0}/${profile?.limit || 1}`}
                   </span>
                   <span className={`topbar-user-plan topbar-user-plan--${profile?.plan || "trial"}`}>{profile?.planLabel || "Trial"}</span>
-                  <button className="topbar-user-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
+                  <button
+                    className="topbar-user-btn"
+                    onClick={async () => {
+                      setSigningOut(true);
+                      await signOut();
+                      navigate("/");
+                    }}
+                    disabled={signingOut}
+                    title="Sign out"
+                    aria-label="Sign out"
+                    style={signingOut ? { opacity: 0.5, pointerEvents: "none" } : undefined}
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                     </svg>

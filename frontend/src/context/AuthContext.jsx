@@ -27,12 +27,16 @@ export function AuthProvider({ children }) {
       .single();
     if (error && error.code === "PGRST116") {
       // No profile yet — create one
-      const { data: newProfile } = await supabase
-        .from("user_profiles")
-        .insert({ id: userId, plan: "trial", analyses_today: 0, analyses_total: 0, trial_started: new Date().toISOString(), last_analysis_date: new Date().toISOString().slice(0, 10) })
-        .select()
-        .single();
-      return newProfile;
+      try {
+        const { data: newProfile } = await supabase
+          .from("user_profiles")
+          .insert({ id: userId, plan: "trial", analyses_today: 0, analyses_total: 0, trial_started: new Date().toISOString(), last_analysis_date: new Date().toISOString().slice(0, 10) })
+          .select()
+          .single();
+        return newProfile;
+      } catch {
+        return { id: userId, plan: "trial", analyses_today: 0, analyses_total: 0 };
+      }
     }
     return data;
   };
@@ -140,10 +144,15 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    // Always clear local state first — ensures single-click logout even if API fails
     setUser(null);
     setProfile(null);
+    if (!supabase) return;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // State already cleared above — user is effectively logged out locally
+    }
   };
 
   const getToken = async () => {

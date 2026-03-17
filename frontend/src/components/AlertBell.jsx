@@ -15,7 +15,7 @@ export default function AlertBell() {
     if (!user) return;
     api.get("/alerts/history")
       .then(({ data }) => setAlerts(data || []))
-      .catch(() => {});
+      .catch(() => setAlerts([]));
   }, [user]);
 
   useEffect(() => {
@@ -25,8 +25,12 @@ export default function AlertBell() {
   }, []);
 
   const markRead = async (id) => {
-    await api.put(`/alerts/${id}/read`).catch(() => {});
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+    try {
+      await api.put(`/alerts/${id}/read`);
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+    } catch {
+      // Silently fail — notification state is non-critical
+    }
   };
 
   if (!user) return null;
