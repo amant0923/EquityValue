@@ -28,15 +28,17 @@ from routes.pricing import router as pricing_router
 from utils.thesis_cache import get_cached_thesis, cache_thesis
 
 # ── Sentry error tracking initialization ──────────────────────────────────────
-import sentry_sdk
-
 sentry_dsn = os.environ.get("SENTRY_DSN")
 if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        traces_sample_rate=0.1,
-        profiles_sample_rate=0.1,
-    )
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            traces_sample_rate=0.1,
+            profiles_sample_rate=0.1,
+        )
+    except ImportError:
+        pass
 
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
 try:
@@ -192,8 +194,13 @@ def normalise(data: dict) -> dict:
     if not d.get("ebitda_margin"):
         ebitda = d.get("ebitda")
         rev    = d.get("revenue")
-        if ebitda and rev and rev > 0:
-            d["ebitda_margin"] = ebitda / rev
+        if ebitda and rev:
+            try:
+                rev_f = float(rev)
+                if rev_f > 0:
+                    d["ebitda_margin"] = float(ebitda) / rev_f
+            except (ValueError, TypeError):
+                pass
 
     # Fix percentage fields — Finnhub returns decimals (0.27) not percent (27)
     for field in ("profit_margin", "operating_margin", "roe", "roa",
@@ -686,9 +693,15 @@ async def top_picks(user: dict = Depends(get_current_user)):
         ).not_.is_("target_price", "null").not_.is_("current_price", "null").gt("current_price", 0).execute().data or []
 
         for r in rows:
-            cp = float(r["current_price"])
-            tp = float(r["target_price"])
-            r["upside_pct"] = round((tp - cp) / cp * 100, 2)
+            try:
+                cp = float(r["current_price"])
+                tp = float(r["target_price"])
+                if cp > 0:
+                    r["upside_pct"] = round((tp - cp) / cp * 100, 2)
+                else:
+                    r["upside_pct"] = 0.0
+            except (ValueError, TypeError):
+                r["upside_pct"] = 0.0
 
         ranked = sorted(rows, key=lambda r: r["upside_pct"], reverse=True)
         buy = ranked[:5]
