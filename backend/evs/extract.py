@@ -18,7 +18,7 @@ def extract_evs_inputs(stock_data: dict, valuation_result: dict, scores: dict = 
     if target and price and price > 0:
         analyst_upside = (float(target) - float(price)) / float(price) * 100
 
-    model_iv = consensus.get("intrinsic_value", price)
+    model_iv = consensus.get("average_intrinsic_value", price)
     divergence = 0.0
     if target and model_iv and model_iv > 0:
         divergence = abs(float(target) - float(model_iv)) / float(model_iv) * 100
