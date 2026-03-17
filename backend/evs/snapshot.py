@@ -91,7 +91,7 @@ def compute_and_store(ticker):
 def snapshot_valuations(ticker, valuation_result, price):
     """Snapshot each model's output for accuracy tracking."""
     today = datetime.now(timezone.utc).date().isoformat()
-    models = valuation_result.get("models", [])
+    models = valuation_result.get("valuations", [])
     for model in models:
         if not model.get("applicable"):
             continue
