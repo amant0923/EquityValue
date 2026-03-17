@@ -28,4 +28,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export function getAuthToken() {
+  return _cachedToken;
+}
+
 export default api;

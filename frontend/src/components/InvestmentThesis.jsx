@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { getAuthToken } from "../lib/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
 
 function buildPrompt(data) {
   const km = data.key_metrics || {};
@@ -228,13 +227,8 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
 
     try {
       const headers = { "Content-Type": "application/json" };
-      if (supabase) {
-        try {
-          const { data: sess } = await supabase.auth.getSession();
-          const token = sess?.session?.access_token;
-          if (token) headers["Authorization"] = `Bearer ${token}`;
-        } catch {}
-      }
+      const token = getAuthToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch(`${API_URL}/ai/thesis`, {
         method: "POST",
         signal: abortRef.current.signal,
@@ -244,7 +238,13 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
         }),
       });
 
-      if (!response.ok) throw new Error(`API error ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 401) throw new Error("Please sign in to generate a memo.");
+        if (response.status === 503) throw new Error("AI service is not configured. Please try again later.");
+        if (response.status === 429) throw new Error("Rate limit reached. Please wait a moment and try again.");
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.detail || `API error ${response.status}`);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
