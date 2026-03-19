@@ -351,3 +351,180 @@ def compute_risk_profile(
 def get_sector_template(profile: str) -> dict:
     """Return the sector allocation template for a given risk profile."""
     return dict(SECTOR_TEMPLATES[profile])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Task 5 — Stock selection + build orchestrator
+# ═══════════════════════════════════════════════════════════════════════
+
+def select_stocks(
+    sector_template: dict,
+    stock_count: str,
+    evs_data: list[dict],
+) -> list[dict]:
+    """Select stocks from evs_data according to sector template and count range.
+
+    Parameters
+    ----------
+    sector_template : dict  — {sector_name: weight} summing to ~1.0
+    stock_count : str       — "small", "medium", or "large"
+    evs_data : list[dict]   — each has ticker, sector, score, price
+
+    Returns
+    -------
+    list[dict] — selected stocks with ticker, sector, score, price
+    """
+    count_min, count_max = STOCK_COUNT_RANGES[stock_count]
+    target_count = (count_min + count_max) // 2
+
+    # Group stocks by sector
+    by_sector: dict[str, list[dict]] = {}
+    for stock in evs_data:
+        sec = stock["sector"]
+        by_sector.setdefault(sec, []).append(stock)
+
+    # Sort each sector by EVS score descending
+    for sec in by_sector:
+        by_sector[sec].sort(key=lambda s: s["score"], reverse=True)
+
+    # Merge thin sectors (sectors with <= 1 stock) via SECTOR_MERGE_MAP
+    for thin_sector, merge_target in SECTOR_MERGE_MAP.items():
+        if thin_sector in by_sector and len(by_sector[thin_sector]) <= 1:
+            merged_stocks = by_sector.pop(thin_sector, [])
+            by_sector.setdefault(merge_target, []).extend(merged_stocks)
+            # Merge template weights too
+            if thin_sector in sector_template:
+                w = sector_template.pop(thin_sector, 0.0)
+                sector_template[merge_target] = sector_template.get(merge_target, 0.0) + w
+            # Re-sort merged sector
+            by_sector[merge_target].sort(key=lambda s: s["score"], reverse=True)
+
+    # Allocate stock slots proportionally to sector weights
+    selected = []
+    active_sectors = {s: w for s, w in sector_template.items() if s in by_sector and w > 0}
+    total_w = sum(active_sectors.values()) or 1.0
+
+    for sector, weight in active_sectors.items():
+        proportion = weight / total_w
+        n_stocks = max(1, round(proportion * target_count))
+        available = by_sector.get(sector, [])
+        picked = available[:n_stocks]
+        selected.extend(picked)
+
+    # Trim or pad to count range
+    if len(selected) > count_max:
+        # Keep highest EVS
+        selected.sort(key=lambda s: s["score"], reverse=True)
+        selected = selected[:count_max]
+    elif len(selected) < count_min:
+        # Pad with remaining highest-EVS stocks not yet selected
+        selected_tickers = {s["ticker"] for s in selected}
+        remaining = [s for s in evs_data if s["ticker"] not in selected_tickers]
+        remaining.sort(key=lambda s: s["score"], reverse=True)
+        for stock in remaining:
+            if len(selected) >= count_min:
+                break
+            selected.append(stock)
+
+    return selected
+
+
+def _build_allocation(
+    tickers: list[str],
+    evs_data: dict[str, dict],
+    returns_data: np.ndarray,
+    prices: dict[str, float],
+    profile: str,
+    investment_amount: float,
+    method: str = "auto",
+    max_position_override: float | None = None,
+) -> dict:
+    """Core orchestrator: shrink cov, pick method, compute weights, build allocation.
+
+    Parameters
+    ----------
+    tickers : list[str]
+    evs_data : dict  — {ticker: {score, sector}}
+    returns_data : np.ndarray, shape (T, N) — columns aligned to tickers
+    prices : dict  — {ticker: current_price}
+    profile : str  — risk profile name
+    investment_amount : float
+    method : str  — "gmv", "bl_evs", "hrp", or "auto"
+    max_position_override : float | None
+
+    Returns
+    -------
+    dict with keys: allocations, risk_metrics, sector_breakdown
+    """
+    N = len(tickers)
+    cov = ledoit_wolf_shrink(returns_data)
+
+    # Constraints — auto-adjust if N is too small for the profile limits
+    cp = CONSTRAINT_PROFILES.get(profile, CONSTRAINT_PROFILES["moderate"])
+    constraints = dict(cp)
+    if max_position_override is not None:
+        constraints["max_position"] = max_position_override
+    # Ensure feasibility: N * max_pos >= 1.0 and N * min_pos <= 1.0
+    if N * constraints["max_position"] < 1.0:
+        constraints["max_position"] = 1.0 / N + 0.01
+    if N * constraints["min_position"] > 1.0:
+        constraints["min_position"] = 1.0 / N - 0.01
+
+    # Auto-select method
+    if method == "auto":
+        if profile in ("conservative", "moderately_conservative"):
+            method = "gmv"
+        elif N > 15:
+            method = "hrp"
+        else:
+            method = "bl_evs"
+
+    # Compute weights
+    if method == "gmv":
+        weights = optimize_min_variance(cov, constraints)
+    elif method == "bl_evs":
+        evs_scores = [evs_data[t]["score"] for t in tickers]
+        weights = optimize_black_litterman_evs(cov, evs_scores, constraints)
+    elif method == "hrp":
+        weights = optimize_hrp(returns_data, constraints)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+    # Build allocation list
+    allocations = []
+    for i, ticker in enumerate(tickers):
+        w = weights[i]
+        price = prices.get(ticker, 0.0)
+        shares = math.floor(w * investment_amount / price) if price > 0 else 0
+        allocations.append({
+            "ticker": ticker,
+            "weight": w,
+            "shares": shares,
+            "avg_price": price,
+            "sector": evs_data[ticker]["sector"],
+            "evs_score": evs_data[ticker]["score"],
+        })
+
+    # Risk metrics
+    w_arr = np.array(weights)
+    port_var = float(w_arr @ cov @ w_arr)
+    port_vol = float(np.sqrt(port_var * 252))  # annualised
+
+    risk_metrics = {
+        "portfolio_variance": port_var,
+        "portfolio_volatility_annual": port_vol,
+        "method": method,
+        "profile": profile,
+    }
+
+    # Sector breakdown
+    sector_breakdown: dict[str, float] = {}
+    for alloc in allocations:
+        sec = alloc["sector"]
+        sector_breakdown[sec] = sector_breakdown.get(sec, 0.0) + alloc["weight"]
+
+    return {
+        "allocations": allocations,
+        "risk_metrics": risk_metrics,
+        "sector_breakdown": sector_breakdown,
+    }

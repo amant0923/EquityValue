@@ -142,3 +142,110 @@ class TestGetSectorTemplate:
             tmpl = get_sector_template(profile)
             for sector in GICS_SECTORS:
                 assert sector in tmpl, f"Missing {sector} in {profile}"
+
+
+# ── Task 5: Stock selection + orchestrators ──────────────────────────
+
+class TestSelectStocks:
+    def test_select_stocks_respects_sector_allocation(self):
+        from portfolio_builder import select_stocks
+        # 6 stocks per sector across 3 sectors (18 total, enough for medium)
+        evs_data = [
+            {"ticker": "AAPL", "sector": "Information Technology", "score": 80, "price": 150},
+            {"ticker": "MSFT", "sector": "Information Technology", "score": 90, "price": 300},
+            {"ticker": "GOOG", "sector": "Information Technology", "score": 70, "price": 130},
+            {"ticker": "NVDA", "sector": "Information Technology", "score": 85, "price": 800},
+            {"ticker": "AVGO", "sector": "Information Technology", "score": 75, "price": 170},
+            {"ticker": "CRM",  "sector": "Information Technology", "score": 60, "price": 250},
+            {"ticker": "JNJ",  "sector": "Health Care", "score": 65, "price": 160},
+            {"ticker": "PFE",  "sector": "Health Care", "score": 55, "price": 30},
+            {"ticker": "UNH",  "sector": "Health Care", "score": 75, "price": 500},
+            {"ticker": "ABBV", "sector": "Health Care", "score": 72, "price": 170},
+            {"ticker": "MRK",  "sector": "Health Care", "score": 68, "price": 120},
+            {"ticker": "TMO",  "sector": "Health Care", "score": 58, "price": 550},
+            {"ticker": "JPM",  "sector": "Financials", "score": 60, "price": 180},
+            {"ticker": "BAC",  "sector": "Financials", "score": 50, "price": 35},
+            {"ticker": "GS",   "sector": "Financials", "score": 70, "price": 400},
+            {"ticker": "MS",   "sector": "Financials", "score": 62, "price": 90},
+            {"ticker": "BLK",  "sector": "Financials", "score": 66, "price": 800},
+            {"ticker": "C",    "sector": "Financials", "score": 48, "price": 60},
+        ]
+        template = {
+            "Information Technology": 0.40,
+            "Health Care": 0.35,
+            "Financials": 0.25,
+        }
+        selected = select_stocks(template, "medium", evs_data)
+        assert 10 <= len(selected) <= 15
+
+    def test_select_stocks_merges_thin_sectors(self):
+        from portfolio_builder import select_stocks
+        evs_data = [
+            {"ticker": "AAPL", "sector": "Information Technology", "score": 80, "price": 150},
+            {"ticker": "MSFT", "sector": "Information Technology", "score": 90, "price": 300},
+            {"ticker": "CAT",  "sector": "Industrials", "score": 65, "price": 250},
+            {"ticker": "HON",  "sector": "Industrials", "score": 60, "price": 200},
+            # Basic Materials has only 1 stock — should merge into Industrials
+            {"ticker": "NEM",  "sector": "Basic Materials", "score": 45, "price": 40},
+        ]
+        template = {
+            "Information Technology": 0.50,
+            "Industrials": 0.30,
+            "Basic Materials": 0.20,
+        }
+        selected = select_stocks(template, "small", evs_data)
+        # NEM should appear (merged into Industrials bucket)
+        tickers = [s["ticker"] for s in selected]
+        assert "NEM" in tickers
+
+    def test_select_stocks_prefers_higher_evs(self):
+        from portfolio_builder import select_stocks
+        evs_data = [
+            {"ticker": "MSFT", "sector": "Information Technology", "score": 90, "price": 300},
+            {"ticker": "AAPL", "sector": "Information Technology", "score": 80, "price": 150},
+            {"ticker": "INTC", "sector": "Information Technology", "score": 30, "price": 25},
+        ]
+        template = {"Information Technology": 1.0}
+        selected = select_stocks(template, "small", evs_data)
+        tickers = [s["ticker"] for s in selected]
+        # MSFT and AAPL should be selected before INTC
+        assert "MSFT" in tickers
+        assert "AAPL" in tickers
+
+
+class TestBuildAllocation:
+    def test_build_allocation_returns_complete_allocation(self):
+        from portfolio_builder import _build_allocation
+        tickers = ["AAPL", "MSFT", "JNJ", "JPM", "PG"]
+        evs_data = {
+            "AAPL": {"score": 80, "sector": "Information Technology"},
+            "MSFT": {"score": 90, "sector": "Information Technology"},
+            "JNJ":  {"score": 65, "sector": "Health Care"},
+            "JPM":  {"score": 60, "sector": "Financials"},
+            "PG":   {"score": 70, "sector": "Consumer Staples"},
+        }
+        rng = np.random.default_rng(42)
+        returns_data = rng.standard_normal((252, 5))
+        prices = {"AAPL": 150.0, "MSFT": 300.0, "JNJ": 160.0, "JPM": 180.0, "PG": 140.0}
+
+        result = _build_allocation(
+            tickers, evs_data, returns_data, prices,
+            profile="moderate",
+            investment_amount=100_000,
+        )
+        # Must have allocation list
+        assert "allocations" in result
+        assert len(result["allocations"]) == 5
+        for alloc in result["allocations"]:
+            assert "ticker" in alloc
+            assert "weight" in alloc
+            assert "shares" in alloc
+            assert "sector" in alloc
+            assert "evs_score" in alloc
+            assert alloc["shares"] >= 0
+        # Weights should sum to ~1
+        total_weight = sum(a["weight"] for a in result["allocations"])
+        assert pytest.approx(total_weight, abs=1e-4) == 1.0
+        # Must have risk metrics and sector breakdown
+        assert "risk_metrics" in result
+        assert "sector_breakdown" in result
