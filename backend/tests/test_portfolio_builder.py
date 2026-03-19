@@ -96,3 +96,49 @@ class TestOptimizeHRP:
         returns = rng.standard_normal((252, 10))
         weights = optimize_hrp(returns, {"min_position": 0.0, "max_position": 1.0})
         assert all(w < 0.5 for w in weights)
+
+
+# ── Task 4: Risk profiling + sector templates ────────────────────────
+
+GICS_SECTORS = [
+    "Information Technology", "Health Care", "Consumer Staples",
+    "Utilities", "Financials", "Industrials", "Energy",
+    "Consumer Discretionary", "Communication Services",
+    "Real Estate", "Basic Materials",
+]
+
+
+class TestComputeRiskProfile:
+    def test_compute_risk_profile_sliders_only(self):
+        from portfolio_builder import compute_risk_profile
+        result = compute_risk_profile({"risk": 7, "horizon": 8, "income": 3})
+        assert 0 < result["score"] <= 100
+        assert result["profile"] in [
+            "conservative", "moderately_conservative", "moderate",
+            "moderately_aggressive", "aggressive",
+        ]
+
+    def test_compute_risk_profile_with_refine(self):
+        from portfolio_builder import compute_risk_profile
+        base = compute_risk_profile({"risk": 5, "horizon": 5, "income": 5})
+        refined = compute_risk_profile(
+            {"risk": 5, "horizon": 5, "income": 5},
+            refine_answers={"emergency_fund": False, "debt_level": "high"},
+        )
+        # Conservative refine answers should lower the score
+        assert refined["score"] < base["score"]
+
+
+class TestGetSectorTemplate:
+    def test_get_sector_template_sums_to_100(self):
+        from portfolio_builder import get_sector_template, PROFILES
+        for profile in PROFILES:
+            tmpl = get_sector_template(profile)
+            assert pytest.approx(sum(tmpl.values()), abs=1e-9) == 1.0
+
+    def test_get_sector_template_uses_gics_names(self):
+        from portfolio_builder import get_sector_template, PROFILES
+        for profile in PROFILES:
+            tmpl = get_sector_template(profile)
+            for sector in GICS_SECTORS:
+                assert sector in tmpl, f"Missing {sector} in {profile}"

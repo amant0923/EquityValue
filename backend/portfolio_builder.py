@@ -224,3 +224,130 @@ def optimize_hrp(returns: np.ndarray, constraints: dict) -> list[float]:
     weights /= weights.sum()
 
     return weights.tolist()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Task 4 — Risk profiling + sector allocation templates
+# ═══════════════════════════════════════════════════════════════════════
+
+PROFILES = [
+    "conservative",
+    "moderately_conservative",
+    "moderate",
+    "moderately_aggressive",
+    "aggressive",
+]
+
+SECTOR_TEMPLATES = {
+    "conservative": {
+        "Information Technology": 0.08, "Health Care": 0.14,
+        "Consumer Staples": 0.19, "Utilities": 0.14,
+        "Financials": 0.11, "Industrials": 0.09,
+        "Energy": 0.07, "Consumer Discretionary": 0.05,
+        "Communication Services": 0.05, "Real Estate": 0.05,
+        "Basic Materials": 0.03,
+    },
+    "moderately_conservative": {
+        "Information Technology": 0.13, "Health Care": 0.14,
+        "Consumer Staples": 0.14, "Utilities": 0.09,
+        "Financials": 0.12, "Industrials": 0.11,
+        "Energy": 0.07, "Consumer Discretionary": 0.06,
+        "Communication Services": 0.06, "Real Estate": 0.05,
+        "Basic Materials": 0.03,
+    },
+    "moderate": {
+        "Information Technology": 0.23, "Health Care": 0.14,
+        "Consumer Staples": 0.09, "Utilities": 0.04,
+        "Financials": 0.14, "Industrials": 0.11,
+        "Energy": 0.07, "Consumer Discretionary": 0.05,
+        "Communication Services": 0.05, "Real Estate": 0.05,
+        "Basic Materials": 0.03,
+    },
+    "moderately_aggressive": {
+        "Information Technology": 0.28, "Health Care": 0.11,
+        "Consumer Staples": 0.04, "Utilities": 0.02,
+        "Financials": 0.14, "Industrials": 0.09,
+        "Energy": 0.05, "Consumer Discretionary": 0.10,
+        "Communication Services": 0.09, "Real Estate": 0.05,
+        "Basic Materials": 0.03,
+    },
+    "aggressive": {
+        "Information Technology": 0.33, "Health Care": 0.11,
+        "Consumer Staples": 0.02, "Utilities": 0.00,
+        "Financials": 0.14, "Industrials": 0.09,
+        "Energy": 0.05, "Consumer Discretionary": 0.10,
+        "Communication Services": 0.09, "Real Estate": 0.04,
+        "Basic Materials": 0.03,
+    },
+}
+
+# Maps thin sectors to their merge target
+SECTOR_MERGE_MAP = {
+    "Basic Materials": "Industrials",
+}
+
+STOCK_COUNT_RANGES = {
+    "small": (5, 9),
+    "medium": (10, 15),
+    "large": (16, 25),
+}
+
+# Refine answer adjustments (applied to raw score)
+REFINE_ADJUSTMENTS = {
+    "emergency_fund": {True: 0, False: -10},
+    "debt_level": {"low": 5, "moderate": 0, "high": -10},
+    "experience": {"beginner": -5, "intermediate": 0, "advanced": 5},
+    "loss_reaction": {"sell_all": -10, "hold": 0, "buy_more": 5},
+}
+
+CONSTRAINT_PROFILES = {
+    "conservative":            {"max_position": 0.08, "min_position": 0.01},
+    "moderately_conservative": {"max_position": 0.09, "min_position": 0.01},
+    "moderate":                {"max_position": 0.10, "min_position": 0.01},
+    "moderately_aggressive":   {"max_position": 0.12, "min_position": 0.01},
+    "aggressive":              {"max_position": 0.15, "min_position": 0.01},
+}
+
+
+def compute_risk_profile(
+    sliders: dict,
+    refine_answers: dict | None = None,
+) -> dict:
+    """Compute a risk profile from slider values and optional refine answers.
+
+    sliders: {risk: 1-10, horizon: 1-10, income: 1-10}
+    Returns: {score: 1-100, profile: str}
+    """
+    raw = (
+        sliders["risk"] * 0.5
+        + sliders["horizon"] * 0.3
+        + sliders["income"] * 0.2
+    ) * 10.0
+
+    # Apply refine adjustments
+    if refine_answers:
+        for key, value in refine_answers.items():
+            adj_map = REFINE_ADJUSTMENTS.get(key, {})
+            raw += adj_map.get(value, 0)
+
+    # Clamp to 1-100
+    score = max(1, min(100, round(raw)))
+
+    # Map to profile
+    if score <= 20:
+        profile = "conservative"
+    elif score <= 40:
+        profile = "moderately_conservative"
+    elif score <= 60:
+        profile = "moderate"
+    elif score <= 80:
+        profile = "moderately_aggressive"
+    else:
+        profile = "aggressive"
+
+    return {"score": score, "profile": profile}
+
+
+def get_sector_template(profile: str) -> dict:
+    """Return the sector allocation template for a given risk profile."""
+    return dict(SECTOR_TEMPLATES[profile])
