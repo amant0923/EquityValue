@@ -1,0 +1,51 @@
+"""Tests for portfolio_builder module — TDD approach."""
+
+import numpy as np
+import pytest
+
+# ── Task 2: Ledoit-Wolf + GMV ────────────────────────────────────────
+
+class TestLedoitWolfShrink:
+    def test_ledoit_wolf_shrink_returns_positive_definite(self):
+        from portfolio_builder import ledoit_wolf_shrink
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 10))
+        cov = ledoit_wolf_shrink(returns)
+        # Symmetric
+        assert np.allclose(cov, cov.T, atol=1e-10)
+        # Positive-definite: all eigenvalues > 0
+        eigenvalues = np.linalg.eigvalsh(cov)
+        assert np.all(eigenvalues > 0)
+
+    def test_ledoit_wolf_shrink_reduces_extreme_eigenvalues(self):
+        from portfolio_builder import ledoit_wolf_shrink
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 10))
+        sample_cov = np.cov(returns, rowvar=False)
+        shrunk_cov = ledoit_wolf_shrink(returns)
+        sample_eigs = np.linalg.eigvalsh(sample_cov)
+        shrunk_eigs = np.linalg.eigvalsh(shrunk_cov)
+        # Shrinkage should reduce the spread (max/min ratio)
+        sample_spread = sample_eigs[-1] / sample_eigs[0]
+        shrunk_spread = shrunk_eigs[-1] / shrunk_eigs[0]
+        assert shrunk_spread < sample_spread
+
+
+class TestOptimizeMinVariance:
+    def test_optimize_min_variance_weights_sum_to_one(self):
+        from portfolio_builder import ledoit_wolf_shrink, optimize_min_variance
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 5))
+        cov = ledoit_wolf_shrink(returns)
+        weights = optimize_min_variance(cov, {"min_position": 0.05, "max_position": 0.4})
+        assert pytest.approx(sum(weights), abs=1e-6) == 1.0
+        assert all(w >= 0.05 - 1e-6 for w in weights)
+        assert all(w <= 0.4 + 1e-6 for w in weights)
+
+    def test_optimize_min_variance_no_short_selling(self):
+        from portfolio_builder import ledoit_wolf_shrink, optimize_min_variance
+        rng = np.random.default_rng(99)
+        returns = rng.standard_normal((252, 5))
+        cov = ledoit_wolf_shrink(returns)
+        weights = optimize_min_variance(cov, {"min_position": 0.0, "max_position": 1.0})
+        assert all(w >= -1e-8 for w in weights)
