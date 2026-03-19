@@ -18,6 +18,7 @@ from routes.financials import router as financials_router
 from routes.intelligence import router as intelligence_router
 from routes.summary import router as summary_router
 from routes.portfolio import router as portfolio_router
+from routes.portfolio_build import router as portfolio_build_router
 from routes.admin import router as admin_router
 from routes.evs import router as evs_router
 from routes.accuracy import router as accuracy_router
@@ -126,6 +127,7 @@ app.include_router(financials_router)
 app.include_router(intelligence_router)
 app.include_router(summary_router)
 app.include_router(portfolio_router)
+app.include_router(portfolio_build_router)
 app.include_router(admin_router)
 app.include_router(evs_router)
 app.include_router(accuracy_router)
