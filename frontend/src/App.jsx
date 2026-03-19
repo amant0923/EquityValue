@@ -37,6 +37,7 @@ const CompanyFinancialsPage = lazy(() => import("./pages/CompanyFinancialsPage")
 const CompanyIntelligencePage = lazy(() => import("./pages/CompanyIntelligencePage"));
 const CompanyValuationPage = lazy(() => import("./pages/CompanyValuationPage"));
 const PortfolioListPage = lazy(() => import("./pages/PortfolioListPage"));
+const PortfolioBuildPage = lazy(() => import("./pages/PortfolioBuildPage"));
 const PortfolioDetailPage = lazy(() => import("./pages/PortfolioDetailPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AccuracyPage = lazy(() => import("./pages/AccuracyPage"));
@@ -298,6 +299,7 @@ function AppInner() {
           } />
 
           <Route path="/portfolio" element={<PortfolioListPage />} />
+          <Route path="/portfolio/build" element={<PortfolioBuildPage />} />
           <Route path="/portfolio/:id" element={<PortfolioDetailPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/accuracy" element={<PublicAccuracyPage />} />

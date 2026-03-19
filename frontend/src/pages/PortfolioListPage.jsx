@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import PortfolioCard from "../components/portfolio/PortfolioCard";
 import CreatePortfolioModal from "../components/portfolio/CreatePortfolioModal";
 
 export default function PortfolioListPage() {
+  const navigate = useNavigate();
   const [portfolios, setPortfolios] = useState([]);
   const [limits, setLimits] = useState({ max_portfolios: 1, max_holdings: 5 });
   const [liveDataMap, setLiveDataMap] = useState({});
@@ -56,14 +58,19 @@ export default function PortfolioListPage() {
     <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, color: "var(--text1)" }}>Portfolios</h1>
-        <button
-          className="btn-primary"
-          onClick={() => setShowCreate(true)}
-          disabled={atLimit}
-          title={atLimit ? "Upgrade to create more portfolios" : ""}
-        >
-          + Create Portfolio
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn-accent" onClick={() => navigate("/portfolio/build")}>
+            Build a Portfolio
+          </button>
+          <button
+            className="btn-primary"
+            onClick={() => setShowCreate(true)}
+            disabled={atLimit}
+            title={atLimit ? "Upgrade to create more portfolios" : ""}
+          >
+            + Create Portfolio
+          </button>
+        </div>
       </div>
 
       {atLimit && portfolios.length > 0 && (
