@@ -49,19 +49,23 @@ Sliders produce a base score (1-100). Refine questions adjust ±15 points. Final
 
 ## Sector Allocation Templates
 
-Each profile has a predefined sector allocation used by the guided builder:
+Each profile has a predefined sector allocation used by the guided builder. Sector names match exact values from `stock_fundamentals.sector` (FMP GICS classification):
 
 | Sector | Conservative | Mod. Conservative | Moderate | Mod. Aggressive | Aggressive |
 |--------|:-----------:|:-----------------:|:--------:|:---------------:|:----------:|
-| Technology | 10% | 15% | 25% | 30% | 35% |
-| Healthcare | 15% | 15% | 15% | 12% | 12% |
-| Consumer Defensive | 20% | 15% | 10% | 5% | 3% |
-| Utilities | 15% | 10% | 5% | 3% | 0% |
-| Financials | 12% | 13% | 15% | 15% | 15% |
-| Industrials | 10% | 12% | 12% | 10% | 10% |
-| Energy | 8% | 8% | 8% | 5% | 5% |
-| Consumer Cyclical | 5% | 6% | 5% | 10% | 10% |
-| Communication | 5% | 6% | 5% | 10% | 10% |
+| Information Technology | 8% | 13% | 23% | 28% | 33% |
+| Health Care | 14% | 14% | 14% | 11% | 11% |
+| Consumer Staples | 19% | 14% | 9% | 4% | 2% |
+| Utilities | 14% | 9% | 4% | 2% | 0% |
+| Financials | 11% | 12% | 14% | 14% | 14% |
+| Industrials | 9% | 11% | 11% | 9% | 9% |
+| Energy | 7% | 7% | 7% | 5% | 5% |
+| Consumer Discretionary | 5% | 6% | 5% | 10% | 10% |
+| Communication Services | 5% | 6% | 5% | 9% | 9% |
+| Real Estate | 5% | 5% | 5% | 5% | 4% |
+| Basic Materials | 3% | 3% | 3% | 3% | 3% |
+
+**Minimum diversification rule:** If a sector allocation results in fewer than 2 stocks, merge that sector's weight into the nearest related sector (e.g., Basic Materials → Industrials, Real Estate → Financials).
 
 ---
 
@@ -122,8 +126,9 @@ Input stocks → Fetch 1yr daily returns (yfinance)
 Within each sector bucket:
 1. Filter S&P 500 stocks in that sector from `stock_fundamentals`
 2. Rank by EVS score (descending) from `equity_value_scores`
-3. Pick top N stocks to fill user's chosen count
-4. Feed into optimization pipeline above
+3. Stocks without EVS scores are placed last in ranking within their sector. If an entire sector has no EVS data, fall back to equal-weight selection of the top N stocks by market cap from `stock_fundamentals`
+4. Pick top N stocks to fill user's chosen count
+5. Feed into optimization pipeline above
 
 ---
 
@@ -138,18 +143,23 @@ Requires authentication. Enforces tier limits (Free: 1 use, Pro/Max: unlimited).
 {
   "risk_score": 72,
   "profile": "moderately_aggressive",
-  "stock_count": "10-15",
+  "stock_count": "medium",
+  "investment_amount": 50000,
   "name": "My Growth Portfolio"
 }
+
+// stock_count enum: "small" (5-10), "medium" (10-15), "large" (15-25)
+// investment_amount: float, required, minimum 1000. Used to compute share counts.
+// shares = floor(weight * investment_amount / current_price)
 
 // Response
 {
   "portfolio_id": "uuid",
   "profile": "moderately_aggressive",
   "allocation": [
-    {"ticker": "AAPL", "weight": 0.08, "shares": 12, "sector": "Technology", "evs_score": 78}
+    {"ticker": "AAPL", "weight": 0.08, "shares": 12, "sector": "Information Technology", "evs_score": 78}
   ],
-  "sector_breakdown": {"Technology": 0.28, "Healthcare": 0.15},
+  "sector_breakdown": {"Information Technology": 0.28, "Health Care": 0.15},
   "risk_metrics": {
     "method": "black_litterman_evs",
     "covariance": "ledoit_wolf_shrinkage",
@@ -171,10 +181,12 @@ Requires authentication. Pro+ only.
   "risk_score": 55,
   "profile": "moderate",
   "method": "mean_variance",
+  "investment_amount": 50000,
   "max_position": 0.10,
   "name": "Custom Optimized"
 }
 
+// method: "mean_variance" or "hrp" (HRP offered when len(tickers) > 15)
 // Response — same shape as /portfolio/build
 ```
 
@@ -184,7 +196,7 @@ Requires authentication. Pro+ only.
 
 **File:** `backend/portfolio_builder.py`
 
-Dependencies: `numpy`, `scipy` (already available or easily added). No sklearn, no PyPortfolioOpt.
+Dependencies: `numpy`, `scipy>=1.12` (add to `requirements.txt`). No sklearn, no PyPortfolioOpt.
 
 ### Functions
 
@@ -197,8 +209,10 @@ Dependencies: `numpy`, `scipy` (already available or easily added). No sklearn, 
 | `optimize_min_variance(cov, constraints)` | → `weights` |
 | `optimize_black_litterman_evs(cov, evs_scores, constraints)` | → `weights` |
 | `optimize_hrp(returns_matrix, constraints)` | → `weights` |
-| `build_portfolio(risk_score, stock_count)` | → `allocation` (guided mode) |
-| `optimize_portfolio(tickers, risk_score, method)` | → `allocation` (optimizer mode) |
+| `build_portfolio(risk_score, stock_count, investment_amount)` | → `allocation` (guided mode) |
+| `optimize_portfolio(tickers, risk_score, method, investment_amount)` | → `allocation` (optimizer mode) |
+
+**Note:** The route handler (not these functions) handles portfolio creation. `build_portfolio` and `optimize_portfolio` return the allocation dict only. The route handler then calls existing `create_portfolio` + `add_holding` in a loop to persist.
 
 ---
 
@@ -247,11 +261,23 @@ Dependencies: `numpy`, `scipy` (already available or easily added). No sklearn, 
 
 | Feature | Free | Pro | Max |
 |---------|:----:|:---:|:---:|
-| Guided Builder | 1 use | Unlimited | Unlimited |
+| Guided Builder | 1 portfolio (existing limit) | Unlimited | Unlimited |
 | Optimizer (manual) | Locked | Unlimited | Unlimited |
 | HRP method | Locked | Unlimited | Unlimited |
 
-Free tier users who have used their one guided build see a teaser with upgrade CTA.
+Free tier is gated by the existing portfolio limit (`PORTFOLIO_LIMITS["free"] = (1, 5)`). No new tracking column needed — if the user already has 1 portfolio, the builder is locked with an upgrade CTA.
+
+### Input Validation
+
+All request fields validated via Pydantic models:
+- `risk_score`: int, 1-100
+- `profile`: enum of 5 valid profile names
+- `stock_count`: enum `"small"` | `"medium"` | `"large"`
+- `investment_amount`: float, min 1000
+- `tickers`: list of strings, each validated against `stock_fundamentals` (S&P 500 only)
+- `method`: enum `"mean_variance"` | `"hrp"`
+- `max_position`: optional float, 0.01-0.25
+- `name`: string, 1-50 chars
 
 ---
 
