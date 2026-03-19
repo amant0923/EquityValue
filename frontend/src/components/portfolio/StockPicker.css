@@ -1,0 +1,116 @@
+.stock-picker {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.stock-picker__input-wrap {
+  position: relative;
+}
+
+.stock-picker__input {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.stock-picker__input:focus {
+  border-color: var(--primary);
+}
+
+.stock-picker__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  overflow: hidden;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.stock-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.stock-picker__item:last-child {
+  border-bottom: none;
+}
+
+.stock-picker__item:hover,
+.stock-picker__item.active {
+  background: var(--surface2);
+}
+
+.stock-picker__item-symbol {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary2);
+  min-width: 56px;
+}
+
+.stock-picker__item-name {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.stock-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--primary-glow2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: var(--primary2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.stock-picker__chip-remove {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.stock-picker__chip-remove:hover {
+  color: var(--red2);
+}
+
+.stock-picker__counter {
+  margin-top: 8px;
+  font-size: 0.76rem;
+  color: var(--text3);
+  text-align: right;
+}

@@ -1,0 +1,43 @@
+.profile-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.profile-result__score {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--primary2);
+  line-height: 1;
+}
+
+.profile-result__name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.profile-result__badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.profile-result__badge {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: var(--surface3);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}

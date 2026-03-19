@@ -1,0 +1,43 @@
+.stock-count-picker {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.count-card {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+  padding: 22px 18px;
+  border-radius: 12px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.count-card:hover {
+  border-color: var(--border2);
+  background: var(--surface3);
+}
+
+.count-card.active {
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.count-card__range {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.count-card__label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text2);
+}
