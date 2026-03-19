@@ -49,3 +49,50 @@ class TestOptimizeMinVariance:
         cov = ledoit_wolf_shrink(returns)
         weights = optimize_min_variance(cov, {"min_position": 0.0, "max_position": 1.0})
         assert all(w >= -1e-8 for w in weights)
+
+
+# ── Task 3: Black-Litterman EVS + HRP ───────────────────────────────
+
+class TestOptimizeBlackLittermanEVS:
+    def test_optimize_bl_evs_higher_evs_gets_more_weight(self):
+        from portfolio_builder import optimize_black_litterman_evs
+        # Use a neutral (identity-scaled) covariance so EVS signal dominates
+        N = 3
+        cov = np.eye(N) * 0.04  # equal variance for all stocks
+        evs_scores = [90, 50, 50]
+        weights = optimize_black_litterman_evs(
+            cov, evs_scores, {"min_position": 0.05, "max_position": 0.8}
+        )
+        # Stock 0 (EVS=90) should get the largest weight
+        assert weights[0] > weights[1]
+        assert weights[0] > weights[2]
+
+    def test_optimize_bl_evs_respects_constraints(self):
+        from portfolio_builder import ledoit_wolf_shrink, optimize_black_litterman_evs
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 5))
+        cov = ledoit_wolf_shrink(returns)
+        evs_scores = [80, 70, 60, 50, 40]
+        weights = optimize_black_litterman_evs(
+            cov, evs_scores, {"min_position": 0.05, "max_position": 0.25}
+        )
+        assert pytest.approx(sum(weights), abs=1e-6) == 1.0
+        assert all(w >= 0.05 - 1e-6 for w in weights)
+        assert all(w <= 0.25 + 1e-6 for w in weights)
+
+
+class TestOptimizeHRP:
+    def test_optimize_hrp_weights_sum_to_one(self):
+        from portfolio_builder import optimize_hrp
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 8))
+        weights = optimize_hrp(returns, {"min_position": 0.0, "max_position": 1.0})
+        assert pytest.approx(sum(weights), abs=1e-6) == 1.0
+        assert all(w >= -1e-8 for w in weights)
+
+    def test_optimize_hrp_diversified(self):
+        from portfolio_builder import optimize_hrp
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((252, 10))
+        weights = optimize_hrp(returns, {"min_position": 0.0, "max_position": 1.0})
+        assert all(w < 0.5 for w in weights)
