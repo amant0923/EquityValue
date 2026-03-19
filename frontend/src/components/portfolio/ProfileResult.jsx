@@ -2,17 +2,17 @@ import "./ProfileResult.css";
 
 const PROFILE_LABELS = {
   conservative: "Conservative",
-  mod_conservative: "Moderately Conservative",
+  moderately_conservative: "Moderately Conservative",
   moderate: "Moderate",
-  mod_aggressive: "Moderately Aggressive",
+  moderately_aggressive: "Moderately Aggressive",
   aggressive: "Aggressive",
 };
 
 const METHOD_LABELS = {
   conservative: "Global Minimum Variance",
-  mod_conservative: "GMV + EVS Tilt",
+  moderately_conservative: "GMV + EVS Tilt",
   moderate: "Black-Litterman + EVS",
-  mod_aggressive: "Black-Litterman + EVS",
+  moderately_aggressive: "Black-Litterman + EVS",
   aggressive: "Black-Litterman + EVS",
 };
 

@@ -35,9 +35,9 @@ function computeScore(sliders, refine) {
 
 function scoreToProfile(score) {
   if (score <= 20) return "conservative";
-  if (score <= 40) return "mod_conservative";
+  if (score <= 40) return "moderately_conservative";
   if (score <= 60) return "moderate";
-  if (score <= 80) return "mod_aggressive";
+  if (score <= 80) return "moderately_aggressive";
   return "aggressive";
 }
 
@@ -73,10 +73,10 @@ export default function PortfolioBuildPage() {
     (confirm) => {
       if (mode === "guided") {
         return {
-          url: "/portfolio/build/guided",
+          url: "/portfolio/build",
           body: {
-            sliders,
-            refine,
+            risk_score: score,
+            profile,
             stock_count: stockCount,
             investment_amount: investmentAmount,
             name: portfolioName || undefined,
@@ -85,11 +85,11 @@ export default function PortfolioBuildPage() {
         };
       }
       return {
-        url: "/portfolio/build/optimize",
+        url: "/portfolio/optimize",
         body: {
           tickers: selectedStocks,
-          sliders,
-          refine,
+          risk_score: score,
+          profile,
           method,
           max_position: maxPosition,
           investment_amount: investmentAmount,
@@ -98,7 +98,7 @@ export default function PortfolioBuildPage() {
         },
       };
     },
-    [mode, sliders, refine, stockCount, selectedStocks, method, maxPosition, investmentAmount, portfolioName]
+    [mode, score, profile, stockCount, selectedStocks, method, maxPosition, investmentAmount, portfolioName]
   );
 
   const fetchPreview = useCallback(async () => {
@@ -321,8 +321,12 @@ export default function PortfolioBuildPage() {
 
         {currentStep === "review" && !loading && result && (
           <AllocationReview
-            allocation={result.allocation}
-            sectorBreakdown={result.sector_breakdown}
+            allocation={result.allocations}
+            sectorBreakdown={
+              result.sector_breakdown
+                ? Object.entries(result.sector_breakdown).map(([sector, weight]) => ({ sector, weight }))
+                : []
+            }
             riskMetrics={result.risk_metrics}
             onRegenerate={handleRegenerate}
             onCreate={handleCreate}
