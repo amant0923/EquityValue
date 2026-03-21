@@ -1,7 +1,9 @@
 """EVS (Equity Value Score) API endpoints."""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 import os
 from supabase import create_client
+from config import validate_ticker
+from rate_limit import limiter
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -11,7 +13,8 @@ router = APIRouter(prefix="/evs")
 
 
 @router.get("/top")
-async def evs_top(limit: int = Query(default=20, le=50)):
+@limiter.limit("30/minute")
+async def evs_top(request: Request, limit: int = Query(default=20, le=50)):
     """Top N highest EVS scores. Public endpoint for SEO."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -24,7 +27,8 @@ async def evs_top(limit: int = Query(default=20, le=50)):
 
 
 @router.get("/bottom")
-async def evs_bottom(limit: int = Query(default=20, le=50)):
+@limiter.limit("30/minute")
+async def evs_bottom(request: Request, limit: int = Query(default=20, le=50)):
     """Bottom N lowest EVS scores. Public endpoint for SEO."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -37,7 +41,8 @@ async def evs_bottom(limit: int = Query(default=20, le=50)):
 
 
 @router.get("/sectors")
-async def evs_sector_summaries():
+@limiter.limit("30/minute")
+async def evs_sector_summaries(request: Request):
     """Summary stats per sector (avg score, top ticker, count)."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -51,7 +56,8 @@ async def evs_sector_summaries():
 
 
 @router.get("/sector/{sector}")
-async def evs_by_sector(sector: str, limit: int = Query(default=50, le=100)):
+@limiter.limit("30/minute")
+async def evs_by_sector(request: Request, sector: str, limit: int = Query(default=50, le=100)):
     """All tickers in a sector, sorted by EVS score."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -71,9 +77,10 @@ async def evs_by_sector(sector: str, limit: int = Query(default=50, le=100)):
 
 
 @router.get("/{ticker}")
-async def evs_detail(ticker: str):
+@limiter.limit("30/minute")
+async def evs_detail(request: Request, ticker: str):
     """EVS score + component breakdown + sector context for a single ticker."""
-    ticker = ticker.upper().strip()
+    ticker = validate_ticker(ticker)
     if not sb:
         raise HTTPException(503, "Database not configured")
     row = sb.table("equity_value_scores") \

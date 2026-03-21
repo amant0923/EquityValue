@@ -90,13 +90,13 @@ export function AuthProvider({ children }) {
   };
 
   const isFeatureUnlocked = (feature) => {
-    if (!supabase || !user) return true; // No auth = allow all
+    if (!supabase || !user) return false; // No auth = deny access
     const ep = getEffectiveProfile(profile);
     return isFeatureAllowed(ep.plan, feature);
   };
 
   const getLimit = (feature) => {
-    if (!supabase || !user) return Infinity; // No auth = unlimited
+    if (!supabase || !user) return 0; // No auth = no access
     const ep = getEffectiveProfile(profile);
     const plan = ep.plan;
     return getFeatureLimit(plan, feature);

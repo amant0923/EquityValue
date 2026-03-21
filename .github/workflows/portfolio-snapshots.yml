@@ -3,20 +3,21 @@ name: Portfolio Daily Snapshots
 on:
   schedule:
     - cron: "30 21 * * 1-5"  # Mon-Fri at 9:30 PM UTC (after US market close)
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    # Note: Only users with write access to the repo can trigger manual runs
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install supabase
+        run: pip install supabase==2.11.0
 
       - name: Run snapshot
         env:

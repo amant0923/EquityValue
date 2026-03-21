@@ -8,6 +8,8 @@ export default function ReferralPage() {
   const [stats, setStats] = useState(null);
   const [copying, setCopying] = useState(false);
 
+  // TODO: [F-12] Replace with a dedicated referral_code column in user_profiles
+  // to avoid leaking partial user UUID. Requires backend migration.
   const referralCode = user?.id?.slice(0, 8) || "SIGNUP";
   const referralLink = `${window.location.origin}?ref=${referralCode}`;
 

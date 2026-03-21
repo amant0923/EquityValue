@@ -3,9 +3,16 @@ import os
 import time
 import hashlib
 import hmac
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from auth import get_current_user
 from supabase import create_client
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -22,7 +29,11 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     warnings.warn("ADMIN_USERNAME and ADMIN_PASSWORD not set — admin endpoints disabled")
 
 # Secret for signing admin tokens
-_ADMIN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", SUPABASE_SERVICE_KEY or "ev-admin-secret-key")
+_ADMIN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", "")
+if not _ADMIN_SECRET:
+    import warnings
+    warnings.warn("ADMIN_TOKEN_SECRET not set — admin token signing will be insecure")
+    _ADMIN_SECRET = SUPABASE_SERVICE_KEY or os.urandom(32).hex()
 
 # Comma-separated list of admin emails (for Supabase-auth-based admin access)
 ADMIN_EMAILS = set(
@@ -95,7 +106,8 @@ async def _require_admin(request: Request):
 
 
 @router.post("/login")
-async def admin_login(username: str = Body(...), password: str = Body(...)):
+@limiter.limit("3/minute")
+async def admin_login(request: Request, username: str = Body(...), password: str = Body(...)):
     """Authenticate with admin username/password, returns a signed token."""
     if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
         raise HTTPException(401, "Invalid username or password")
@@ -125,7 +137,8 @@ async def list_users(request: Request):
                 break
             page += 1
     except Exception as e:
-        raise HTTPException(500, f"Failed to list auth users: {e}")
+        logger.error(f"Failed to list auth users: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to list auth users")
 
     users = []
     for au in auth_users:
@@ -161,7 +174,8 @@ async def update_user_plan(
     try:
         sb.table("user_profiles").update({"plan": plan}).eq("id", user_id).execute()
     except Exception as e:
-        raise HTTPException(500, f"Failed to update plan: {e}")
+        logger.error(f"Failed to update plan: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to update plan")
     return {"ok": True, "user_id": user_id, "plan": plan}
 
 
@@ -175,7 +189,8 @@ async def delete_user(request: Request, user_id: str):
     try:
         sb.auth.admin.delete_user(user_id)
     except Exception as e:
-        raise HTTPException(500, f"Failed to delete user: {e}")
+        logger.error(f"Failed to delete user: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to delete user")
     return {"ok": True, "deleted": user_id}
 
 
@@ -192,13 +207,15 @@ async def reset_password(request: Request, user_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to find user: {e}")
+        logger.error(f"Failed to find user: {e}", exc_info=True)
+        raise HTTPException(500, "User not found")
 
     # Send password reset email
     try:
         sb.auth.admin.generate_link({"type": "recovery", "email": email})
     except Exception as e:
-        raise HTTPException(500, f"Failed to send reset email: {e}")
+        logger.error(f"Failed to send reset email: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to send reset email")
     return {"ok": True, "email": email}
 
 

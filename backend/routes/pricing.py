@@ -2,9 +2,13 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 import os
+import re
+import logging
 import stripe
 from supabase import create_client
 from auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -38,9 +42,11 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
     if not stripe.api_key or not STRIPE_LIFETIME_PRICE_ID:
         raise HTTPException(503, "Lifetime deal not configured")
     # Check cap
+    # SECURITY NOTE: Race condition possible between cap check and Stripe session creation.
+    # Mitigated by checking cap again in the webhook handler before granting lifetime plan.
     if sb:
         rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
-        if len(rows) >= LIFETIME_CAP:
+        if len(rows) >= LIFETIME_CAP - 5:  # Buffer of 5 to account for concurrent requests
             raise HTTPException(410, "Lifetime deal sold out")
     try:
         session = stripe.checkout.Session.create(
@@ -54,7 +60,7 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
         )
         return {"checkout_url": session.url}
     except Exception as e:
-        print(f"[lifetime checkout] {e}")
+        logger.error("Lifetime checkout failed")
         raise HTTPException(500, "Could not create checkout session")
 
 
@@ -68,6 +74,12 @@ async def verify_student(body: StudentVerify, user=Depends(get_current_user)):
     email = body.email.strip().lower()
     if not email.endswith(".edu"):
         raise HTTPException(400, "Only .edu email addresses qualify for the student discount")
+    # Validate .edu email format strictly
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.edu$', email):
+        raise HTTPException(400, "Invalid .edu email format")
+    # TODO: Implement proper email verification flow — send confirmation link
+    # to the .edu address before granting discount. Currently sets verified=True
+    # directly, which can be bypassed with any valid-format .edu address.
     # Store the verified .edu email
     if sb:
         try:
@@ -76,7 +88,7 @@ async def verify_student(body: StudentVerify, user=Depends(get_current_user)):
                 "student_verified": True,
             }).eq("id", user["sub"]).execute()
         except Exception as e:
-            print(f"[student verify] {e}")
+            logger.error("Student verification DB update failed")
     return {"verified": True, "discount": "50%", "coupon_id": STUDENT_COUPON_ID or "STUDENT50"}
 
 
@@ -112,5 +124,5 @@ async def student_checkout(request: Request, user=Depends(get_current_user)):
         session = stripe.checkout.Session.create(**checkout_params)
         return {"checkout_url": session.url}
     except Exception as e:
-        print(f"[student checkout] {e}")
+        logger.error("Student checkout failed")
         raise HTTPException(500, "Could not create checkout session")

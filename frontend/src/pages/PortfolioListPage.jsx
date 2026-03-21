@@ -29,7 +29,7 @@ export default function PortfolioListPage() {
       );
       setLiveDataMap(liveMap);
     } catch (err) {
-      console.error("Failed to load portfolios:", err);
+      if (import.meta.env.DEV) console.error("Failed to load portfolios:", err);
     } finally {
       setLoading(false);
     }
@@ -59,7 +59,7 @@ export default function PortfolioListPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, color: "var(--text1)" }}>Portfolios</h1>
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn-accent" onClick={() => navigate("/portfolio/build")}>
+          <button className="btn-primary" onClick={() => navigate("/portfolio/build")}>
             Build a Portfolio
           </button>
           <button

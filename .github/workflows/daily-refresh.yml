@@ -3,7 +3,11 @@ name: Daily Data Refresh
 on:
   schedule:
     - cron: '0 2 * * 1-5'  # Mon-Fri 2am UTC (9pm ET)
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
+    # Note: Only users with write access to the repo can trigger manual runs
+
+permissions:
+  contents: read
 
 jobs:
   refresh:
@@ -11,14 +15,14 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.13'
 
       - name: Install dependencies
-        run: pip install requests supabase
+        run: pip install requests==2.32.3 supabase==2.11.0
 
       - name: Run daily refresh
         working-directory: backend

@@ -4,19 +4,20 @@ on:
     # Sunday 7pm ET (after weekly digest at 6pm)
     - cron: "0 0 * * 1"  # Monday 00:00 UTC = Sunday 7pm ET
   workflow_dispatch:
+    # Note: Only users with write access to the repo can trigger manual runs
 
 jobs:
   post-tweets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: "3.12"
       - name: Install dependencies
         run: |
           cd backend
-          pip install -q supabase requests
+          pip install -q supabase==2.11.0 requests==2.32.3
       - name: Post weekly EVS tweets
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -1,19 +1,19 @@
 """Routes for financial statements, metrics, growth, segments."""
-from fastapi import APIRouter, HTTPException
-import os
+from fastapi import APIRouter, HTTPException, Request
 from supabase import create_client
+from config import SUPABASE_URL, SUPABASE_KEY, validate_ticker
+from rate_limit import limiter
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 router = APIRouter()
 
 
 @router.get("/financials/{ticker}")
-async def get_financials(ticker: str, period: str = "annual"):
+@limiter.limit("30/minute")
+async def get_financials(request: Request, ticker: str, period: str = "annual"):
     """Get all 3 financial statements. period=annual|quarterly"""
-    ticker = ticker.upper().strip()
+    ticker = validate_ticker(ticker)
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
     result = {}
@@ -34,8 +34,9 @@ async def get_financials(ticker: str, period: str = "annual"):
 
 
 @router.get("/financials/{ticker}/growth")
-async def get_growth(ticker: str):
-    ticker = ticker.upper().strip()
+@limiter.limit("30/minute")
+async def get_growth(request: Request, ticker: str):
+    ticker = validate_ticker(ticker)
     rows = supabase.table("growth_metrics") \
         .select("*") \
         .eq("ticker", ticker) \
@@ -46,8 +47,9 @@ async def get_growth(ticker: str):
 
 
 @router.get("/metrics/{ticker}")
-async def get_metrics(ticker: str, period: str = "annual"):
-    ticker = ticker.upper().strip()
+@limiter.limit("30/minute")
+async def get_metrics(request: Request, ticker: str, period: str = "annual"):
+    ticker = validate_ticker(ticker)
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
     rows = supabase.table("key_metrics") \
@@ -61,8 +63,9 @@ async def get_metrics(ticker: str, period: str = "annual"):
 
 
 @router.get("/segments/{ticker}")
-async def get_segments(ticker: str):
-    ticker = ticker.upper().strip()
+@limiter.limit("30/minute")
+async def get_segments(request: Request, ticker: str):
+    ticker = validate_ticker(ticker)
     rows = supabase.table("revenue_segments") \
         .select("*") \
         .eq("ticker", ticker) \

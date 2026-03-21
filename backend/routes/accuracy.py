@@ -1,8 +1,9 @@
 """Accuracy tracking API endpoints."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 import os
 from supabase import create_client
 from utils.wilson import wilson_confidence_interval
+from rate_limit import limiter
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -12,7 +13,8 @@ router = APIRouter(prefix="/accuracy")
 
 
 @router.get("/models")
-async def accuracy_models():
+@limiter.limit("30/minute")
+async def accuracy_models(request: Request):
     """Aggregate accuracy stats per model with Wilson confidence intervals."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -70,9 +72,10 @@ async def accuracy_models():
 
 
 @router.get("/public")
-async def accuracy_public():
+@limiter.limit("30/minute")
+async def accuracy_public(request: Request):
     """Public JSON summary for third-party verification."""
-    models_data = await accuracy_models()
+    models_data = await accuracy_models(request)
     return {
         "platform": "Equity Value",
         "url": "https://equityvalue.ai/accuracy",
@@ -84,7 +87,8 @@ async def accuracy_public():
 
 
 @router.get("/score")
-async def score_accuracy():
+@limiter.limit("30/minute")
+async def score_accuracy(request: Request):
     """EVS backtest: returns by score range. Public endpoint."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -92,7 +96,8 @@ async def score_accuracy():
 
 
 @router.get("/{ticker}")
-async def ticker_accuracy(ticker: str):
+@limiter.limit("30/minute")
+async def ticker_accuracy(request: Request, ticker: str):
     """Per-ticker accuracy history. Pro-gated."""
     ticker = ticker.upper().strip()
     if not sb:

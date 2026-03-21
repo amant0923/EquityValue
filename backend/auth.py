@@ -1,12 +1,22 @@
 # backend/auth.py
-import os
 import jwt
+import logging
 from fastapi import Request, HTTPException
 from supabase import create_client
+from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I")
-SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
+logger = logging.getLogger(__name__)
+
+if not SUPABASE_JWT_SECRET:
+    logger.warning("SUPABASE_JWT_SECRET not set — JWT verification will use Supabase API (slower)")
+
+# Shared Supabase client — created once, reused across requests
+_sb_client = None
+def _get_supabase():
+    global _sb_client
+    if _sb_client is None and SUPABASE_URL and SUPABASE_KEY:
+        _sb_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _sb_client
 
 
 async def get_current_user(request: Request) -> dict:
@@ -25,12 +35,12 @@ async def get_current_user(request: Request) -> dict:
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token expired")
         except jwt.InvalidTokenError:
-            pass  # Fall through to Supabase API verification
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Fallback: verify token via Supabase API
-    if SUPABASE_URL and SUPABASE_KEY:
+    # Fallback: verify token via Supabase API (only if JWT secret not configured)
+    sb = _get_supabase()
+    if sb:
         try:
-            sb = create_client(SUPABASE_URL, SUPABASE_KEY)
             res = sb.auth.get_user(token)
             if res and res.user:
                 return {
@@ -38,18 +48,19 @@ async def get_current_user(request: Request) -> dict:
                     "email": res.user.email,
                     "role": "authenticated",
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Supabase auth verification failed: {e}")
+            raise HTTPException(status_code=401, detail="Authentication failed")
 
-    raise HTTPException(status_code=401, detail="Invalid token")
+    raise HTTPException(status_code=401, detail="Auth service unavailable")
 
 
 async def get_user_profile(user_id: str) -> dict:
     """Fetch user profile from Supabase to check plan and limits."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    sb = _get_supabase()
+    if not sb:
         return {"plan": "free", "analyses_today": 0}
     try:
-        sb = create_client(SUPABASE_URL, SUPABASE_KEY)
         result = sb.table("user_profiles").select("*").eq("id", user_id).single().execute()
         return result.data if result.data else {"plan": "free", "analyses_today": 0}
     except Exception:

@@ -116,9 +116,13 @@ function AppInner() {
     if (shared) {
       try {
         const tickers = JSON.parse(atob(shared));
-        if (Array.isArray(tickers) && tickers.length) {
-          lsSet("ve_watchlist", tickers);
-          setWatchlist(tickers);
+        if (Array.isArray(tickers) && tickers.length && tickers.length <= 50) {
+          // Validate each ticker is a valid format (1-5 uppercase letters, optional .XX suffix)
+          const validTickers = tickers.filter(t => typeof t === 'string' && /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(t.toUpperCase()));
+          if (validTickers.length) {
+            lsSet("ve_watchlist", validTickers);
+            setWatchlist(validTickers);
+          }
         }
       } catch {}
     }
@@ -182,7 +186,7 @@ function AppInner() {
     } finally {
       setLoading(false);
     }
-    try { await recordAnalysis(); } catch (e) { console.warn("Usage tracking failed:", e); }
+    try { await recordAnalysis(); } catch (e) { if (import.meta.env.DEV) console.warn("Usage tracking failed:", e); }
   };
 
   const applicable    = result?.valuations?.filter(v => v?.applicable) || [];
@@ -301,6 +305,7 @@ function AppInner() {
           <Route path="/portfolio" element={<PortfolioListPage />} />
           <Route path="/portfolio/build" element={<PortfolioBuildPage />} />
           <Route path="/portfolio/:id" element={<PortfolioDetailPage />} />
+          {/* Admin routes: auth enforced server-side via _require_admin + rate limiting. AdminPage also checks /admin/check on mount. */}
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/accuracy" element={<PublicAccuracyPage />} />
           <Route path="/terms" element={<TermsPage />} />

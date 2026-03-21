@@ -2,9 +2,13 @@ name: Keep Render Alive
 on:
   schedule:
     - cron: "*/14 * * * *"  # Every 14 minutes
+
+permissions:
+  contents: read
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
       - name: Ping backend
-        run: curl -s -o /dev/null -w "%{http_code}" https://valuengine-api.onrender.com/docs
+        run: curl -s -o /dev/null -w "%{http_code}" ${{ secrets.BACKEND_URL }}/health

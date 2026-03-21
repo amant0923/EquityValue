@@ -4,6 +4,9 @@ import stripe
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+if not STRIPE_WEBHOOK_SECRET:
+    import logging
+    logging.getLogger(__name__).warning("STRIPE_WEBHOOK_SECRET not set — webhook signature verification will fail")
 
 PLAN_PRICE_IDS = {
     "pro": os.environ.get("STRIPE_PRO_PRICE_ID", ""),

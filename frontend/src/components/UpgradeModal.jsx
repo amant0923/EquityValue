@@ -34,8 +34,13 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
     setUpgrading(true);
     try {
       const res = await api.post("/stripe/create-checkout", { plan: planKey });
-      if (res.data.checkout_url) {
-        window.location.href = res.data.checkout_url;
+      const url = res.data.checkout_url;
+      if (url && (url.startsWith("https://checkout.stripe.com/") || url.startsWith("https://billing.stripe.com/"))) {
+        window.location.href = url;
+      } else if (url) {
+        if (import.meta.env.DEV) console.error("Invalid checkout URL");
+        setCheckoutError("Invalid checkout URL received. Please try again.");
+        setUpgrading(false);
       } else {
         setCheckoutError(res.data?.detail || "Could not start checkout. Please try again.");
         setUpgrading(false);
@@ -154,8 +159,9 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
                 setCheckoutError("");
                 try {
                   const res = await api.post("/pricing/lifetime/checkout");
-                  if (res.data.checkout_url) window.location.href = res.data.checkout_url;
-                  else { setCheckoutError("Could not start checkout."); setUpgrading(false); }
+                  const ltUrl = res.data.checkout_url;
+                  if (ltUrl && (ltUrl.startsWith("https://checkout.stripe.com/") || ltUrl.startsWith("https://billing.stripe.com/"))) window.location.href = ltUrl;
+                  else { setCheckoutError(ltUrl ? "Invalid checkout URL received." : "Could not start checkout."); setUpgrading(false); }
                 } catch { setCheckoutError("Could not connect to payment server."); setUpgrading(false); }
               }}
               disabled={upgrading}
@@ -189,8 +195,9 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
                     try {
                       await api.post("/pricing/student/verify", { email: studentEmail });
                       const res = await api.post("/pricing/student/checkout", { plan: "pro" });
-                      if (res.data.checkout_url) window.location.href = res.data.checkout_url;
-                      else setUpgrading(false);
+                      const stuUrl = res.data.checkout_url;
+                      if (stuUrl && (stuUrl.startsWith("https://checkout.stripe.com/") || stuUrl.startsWith("https://billing.stripe.com/"))) window.location.href = stuUrl;
+                      else { setCheckoutError(stuUrl ? "Invalid checkout URL received." : "Could not start checkout."); setUpgrading(false); }
                     } catch (e) {
                       setCheckoutError(e.response?.data?.detail || "Verification failed. Must be a .edu email.");
                       setUpgrading(false);

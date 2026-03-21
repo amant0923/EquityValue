@@ -1,7 +1,6 @@
 """Routes for AI portfolio builder — build and optimize endpoints."""
 from __future__ import annotations
 
-import os
 import logging
 from typing import Literal
 
@@ -22,12 +21,7 @@ from routes.portfolio import PORTFOLIO_LIMITS
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://efbtgnplotlshrwbotfp.supabase.co")
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
-SUPABASE_KEY = os.environ.get(
-    "SUPABASE_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmYnRnbnBsb3Rsc2hyd2JvdGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDEzODIsImV4cCI6MjA4ODQ3NzM4Mn0.grKm3Rh-UtXU3bIz2ajLNiVxbfTECC9cwuslZe_BY-I",
-)
+from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY or SUPABASE_KEY)
 
 router = APIRouter()

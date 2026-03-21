@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 6 8 1,4,7,10 *'  # 8th of Jan/Apr/Jul/Oct, 6am UTC
   workflow_dispatch:
+    # Note: Only users with write access to the repo can trigger manual runs
 
 jobs:
   refresh:
@@ -11,14 +12,14 @@ jobs:
     timeout-minutes: 180
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.13'
 
       - name: Install dependencies
-        run: pip install requests supabase
+        run: pip install requests==2.32.3 supabase==2.11.0
 
       - name: Run quarterly refresh
         working-directory: backend

@@ -3,6 +3,11 @@
  *
  * Each tier key maps to the limits/flags that govern what
  * a user on that plan can access throughout the app.
+ *
+ * NOTE: This is client-side UX gating only. All paid features
+ * MUST be enforced server-side (backend middleware / RLS).
+ * Client-side checks are easily bypassed and exist solely
+ * to provide a smooth user experience, not security.
  */
 
 export const TIER_LIMITS = {

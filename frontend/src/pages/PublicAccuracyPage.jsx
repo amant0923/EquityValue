@@ -67,7 +67,7 @@ export default function PublicAccuracyPage() {
         setModels(res.data.models || []);
         setStatus(res.data.status || "collecting");
       })
-      .catch((err) => console.error("Accuracy fetch error:", err))
+      .catch((err) => { if (import.meta.env.DEV) console.error("Accuracy fetch error:", err); })
       .finally(() => setLoading(false));
   }, []);
 

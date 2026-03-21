@@ -10,7 +10,7 @@ const PLAN_COLORS = {
 };
 
 function getAdminToken() {
-  return localStorage.getItem("ev_admin_token");
+  return sessionStorage.getItem("ev_admin_token");
 }
 
 function adminApi(method, path, data) {
@@ -51,10 +51,10 @@ export default function AdminPage() {
             setAuthed(true);
             loadUsers();
           } else {
-            localStorage.removeItem("ev_admin_token");
+            sessionStorage.removeItem("ev_admin_token");
           }
         })
-        .catch(() => localStorage.removeItem("ev_admin_token"));
+        .catch(() => sessionStorage.removeItem("ev_admin_token"));
     }
   }, []);
 
@@ -70,7 +70,7 @@ export default function AdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Invalid credentials");
-      localStorage.setItem("ev_admin_token", data.token);
+      sessionStorage.setItem("ev_admin_token", data.token);
       setAuthed(true);
       setPassword("");
       loadUsers();
@@ -82,7 +82,7 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
-    localStorage.removeItem("ev_admin_token");
+    sessionStorage.removeItem("ev_admin_token");
     setAuthed(false);
     setUsers([]);
     setTotal(0);

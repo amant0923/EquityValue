@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import DOMPurify from "dompurify";
 
 const POSTS = {
   "11-valuation-models-ranked-by-accuracy": {
@@ -183,7 +184,7 @@ export default function BlogPostPage() {
 
         <h1 className="bp-title">{post.title}</h1>
 
-        <div className="bp-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }} />
+        <div className="bp-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMarkdown(post.content)) }} />
       </motion.div>
 
       <style>{`

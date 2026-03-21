@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase env vars not set — auth will not work");
+  if (import.meta.env.DEV) console.warn("Supabase env vars not set — auth will not work");
 }
 
 export const supabase = supabaseUrl && supabaseAnonKey

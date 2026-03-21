@@ -2,8 +2,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 import os
+import re
+import logging
 from supabase import create_client
 from auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -21,10 +25,16 @@ async def track_referral(body: ReferralSignup, user=Depends(get_current_user)):
     """Track that a new user signed up via referral link."""
     if not sb:
         raise HTTPException(503, "Database not configured")
-    # referral_code is the first 8 chars of the referrer's user ID
+    # SECURITY NOTE: referral_code is currently derived from user ID prefix (u["id"][:8]).
+    # This is predictable — UUIDs have low entropy in their first 8 chars.
+    # TODO: Replace with a cryptographically random referral_code column in user_profiles
+    # (e.g., secrets.token_urlsafe(12)) to prevent enumeration attacks.
     code = body.referral_code.strip()
     if not code or len(code) < 6:
         raise HTTPException(400, "Invalid referral code")
+    # Validate referral code format (hex chars only, matching UUID prefix pattern)
+    if not re.match(r'^[a-f0-9]{6,8}$', code):
+        raise HTTPException(400, "Invalid referral code format")
     # Find the referrer by matching user ID prefix
     users = sb.table("user_profiles").select("id").execute().data or []
     referrer_id = None
@@ -44,7 +54,7 @@ async def track_referral(body: ReferralSignup, user=Depends(get_current_user)):
             "status": "signed_up",
         }, on_conflict="referee_id").execute()
     except Exception as e:
-        print(f"[referral track] {e}")
+        logger.error("Referral tracking failed")
     return {"status": "tracked"}
 
 
@@ -68,7 +78,7 @@ async def convert_referral(user=Depends(get_current_user)):
             "referral_credits": current_credits + 1,
         }).eq("id", ref["referrer_id"]).execute()
     except Exception as e:
-        print(f"[referral convert] {e}")
+        logger.error("Referral conversion credit failed")
     return {"status": "converted", "referrer_credited": True}
 
 
@@ -86,5 +96,5 @@ async def referral_stats(user=Depends(get_current_user)):
         credits = profile.get("referral_credits", 0) if profile else 0
         return {"referrals": signups, "conversions": conversions, "credits_earned": credits}
     except Exception as e:
-        print(f"[referral stats] {e}")
+        logger.error("Referral stats fetch failed")
         return {"referrals": 0, "conversions": 0, "credits_earned": 0}

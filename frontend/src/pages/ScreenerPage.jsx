@@ -48,7 +48,7 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       const res = await api.get(`/screener?${params}`);
       setResults(res.data.results || []);
     } catch (e) {
-      console.error("Screener fetch error:", e);
+      if (import.meta.env.DEV) console.error("Screener fetch error:", e);
       setResults([]);
     }
     setLoading(false);
