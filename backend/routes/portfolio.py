@@ -1,8 +1,9 @@
 """Routes for portfolio management — all endpoints require auth."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from supabase import create_client
 from auth import get_current_user, get_user_profile
+from rate_limit import limiter
 from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
 # Use service_role key to bypass RLS (backend already validates auth via get_current_user)
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY or SUPABASE_KEY)
@@ -55,7 +56,8 @@ async def _verify_portfolio_owner(portfolio_id: str, user_id: str):
 # ── Portfolio CRUD ──────────────────────────────────────────────
 
 @router.get("/portfolio")
-async def list_portfolios(user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def list_portfolios(request: Request, user: dict = Depends(get_current_user)):
     """List all portfolios for the current user with holding counts."""
     user_id = user["sub"]
     portfolios = supabase.table("user_portfolios") \
@@ -80,7 +82,8 @@ async def list_portfolios(user: dict = Depends(get_current_user)):
 
 
 @router.post("/portfolio")
-async def create_portfolio(body: CreatePortfolioRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def create_portfolio(request: Request, body: CreatePortfolioRequest, user: dict = Depends(get_current_user)):
     """Create a new portfolio."""
     user_id = user["sub"]
     max_portfolios, _ = await _get_limits(user_id)
@@ -100,7 +103,8 @@ async def create_portfolio(body: CreatePortfolioRequest, user: dict = Depends(ge
 
 
 @router.delete("/portfolio/{portfolio_id}")
-async def delete_portfolio(portfolio_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def delete_portfolio(request: Request, portfolio_id: str, user: dict = Depends(get_current_user)):
     """Delete a portfolio and all its holdings/snapshots (cascade)."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
     supabase.table("user_portfolios").delete().eq("id", portfolio_id).execute()
@@ -110,7 +114,8 @@ async def delete_portfolio(portfolio_id: str, user: dict = Depends(get_current_u
 # ── Holdings CRUD ───────────────────────────────────────────────
 
 @router.get("/portfolio/{portfolio_id}/holdings")
-async def list_holdings(portfolio_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def list_holdings(request: Request, portfolio_id: str, user: dict = Depends(get_current_user)):
     """List all holdings in a portfolio."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
     holdings = supabase.table("portfolio_holdings") \
@@ -122,7 +127,8 @@ async def list_holdings(portfolio_id: str, user: dict = Depends(get_current_user
 
 
 @router.post("/portfolio/{portfolio_id}/holdings")
-async def add_holding(portfolio_id: str, body: AddHoldingRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def add_holding(request: Request, portfolio_id: str, body: AddHoldingRequest, user: dict = Depends(get_current_user)):
     """Add a holding to a portfolio."""
     user_id = user["sub"]
     await _verify_portfolio_owner(portfolio_id, user_id)
@@ -161,7 +167,8 @@ async def add_holding(portfolio_id: str, body: AddHoldingRequest, user: dict = D
 
 
 @router.put("/portfolio/{portfolio_id}/holdings/{holding_id}")
-async def edit_holding(portfolio_id: str, holding_id: str, body: EditHoldingRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def edit_holding(request: Request, portfolio_id: str, holding_id: str, body: EditHoldingRequest, user: dict = Depends(get_current_user)):
     """Edit shares and/or avg_price of a holding."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
 
@@ -184,7 +191,8 @@ async def edit_holding(portfolio_id: str, holding_id: str, body: EditHoldingRequ
 
 
 @router.delete("/portfolio/{portfolio_id}/holdings/{holding_id}")
-async def delete_holding(portfolio_id: str, holding_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def delete_holding(request: Request, portfolio_id: str, holding_id: str, user: dict = Depends(get_current_user)):
     """Remove a holding from a portfolio."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
     supabase.table("portfolio_holdings").delete() \
@@ -197,7 +205,8 @@ async def delete_holding(portfolio_id: str, holding_id: str, user: dict = Depend
 # ── Live P&L ────────────────────────────────────────────────────
 
 @router.get("/portfolio/{portfolio_id}/live")
-async def get_live_pnl(portfolio_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def get_live_pnl(request: Request, portfolio_id: str, user: dict = Depends(get_current_user)):
     """Fetch current prices and calculate live P&L for all holdings."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
 
@@ -267,7 +276,8 @@ async def get_live_pnl(portfolio_id: str, user: dict = Depends(get_current_user)
 # ── Snapshots ───────────────────────────────────────────────────
 
 @router.get("/portfolio/{portfolio_id}/snapshots")
-async def get_snapshots(portfolio_id: str, days: str = "90", user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def get_snapshots(request: Request, portfolio_id: str, days: str = "90", user: dict = Depends(get_current_user)):
     """Get historical portfolio snapshots for P&L chart."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
 

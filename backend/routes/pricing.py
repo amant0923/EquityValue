@@ -7,6 +7,7 @@ import logging
 import stripe
 from supabase import create_client
 from auth import get_current_user
+from rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ router = APIRouter(prefix="/pricing")
 
 
 @router.get("/lifetime/status")
-async def lifetime_status():
+@limiter.limit("30/minute")
+async def lifetime_status(request: Request):
     """Check if lifetime deal is still available and how many are left."""
     if not sb:
         return {"available": False, "remaining": 0}
@@ -37,6 +39,7 @@ async def lifetime_status():
 
 
 @router.post("/lifetime/checkout")
+@limiter.limit("5/minute")
 async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
     """Create Stripe checkout for $99 lifetime Pro deal."""
     if not stripe.api_key or not STRIPE_LIFETIME_PRICE_ID:
@@ -69,7 +72,8 @@ class StudentVerify(BaseModel):
 
 
 @router.post("/student/verify")
-async def verify_student(body: StudentVerify, user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def verify_student(request: Request, body: StudentVerify, user=Depends(get_current_user)):
     """Verify .edu email for 50% student discount."""
     email = body.email.strip().lower()
     if not email.endswith(".edu"):
@@ -93,6 +97,7 @@ async def verify_student(body: StudentVerify, user=Depends(get_current_user)):
 
 
 @router.post("/student/checkout")
+@limiter.limit("5/minute")
 async def student_checkout(request: Request, user=Depends(get_current_user)):
     """Create Stripe checkout with 50% student discount applied."""
     if not stripe.api_key:

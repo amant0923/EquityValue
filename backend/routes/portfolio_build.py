@@ -6,7 +6,7 @@ from typing import Literal
 
 import numpy as np
 import yfinance as yf
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from supabase import create_client
 
@@ -17,6 +17,7 @@ from portfolio_builder import (
     _build_allocation,
     STOCK_COUNT_RANGES,
 )
+from rate_limit import limiter
 from routes.portfolio import PORTFOLIO_LIMITS
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,8 @@ def _create_portfolio_with_holdings(
 # ── Routes ────────────────────────────────────────────────────────────
 
 @router.post("/portfolio/build")
-async def build_portfolio(body: BuildRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def build_portfolio(request: Request, body: BuildRequest, user: dict = Depends(get_current_user)):
     """Build an optimised portfolio from EVS data and risk profile.
 
     When confirm=False (default), returns a preview of the allocation.
@@ -237,7 +239,8 @@ async def build_portfolio(body: BuildRequest, user: dict = Depends(get_current_u
 
 
 @router.post("/portfolio/optimize")
-async def optimize_portfolio(body: OptimizeRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def optimize_portfolio(request: Request, body: OptimizeRequest, user: dict = Depends(get_current_user)):
     """Optimize a user-supplied list of tickers using mean-variance or HRP.
 
     Pro+ only. When confirm=False, returns a preview. When confirm=True, creates the portfolio.

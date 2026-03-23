@@ -6,6 +6,7 @@ import re
 import logging
 from supabase import create_client
 from auth import get_current_user
+from rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ class ReferralSignup(BaseModel):
 
 
 @router.post("/track")
-async def track_referral(body: ReferralSignup, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def track_referral(request: Request, body: ReferralSignup, user=Depends(get_current_user)):
     """Track that a new user signed up via referral link."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -59,7 +61,8 @@ async def track_referral(body: ReferralSignup, user=Depends(get_current_user)):
 
 
 @router.post("/convert")
-async def convert_referral(user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def convert_referral(request: Request, user=Depends(get_current_user)):
     """Called when a referred user upgrades to paid. Awards credit to referrer."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -83,7 +86,8 @@ async def convert_referral(user=Depends(get_current_user)):
 
 
 @router.get("/stats")
-async def referral_stats(user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def referral_stats(request: Request, user=Depends(get_current_user)):
     """Get referral stats for current user."""
     if not sb:
         raise HTTPException(503, "Database not configured")
