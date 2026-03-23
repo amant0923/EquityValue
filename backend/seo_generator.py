@@ -14,7 +14,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from supabase import create_client
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", os.environ.get("SUPABASE_KEY", ""))
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise SystemExit(
+        "SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_KEY) must be set. "
+        "Add them as GitHub Actions secrets or export in your shell."
+    )
+
 sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 OUTPUT_DIR = Path(__file__).parent.parent / "frontend" / "public" / "stocks"
