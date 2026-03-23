@@ -22,18 +22,12 @@ jobs:
         env:
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
         run: |
-          # Trim whitespace and trailing slashes
           URL=$(echo "$BACKEND_URL" | xargs | sed 's:/*$::')
-          echo "URL length: ${#URL}"
-          echo "Pinging $URL/health"
-          BODY=$(curl -s -w "\nHTTP_CODE:%{http_code}" --max-time 60 "$URL/health")
-          STATUS=$(echo "$BODY" | tail -1 | sed 's/HTTP_CODE://')
-          RESPONSE=$(echo "$BODY" | head -n -1)
+          # Any HTTP response keeps Render alive — only fail on connection errors
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$URL/health") || true
           echo "Health check returned HTTP $STATUS"
-          echo "Response body: $RESPONSE"
-          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
-            echo "Backend is healthy"
-          else
-            echo "::warning::Backend returned HTTP $STATUS — it may be waking up from cold start"
+          if [ "$STATUS" = "000" ]; then
+            echo "::error::Could not connect to backend — check BACKEND_URL and Render service status"
             exit 1
           fi
+          echo "Ping successful (HTTP $STATUS) — backend is alive"
