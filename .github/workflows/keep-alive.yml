@@ -19,8 +19,13 @@ jobs:
           fi
 
       - name: Ping backend
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "${{ secrets.BACKEND_URL }}/health")
+          # Trim whitespace and trailing slashes
+          URL=$(echo "$BACKEND_URL" | xargs | sed 's:/*$::')
+          echo "Pinging $URL/health"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$URL/health")
           echo "Health check returned HTTP $STATUS"
           if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
             echo "Backend is healthy"
