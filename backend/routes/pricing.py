@@ -66,29 +66,72 @@ class StudentVerify(BaseModel):
     email: str
 
 
+class StudentConfirm(BaseModel):
+    token: str
+
+
 @router.post("/student/verify")
 @limiter.limit("5/minute")
 async def verify_student(request: Request, body: StudentVerify, user=Depends(get_current_user)):
-    """Verify .edu email for 50% student discount."""
+    """Send verification email to .edu address. Does NOT grant discount immediately."""
+    import secrets
     email = body.email.strip().lower()
     if not email.endswith(".edu"):
         raise HTTPException(400, "Only .edu email addresses qualify for the student discount")
-    # Validate .edu email format strictly
     if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.edu$', email):
         raise HTTPException(400, "Invalid .edu email format")
-    # TODO: Implement proper email verification flow — send confirmation link
-    # to the .edu address before granting discount. Currently sets verified=True
-    # directly, which can be bypassed with any valid-format .edu address.
-    # Store the verified .edu email
+    # Generate a verification token and store it (pending state)
+    token = secrets.token_urlsafe(32)
     sb = get_supabase()
     if sb:
         try:
             sb.table("user_profiles").update({
                 "student_email": email,
-                "student_verified": True,
+                "student_verified": False,
+                "student_verify_token": token,
             }).eq("id", user["sub"]).execute()
         except Exception as e:
             logger.error("Student verification DB update failed")
+            raise HTTPException(500, "Failed to initiate verification")
+    # Send verification email via Resend (if configured)
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    if resend_key:
+        try:
+            import requests as req
+            verify_url = f"https://equityvalue.ai?student_verify={token}"
+            req.post("https://api.resend.com/emails", json={
+                "from": "EquityValue <noreply@equityvalue.ai>",
+                "to": [email],
+                "subject": "Verify your .edu email for 50% student discount",
+                "html": (
+                    f"<p>Click the link below to verify your student email and "
+                    f"activate your 50% discount:</p>"
+                    f'<p><a href="{verify_url}">Verify my .edu email</a></p>'
+                    f"<p>This link expires in 24 hours.</p>"
+                ),
+            }, headers={"Authorization": f"Bearer {resend_key}"}, timeout=10)
+        except Exception as e:
+            logger.error("Student verification email failed")
+    return {"status": "verification_email_sent", "email": email}
+
+
+@router.post("/student/confirm")
+@limiter.limit("5/minute")
+async def confirm_student(request: Request, body: StudentConfirm, user=Depends(get_current_user)):
+    """Confirm student status by validating the email verification token."""
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    profile = sb.table("user_profiles").select("student_verify_token").eq("id", user["sub"]).single().execute().data
+    if not profile or not profile.get("student_verify_token"):
+        raise HTTPException(400, "No pending student verification")
+    if profile["student_verify_token"] != body.token:
+        raise HTTPException(400, "Invalid verification token")
+    # Token matches — grant student verified status
+    sb.table("user_profiles").update({
+        "student_verified": True,
+        "student_verify_token": None,
+    }).eq("id", user["sub"]).execute()
     return {"verified": True, "discount": "50%", "coupon_id": STUDENT_COUPON_ID or "STUDENT50"}
 
 
