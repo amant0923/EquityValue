@@ -8,6 +8,13 @@ from fmp_client import fmp_get_list, fmp_get_first, _safe
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise SystemExit(
+        "SUPABASE_URL and SUPABASE_KEY must be set. "
+        "Add them as GitHub Actions secrets or export in your shell."
+    )
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 LIMIT = 20
