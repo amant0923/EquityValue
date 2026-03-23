@@ -20,5 +20,11 @@ jobs:
 
       - name: Ping backend
         run: |
-          STATUS=$(curl --fail -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "${{ secrets.BACKEND_URL }}/health")
           echo "Health check returned HTTP $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Backend is healthy"
+          else
+            echo "::warning::Backend returned HTTP $STATUS — it may be waking up from cold start"
+            exit 1
+          fi
