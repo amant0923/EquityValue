@@ -5,6 +5,7 @@ Handles rate limiting, retries, and response parsing.
 import os
 import time
 import math
+import threading
 import requests
 
 FMP_KEY = os.environ.get("FMP_KEY", "")
@@ -15,6 +16,7 @@ if not FMP_KEY:
 
 _last_call = 0.0
 _MIN_INTERVAL = 0.25  # 4 calls/sec = 240/min, safely under 300/min
+_rate_lock = threading.Lock()  # Thread-safe rate limiting for concurrent pipelines
 
 def _safe(val):
     if val is None:
@@ -32,11 +34,12 @@ def fmp_get(endpoint: str, params: dict = None, retries: int = 2) -> list | dict
     params["apikey"] = FMP_KEY
 
     for attempt in range(retries + 1):
-        # Rate limit
-        elapsed = time.time() - _last_call
-        if elapsed < _MIN_INTERVAL:
-            time.sleep(_MIN_INTERVAL - elapsed)
-        _last_call = time.time()
+        # Thread-safe rate limit
+        with _rate_lock:
+            elapsed = time.time() - _last_call
+            if elapsed < _MIN_INTERVAL:
+                time.sleep(_MIN_INTERVAL - elapsed)
+            _last_call = time.time()
 
         try:
             r = requests.get(

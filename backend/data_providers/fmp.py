@@ -6,6 +6,7 @@ Existing code that imports fmp_client directly continues to work unchanged.
 import os
 import time
 import math
+import threading
 import requests
 
 from data_providers.base import DataProvider
@@ -16,6 +17,7 @@ from data_providers.base import DataProvider
 FMP_BASE = "https://financialmodelingprep.com/stable"
 _MIN_INTERVAL = 0.25
 _last_call = 0.0
+_rate_lock = threading.Lock()  # Thread-safe rate limiting
 
 
 def _safe(val):
@@ -35,10 +37,11 @@ def _fmp_get(api_key: str, endpoint: str, params: dict | None = None, retries: i
     params["apikey"] = api_key
 
     for attempt in range(retries + 1):
-        elapsed = time.time() - _last_call
-        if elapsed < _MIN_INTERVAL:
-            time.sleep(_MIN_INTERVAL - elapsed)
-        _last_call = time.time()
+        with _rate_lock:
+            elapsed = time.time() - _last_call
+            if elapsed < _MIN_INTERVAL:
+                time.sleep(_MIN_INTERVAL - elapsed)
+            _last_call = time.time()
 
         try:
             r = requests.get(

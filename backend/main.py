@@ -801,6 +801,10 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=500, detail="Webhook processing failed")
 
 @app.post("/cache/clear")
-async def clear_cache(user: dict = Depends(get_current_user)):
+@limiter.limit("3/minute")
+async def clear_cache(request: Request, user: dict = Depends(get_current_user)):
+    """Clear application cache. Restricted to admin users."""
+    from routes.admin import _require_admin
+    await _require_admin(request)
     cache_clear()
     return {"message": "Cache cleared"}

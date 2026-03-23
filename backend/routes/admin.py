@@ -28,12 +28,13 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     import warnings
     warnings.warn("ADMIN_USERNAME and ADMIN_PASSWORD not set — admin endpoints disabled")
 
-# Secret for signing admin tokens
+# Secret for signing admin tokens — REQUIRED, no insecure fallback
 _ADMIN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", "")
 if not _ADMIN_SECRET:
-    import warnings
-    warnings.warn("ADMIN_TOKEN_SECRET not set — admin token signing will be insecure")
-    _ADMIN_SECRET = SUPABASE_SERVICE_KEY or os.urandom(32).hex()
+    logger.warning(
+        "ADMIN_TOKEN_SECRET not set — admin token endpoints will be disabled. "
+        "Set this env var to enable admin login."
+    )
 
 # Comma-separated list of admin emails (for Supabase-auth-based admin access)
 ADMIN_EMAILS = set(
@@ -45,6 +46,8 @@ ADMIN_EMAILS = set(
 
 def _make_admin_token():
     """Generate a signed admin token valid for 24 hours."""
+    if not _ADMIN_SECRET:
+        raise RuntimeError("ADMIN_TOKEN_SECRET not set — cannot sign tokens")
     expires = int(time.time()) + 86400
     payload = f"admin:{expires}"
     sig = hmac.new(_ADMIN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
@@ -109,6 +112,10 @@ async def _require_admin(request: Request):
 @limiter.limit("3/minute")
 async def admin_login(request: Request, username: str = Body(...), password: str = Body(...)):
     """Authenticate with admin username/password, returns a signed token."""
+    if not _ADMIN_SECRET:
+        raise HTTPException(503, "Admin token signing not configured")
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        raise HTTPException(503, "Admin credentials not configured")
     if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
         raise HTTPException(401, "Invalid username or password")
     token = _make_admin_token()
