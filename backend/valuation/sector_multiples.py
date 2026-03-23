@@ -13,9 +13,15 @@ try:
 except SystemExit:
     fmp_get_first = None  # type: ignore[assignment]
 
-# ── Supabase client (reuse service key pattern from portfolio.py) ──────
+# ── Supabase client (lazy init to avoid crash when env vars are missing in tests) ──
 from config import SUPABASE_URL as _SUPABASE_URL, SUPABASE_KEY as _SUPABASE_KEY, SUPABASE_SERVICE_KEY as _SUPABASE_SERVICE_KEY
-_sb = create_client(_SUPABASE_URL, _SUPABASE_SERVICE_KEY or _SUPABASE_KEY)
+_sb = None
+
+def _get_sb():
+    global _sb
+    if _sb is None and _SUPABASE_URL and (_SUPABASE_SERVICE_KEY or _SUPABASE_KEY):
+        _sb = create_client(_SUPABASE_URL, _SUPABASE_SERVICE_KEY or _SUPABASE_KEY)
+    return _sb
 
 # ── Cache TTL (24 hours) ───────────────────────────────────────────────
 _CACHE_TTL = 86400
@@ -212,7 +218,10 @@ def get_sector_multiples():
     if _multiples_cache["data"] and (now - _multiples_cache["ts"]) < _CACHE_TTL:
         return _multiples_cache["data"]
     try:
-        resp = _sb.table("stock_fundamentals").select(
+        sb = _get_sb()
+        if not sb:
+            return HARDCODED_FALLBACK
+        resp = sb.table("stock_fundamentals").select(
             "sector, pe_ratio, ev_to_ebitda, ps_ratio, pb_ratio, "
             "free_cashflow, market_cap, revenue_growth, ev_to_revenue"
         ).not_.is_("sector", "null").not_.is_("pe_ratio", "null").execute()
