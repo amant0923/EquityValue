@@ -5,14 +5,12 @@ from auth import get_current_user, get_user_profile
 from rate_limit import limiter
 from db import get_supabase_service
 
-# Use service_role key to bypass RLS (backend already validates auth via get_current_user)
-supabase = None
-
 def _sb():
-    global supabase
-    if supabase is None:
-        supabase = get_supabase_service()
-    return supabase
+    """Get service-role Supabase client (bypasses RLS — auth checked via get_current_user)."""
+    sb = get_supabase_service()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    return sb
 
 router = APIRouter()
 

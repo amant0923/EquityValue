@@ -7,11 +7,18 @@ from db import get_supabase
 router = APIRouter()
 
 
+def _sb():
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    return sb
+
+
 @router.get("/analyst/{ticker}")
 @limiter.limit("30/minute")
 async def get_analyst(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    row = get_supabase().table("analyst_data") \
+    row = _sb().table("analyst_data") \
         .select("*") \
         .eq("ticker", ticker) \
         .limit(1) \
@@ -25,14 +32,14 @@ async def get_analyst(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_insider(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    insiders = get_supabase().table("insider_trades") \
+    insiders = _sb().table("insider_trades") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("filing_date", desc=True) \
         .limit(50) \
         .execute().data
 
-    senate = get_supabase().table("senate_trades") \
+    senate = _sb().table("senate_trades") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("transaction_date", desc=True) \
@@ -46,7 +53,7 @@ async def get_insider(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_earnings(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = get_supabase().table("earnings_history") \
+    rows = _sb().table("earnings_history") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("date", desc=True) \
@@ -59,7 +66,7 @@ async def get_earnings(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_dividends(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = get_supabase().table("dividends_history") \
+    rows = _sb().table("dividends_history") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("ex_date", desc=True) \
@@ -72,7 +79,7 @@ async def get_dividends(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_scores(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    row = get_supabase().table("company_scores") \
+    row = _sb().table("company_scores") \
         .select("*") \
         .eq("ticker", ticker) \
         .limit(1) \

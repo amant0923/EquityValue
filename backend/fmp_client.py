@@ -34,12 +34,13 @@ def fmp_get(endpoint: str, params: dict = None, retries: int = 2) -> list | dict
     params["apikey"] = FMP_KEY
 
     for attempt in range(retries + 1):
-        # Thread-safe rate limit
+        # Thread-safe rate limit — sleep outside lock to avoid blocking other threads
         with _rate_lock:
             elapsed = time.time() - _last_call
-            if elapsed < _MIN_INTERVAL:
-                time.sleep(_MIN_INTERVAL - elapsed)
-            _last_call = time.time()
+            wait = max(0, _MIN_INTERVAL - elapsed)
+            _last_call = time.time() + wait  # Reserve the slot
+        if wait > 0:
+            time.sleep(wait)
 
         try:
             r = requests.get(

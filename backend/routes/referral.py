@@ -102,7 +102,7 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
         sb.table("user_profiles").update({"referral_code": code}).eq("id", user_id).execute()
     except Exception:
         logger.error("Failed to save referral code")
-    return {"code": code}
+        raise HTTPException(500, "Could not generate referral code")
 
 
 @router.get("/stats")

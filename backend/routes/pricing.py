@@ -75,6 +75,7 @@ class StudentConfirm(BaseModel):
 async def verify_student(request: Request, body: StudentVerify, user=Depends(get_current_user)):
     """Send verification email to .edu address. Does NOT grant discount immediately."""
     import secrets
+    from datetime import datetime, timezone
     email = body.email.strip().lower()
     if not email.endswith(".edu"):
         raise HTTPException(400, "Only .edu email addresses qualify for the student discount")
@@ -83,16 +84,18 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
     # Generate a verification token and store it (pending state)
     token = secrets.token_urlsafe(32)
     sb = get_supabase()
-    if sb:
-        try:
-            sb.table("user_profiles").update({
-                "student_email": email,
-                "student_verified": False,
-                "student_verify_token": token,
-            }).eq("id", user["sub"]).execute()
-        except Exception as e:
-            logger.error("Student verification DB update failed")
-            raise HTTPException(500, "Failed to initiate verification")
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    try:
+        sb.table("user_profiles").update({
+            "student_email": email,
+            "student_verified": False,
+            "student_verify_token": token,
+            "student_verify_token_created_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", user["sub"]).execute()
+    except Exception as e:
+        logger.error("Student verification DB update failed")
+        raise HTTPException(500, "Failed to initiate verification")
     # Send verification email via Resend (if configured)
     resend_key = os.environ.get("RESEND_API_KEY", "")
     if resend_key:
@@ -119,15 +122,29 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
 @limiter.limit("5/minute")
 async def confirm_student(request: Request, body: StudentConfirm, user=Depends(get_current_user)):
     """Confirm student status by validating the email verification token."""
+    import hmac
+    from datetime import datetime, timezone, timedelta
     sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
-    profile = sb.table("user_profiles").select("student_verify_token").eq("id", user["sub"]).single().execute().data
+    profile = sb.table("user_profiles").select(
+        "student_verify_token, student_verify_token_created_at"
+    ).eq("id", user["sub"]).single().execute().data
     if not profile or not profile.get("student_verify_token"):
         raise HTTPException(400, "No pending student verification")
-    if profile["student_verify_token"] != body.token:
+    # Check token expiry (24 hours)
+    created_at = profile.get("student_verify_token_created_at")
+    if created_at:
+        try:
+            created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - created > timedelta(hours=24):
+                raise HTTPException(400, "Verification token expired. Please request a new one.")
+        except (ValueError, TypeError):
+            pass  # If we can't parse the timestamp, allow the token check to proceed
+    # Constant-time comparison to prevent timing attacks
+    if not hmac.compare_digest(profile["student_verify_token"], body.token):
         raise HTTPException(400, "Invalid verification token")
-    # Token matches — grant student verified status
+    # Token matches and is not expired — grant student verified status
     sb.table("user_profiles").update({
         "student_verified": True,
         "student_verify_token": None,
