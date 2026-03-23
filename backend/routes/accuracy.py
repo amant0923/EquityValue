@@ -1,14 +1,9 @@
 """Accuracy tracking API endpoints."""
 from fastapi import APIRouter, HTTPException, Request
-import os
-from supabase import create_client
 from config import validate_ticker
 from utils.wilson import wilson_confidence_interval
 from rate_limit import limiter
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+from db import get_supabase
 
 router = APIRouter(prefix="/accuracy")
 
@@ -17,6 +12,7 @@ router = APIRouter(prefix="/accuracy")
 @limiter.limit("30/minute")
 async def accuracy_models(request: Request):
     """Aggregate accuracy stats per model with Wilson confidence intervals."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("accuracy_tracking") \
@@ -91,6 +87,7 @@ async def accuracy_public(request: Request):
 @limiter.limit("30/minute")
 async def score_accuracy(request: Request):
     """EVS backtest: returns by score range. Public endpoint."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     return {"message": "Accuracy tracking active. Data available after 6 months of collection.", "status": "collecting"}
@@ -101,6 +98,7 @@ async def score_accuracy(request: Request):
 async def ticker_accuracy(request: Request, ticker: str):
     """Per-ticker accuracy history. Pro-gated."""
     ticker = validate_ticker(ticker)
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("accuracy_tracking") \

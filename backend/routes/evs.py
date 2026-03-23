@@ -1,13 +1,8 @@
 """EVS (Equity Value Score) API endpoints."""
 from fastapi import APIRouter, HTTPException, Query, Request
-import os
-from supabase import create_client
 from config import validate_ticker
 from rate_limit import limiter
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+from db import get_supabase
 
 router = APIRouter(prefix="/evs")
 
@@ -16,6 +11,7 @@ router = APIRouter(prefix="/evs")
 @limiter.limit("30/minute")
 async def evs_top(request: Request, limit: int = Query(default=20, ge=1, le=50)):
     """Top N highest EVS scores. Public endpoint for SEO."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("equity_value_scores") \
@@ -30,6 +26,7 @@ async def evs_top(request: Request, limit: int = Query(default=20, ge=1, le=50))
 @limiter.limit("30/minute")
 async def evs_bottom(request: Request, limit: int = Query(default=20, ge=1, le=50)):
     """Bottom N lowest EVS scores. Public endpoint for SEO."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("equity_value_scores") \
@@ -44,6 +41,7 @@ async def evs_bottom(request: Request, limit: int = Query(default=20, ge=1, le=5
 @limiter.limit("30/minute")
 async def evs_sector_summaries(request: Request):
     """Summary stats per sector (avg score, top ticker, count)."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     evs_result = sb.table("equity_value_scores").select("ticker, score, verdict").execute()
@@ -59,6 +57,7 @@ async def evs_sector_summaries(request: Request):
 @limiter.limit("30/minute")
 async def evs_by_sector(request: Request, sector: str, limit: int = Query(default=50, le=100)):
     """All tickers in a sector, sorted by EVS score."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     # Get tickers in this sector from fundamentals
@@ -81,6 +80,7 @@ async def evs_by_sector(request: Request, sector: str, limit: int = Query(defaul
 async def evs_detail(request: Request, ticker: str):
     """EVS score + component breakdown + sector context for a single ticker."""
     ticker = validate_ticker(ticker)
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     row = sb.table("equity_value_scores") \

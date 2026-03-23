@@ -1,18 +1,14 @@
 """Referral system endpoints — 1 month free for referrer when referee converts."""
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-import os
 import re
+import secrets
 import logging
-from supabase import create_client
 from auth import get_current_user
 from rate_limit import limiter
+from db import get_supabase
 
 logger = logging.getLogger(__name__)
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
 
 router = APIRouter(prefix="/referral")
 
@@ -25,25 +21,28 @@ class ReferralSignup(BaseModel):
 @limiter.limit("10/minute")
 async def track_referral(request: Request, body: ReferralSignup, user=Depends(get_current_user)):
     """Track that a new user signed up via referral link."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
-    # SECURITY NOTE: referral_code is currently derived from user ID prefix (u["id"][:8]).
-    # This is predictable — UUIDs have low entropy in their first 8 chars.
-    # TODO: Replace with a cryptographically random referral_code column in user_profiles
-    # (e.g., secrets.token_urlsafe(12)) to prevent enumeration attacks.
     code = body.referral_code.strip()
-    if not code or len(code) < 6:
+    if not code or len(code) < 6 or len(code) > 24:
         raise HTTPException(400, "Invalid referral code")
-    # Validate referral code format (hex chars only, matching UUID prefix pattern)
-    if not re.match(r'^[a-f0-9]{6,8}$', code):
+    # Validate referral code format: URL-safe base64 or legacy hex prefix
+    if not re.match(r'^[A-Za-z0-9_-]{6,24}$', code):
         raise HTTPException(400, "Invalid referral code format")
-    # Find the referrer by matching user ID prefix
-    users = sb.table("user_profiles").select("id").execute().data or []
-    referrer_id = None
-    for u in users:
-        if u["id"][:8] == code:
-            referrer_id = u["id"]
-            break
+    # Look up by referral_code column first (new random codes),
+    # then fall back to UUID prefix match (legacy codes)
+    row = sb.table("user_profiles").select("id").eq("referral_code", code).limit(1).execute().data
+    if row:
+        referrer_id = row[0]["id"]
+    else:
+        # Legacy fallback: match UUID prefix for old referral links
+        users = sb.table("user_profiles").select("id").execute().data or []
+        referrer_id = None
+        for u in users:
+            if u["id"][:8] == code:
+                referrer_id = u["id"]
+                break
     if not referrer_id:
         raise HTTPException(404, "Referral code not found")
     if referrer_id == user["sub"]:
@@ -64,6 +63,7 @@ async def track_referral(request: Request, body: ReferralSignup, user=Depends(ge
 @limiter.limit("10/minute")
 async def convert_referral(request: Request, user=Depends(get_current_user)):
     """Called when a referred user upgrades to paid. Awards credit to referrer."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     # Find the referral record
@@ -85,10 +85,31 @@ async def convert_referral(request: Request, user=Depends(get_current_user)):
     return {"status": "converted", "referrer_credited": True}
 
 
+@router.get("/code")
+@limiter.limit("10/minute")
+async def get_referral_code(request: Request, user=Depends(get_current_user)):
+    """Get or generate the user's cryptographically random referral code."""
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
+    user_id = user["sub"]
+    profile = sb.table("user_profiles").select("referral_code").eq("id", user_id).single().execute().data
+    if profile and profile.get("referral_code"):
+        return {"code": profile["referral_code"]}
+    # Generate a new random code and store it
+    code = secrets.token_urlsafe(12)  # 16 chars, cryptographically random
+    try:
+        sb.table("user_profiles").update({"referral_code": code}).eq("id", user_id).execute()
+    except Exception:
+        logger.error("Failed to save referral code")
+    return {"code": code}
+
+
 @router.get("/stats")
 @limiter.limit("10/minute")
 async def referral_stats(request: Request, user=Depends(get_current_user)):
     """Get referral stats for current user."""
+    sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
     referrer_id = user["sub"]

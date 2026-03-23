@@ -8,8 +8,6 @@ import numpy as np
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from supabase import create_client
-
 from auth import get_current_user, get_user_profile
 from portfolio_builder import (
     get_sector_template,
@@ -22,8 +20,15 @@ from routes.portfolio import PORTFOLIO_LIMITS
 
 logger = logging.getLogger(__name__)
 
-from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY or SUPABASE_KEY)
+from db import get_supabase_service
+
+supabase = None
+
+def _sb():
+    global supabase
+    if supabase is None:
+        supabase = get_supabase_service()
+    return supabase
 
 router = APIRouter()
 
@@ -67,13 +72,13 @@ class OptimizeRequest(BaseModel):
 def _fetch_evs_data() -> dict[str, dict]:
     """Fetch EVS scores joined with fundamentals. Returns {ticker: {...}}."""
     evs_rows = (
-        supabase.table("equity_value_scores")
+        _sb().table("equity_value_scores")
         .select("ticker, score, verdict")
         .execute()
         .data or []
     )
     fund_rows = (
-        supabase.table("stock_fundamentals")
+        _sb().table("stock_fundamentals")
         .select("ticker, name, sector, current_price, market_cap")
         .execute()
         .data or []
@@ -126,7 +131,7 @@ def _create_portfolio_with_holdings(
     """Insert portfolio + holdings rows. Returns portfolio_id."""
     portfolio_name = name.strip() or "AI Portfolio"
     result = (
-        supabase.table("user_portfolios")
+        _sb().table("user_portfolios")
         .insert({"user_id": user_id, "name": portfolio_name})
         .execute()
     )
@@ -143,7 +148,7 @@ def _create_portfolio_with_holdings(
         if a["shares"] > 0
     ]
     if holdings:
-        supabase.table("portfolio_holdings").insert(holdings).execute()
+        _sb().table("portfolio_holdings").insert(holdings).execute()
 
     return portfolio_id
 
@@ -166,7 +171,7 @@ async def build_portfolio(request: Request, body: BuildRequest, user: dict = Dep
         plan = profile.get("plan", "free")
         max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["free"])[0]
         existing = (
-            supabase.table("user_portfolios")
+            _sb().table("user_portfolios")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .execute()
@@ -257,7 +262,7 @@ async def optimize_portfolio(request: Request, body: OptimizeRequest, user: dict
     if body.confirm:
         max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["free"])[0]
         existing = (
-            supabase.table("user_portfolios")
+            _sb().table("user_portfolios")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .execute()

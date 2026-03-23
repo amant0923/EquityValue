@@ -147,21 +147,32 @@ def refresh_scores(ticker: str) -> bool:
 
 
 def main():
+    import sys
     tickers = get_all_tickers()
-    print(f"Daily refresh for {len(tickers)} tickers\n")
+    total = len(tickers)
+    print(f"Daily refresh for {total} tickers\n")
 
+    success, fail = 0, 0
     for i, ticker in enumerate(tickers):
-        print(f"[{i+1}/{len(tickers)}] {ticker}...", end=" ", flush=True)
+        print(f"[{i+1}/{total}] {ticker}...", end=" ", flush=True)
         try:
             refresh_analyst(ticker)
             ins = refresh_insider(ticker)
             sen = refresh_senate(ticker)
             refresh_scores(ticker)
             print(f"✓ insider:{ins} senate:{sen}")
+            success += 1
         except Exception as e:
             print(f"✗ {e}")
+            fail += 1
 
-    print("\nDone.")
+    print(f"\nResults: {success} succeeded, {fail} failed out of {total}")
+    if total > 0 and fail > total * 0.5:
+        print("ERROR: >50% failure rate")
+        sys.exit(1)
+    if fail > 0:
+        print(f"WARNING: {fail} tickers failed")
+    print("Done.")
 
 
 if __name__ == "__main__":

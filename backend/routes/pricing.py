@@ -5,15 +5,11 @@ import os
 import re
 import logging
 import stripe
-from supabase import create_client
 from auth import get_current_user
 from rate_limit import limiter
+from db import get_supabase
 
 logger = logging.getLogger(__name__)
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_LIFETIME_PRICE_ID = os.environ.get("STRIPE_LIFETIME_PRICE_ID", "")
@@ -27,6 +23,7 @@ router = APIRouter(prefix="/pricing")
 @limiter.limit("30/minute")
 async def lifetime_status(request: Request):
     """Check if lifetime deal is still available and how many are left."""
+    sb = get_supabase()
     if not sb:
         return {"available": False, "remaining": 0}
     try:
@@ -44,9 +41,7 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
     """Create Stripe checkout for $99 lifetime Pro deal."""
     if not stripe.api_key or not STRIPE_LIFETIME_PRICE_ID:
         raise HTTPException(503, "Lifetime deal not configured")
-    # Check cap
-    # SECURITY NOTE: Race condition possible between cap check and Stripe session creation.
-    # Mitigated by checking cap again in the webhook handler before granting lifetime plan.
+    sb = get_supabase()
     if sb:
         rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
         if len(rows) >= LIFETIME_CAP - 5:  # Buffer of 5 to account for concurrent requests
@@ -85,6 +80,7 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
     # to the .edu address before granting discount. Currently sets verified=True
     # directly, which can be bypassed with any valid-format .edu address.
     # Store the verified .edu email
+    sb = get_supabase()
     if sb:
         try:
             sb.table("user_profiles").update({
@@ -103,6 +99,7 @@ async def student_checkout(request: Request, user=Depends(get_current_user)):
     if not stripe.api_key:
         raise HTTPException(503, "Payment not configured")
     # Verify student status
+    sb = get_supabase()
     if sb:
         profile = sb.table("user_profiles").select("student_verified").eq("id", user["sub"]).single().execute().data
         if not profile or not profile.get("student_verified"):

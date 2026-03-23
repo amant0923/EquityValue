@@ -1,10 +1,8 @@
 """Routes for analyst data, insider trades, earnings, dividends, scores, senate."""
 from fastapi import APIRouter, HTTPException, Request
-from supabase import create_client
-from config import SUPABASE_URL, SUPABASE_KEY, validate_ticker
+from config import validate_ticker
 from rate_limit import limiter
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+from db import get_supabase
 
 router = APIRouter()
 
@@ -13,7 +11,7 @@ router = APIRouter()
 @limiter.limit("30/minute")
 async def get_analyst(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    row = supabase.table("analyst_data") \
+    row = get_supabase().table("analyst_data") \
         .select("*") \
         .eq("ticker", ticker) \
         .limit(1) \
@@ -27,14 +25,14 @@ async def get_analyst(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_insider(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    insiders = supabase.table("insider_trades") \
+    insiders = get_supabase().table("insider_trades") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("filing_date", desc=True) \
         .limit(50) \
         .execute().data
 
-    senate = supabase.table("senate_trades") \
+    senate = get_supabase().table("senate_trades") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("transaction_date", desc=True) \
@@ -48,7 +46,7 @@ async def get_insider(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_earnings(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = supabase.table("earnings_history") \
+    rows = get_supabase().table("earnings_history") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("date", desc=True) \
@@ -61,7 +59,7 @@ async def get_earnings(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_dividends(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = supabase.table("dividends_history") \
+    rows = get_supabase().table("dividends_history") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("ex_date", desc=True) \
@@ -74,7 +72,7 @@ async def get_dividends(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_scores(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    row = supabase.table("company_scores") \
+    row = get_supabase().table("company_scores") \
         .select("*") \
         .eq("ticker", ticker) \
         .limit(1) \

@@ -1,12 +1,18 @@
 """Routes for portfolio management — all endpoints require auth."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
-from supabase import create_client
 from auth import get_current_user, get_user_profile
 from rate_limit import limiter
-from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
+from db import get_supabase_service
+
 # Use service_role key to bypass RLS (backend already validates auth via get_current_user)
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY or SUPABASE_KEY)
+supabase = None
+
+def _sb():
+    global supabase
+    if supabase is None:
+        supabase = get_supabase_service()
+    return supabase
 
 router = APIRouter()
 
@@ -44,7 +50,7 @@ async def _get_limits(user_id: str):
 
 async def _verify_portfolio_owner(portfolio_id: str, user_id: str):
     """Raise 404 if portfolio doesn't exist or isn't owned by user."""
-    result = supabase.table("user_portfolios") \
+    result = _sb().table("user_portfolios") \
         .select("id") \
         .eq("id", portfolio_id) \
         .eq("user_id", user_id) \
@@ -60,7 +66,7 @@ async def _verify_portfolio_owner(portfolio_id: str, user_id: str):
 async def list_portfolios(request: Request, user: dict = Depends(get_current_user)):
     """List all portfolios for the current user with holding counts."""
     user_id = user["sub"]
-    portfolios = supabase.table("user_portfolios") \
+    portfolios = _sb().table("user_portfolios") \
         .select("*") \
         .eq("user_id", user_id) \
         .order("created_at") \
@@ -68,7 +74,7 @@ async def list_portfolios(request: Request, user: dict = Depends(get_current_use
 
     # Attach holding count to each portfolio
     for p in portfolios:
-        count = supabase.table("portfolio_holdings") \
+        count = _sb().table("portfolio_holdings") \
             .select("id", count="exact") \
             .eq("portfolio_id", p["id"]) \
             .execute()
@@ -89,14 +95,14 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest, user:
     max_portfolios, _ = await _get_limits(user_id)
 
     # Check limit
-    existing = supabase.table("user_portfolios") \
+    existing = _sb().table("user_portfolios") \
         .select("id", count="exact") \
         .eq("user_id", user_id) \
         .execute()
     if (existing.count or 0) >= max_portfolios:
         raise HTTPException(403, f"Portfolio limit reached ({max_portfolios}). Upgrade your plan.")
 
-    result = supabase.table("user_portfolios") \
+    result = _sb().table("user_portfolios") \
         .insert({"user_id": user_id, "name": body.name.strip()}) \
         .execute()
     return result.data[0]
@@ -107,7 +113,7 @@ async def create_portfolio(request: Request, body: CreatePortfolioRequest, user:
 async def delete_portfolio(request: Request, portfolio_id: str, user: dict = Depends(get_current_user)):
     """Delete a portfolio and all its holdings/snapshots (cascade)."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
-    supabase.table("user_portfolios").delete().eq("id", portfolio_id).execute()
+    _sb().table("user_portfolios").delete().eq("id", portfolio_id).execute()
     return {"ok": True}
 
 
@@ -118,7 +124,7 @@ async def delete_portfolio(request: Request, portfolio_id: str, user: dict = Dep
 async def list_holdings(request: Request, portfolio_id: str, user: dict = Depends(get_current_user)):
     """List all holdings in a portfolio."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
-    holdings = supabase.table("portfolio_holdings") \
+    holdings = _sb().table("portfolio_holdings") \
         .select("*") \
         .eq("portfolio_id", portfolio_id) \
         .order("added_at") \
@@ -135,7 +141,7 @@ async def add_holding(request: Request, portfolio_id: str, body: AddHoldingReque
     _, max_holdings = await _get_limits(user_id)
 
     # Check holding limit
-    existing = supabase.table("portfolio_holdings") \
+    existing = _sb().table("portfolio_holdings") \
         .select("id", count="exact") \
         .eq("portfolio_id", portfolio_id) \
         .execute()
@@ -144,7 +150,7 @@ async def add_holding(request: Request, portfolio_id: str, body: AddHoldingReque
 
     # Validate ticker exists in S&P 500
     ticker = body.ticker.upper().strip()
-    check = supabase.table("stock_fundamentals") \
+    check = _sb().table("stock_fundamentals") \
         .select("ticker") \
         .eq("ticker", ticker) \
         .execute()
@@ -152,7 +158,7 @@ async def add_holding(request: Request, portfolio_id: str, body: AddHoldingReque
         raise HTTPException(400, f"Ticker {ticker} not found in S&P 500")
 
     try:
-        result = supabase.table("portfolio_holdings") \
+        result = _sb().table("portfolio_holdings") \
             .insert({
                 "portfolio_id": portfolio_id,
                 "ticker": ticker,
@@ -180,7 +186,7 @@ async def edit_holding(request: Request, portfolio_id: str, holding_id: str, bod
     if not updates:
         raise HTTPException(400, "Nothing to update")
 
-    result = supabase.table("portfolio_holdings") \
+    result = _sb().table("portfolio_holdings") \
         .update(updates) \
         .eq("id", holding_id) \
         .eq("portfolio_id", portfolio_id) \
@@ -195,7 +201,7 @@ async def edit_holding(request: Request, portfolio_id: str, holding_id: str, bod
 async def delete_holding(request: Request, portfolio_id: str, holding_id: str, user: dict = Depends(get_current_user)):
     """Remove a holding from a portfolio."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
-    supabase.table("portfolio_holdings").delete() \
+    _sb().table("portfolio_holdings").delete() \
         .eq("id", holding_id) \
         .eq("portfolio_id", portfolio_id) \
         .execute()
@@ -210,7 +216,7 @@ async def get_live_pnl(request: Request, portfolio_id: str, user: dict = Depends
     """Fetch current prices and calculate live P&L for all holdings."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
 
-    holdings = supabase.table("portfolio_holdings") \
+    holdings = _sb().table("portfolio_holdings") \
         .select("*") \
         .eq("portfolio_id", portfolio_id) \
         .execute().data or []
@@ -220,7 +226,7 @@ async def get_live_pnl(request: Request, portfolio_id: str, user: dict = Depends
 
     # Fetch current prices in one query
     tickers = [h["ticker"] for h in holdings]
-    prices_result = supabase.table("stock_fundamentals") \
+    prices_result = _sb().table("stock_fundamentals") \
         .select("ticker, current_price, name") \
         .in_("ticker", tickers) \
         .execute().data or []
@@ -281,7 +287,7 @@ async def get_snapshots(request: Request, portfolio_id: str, days: str = "90", u
     """Get historical portfolio snapshots for P&L chart."""
     await _verify_portfolio_owner(portfolio_id, user["sub"])
 
-    query = supabase.table("portfolio_snapshots") \
+    query = _sb().table("portfolio_snapshots") \
         .select("*") \
         .eq("portfolio_id", portfolio_id) \
         .order("snapshot_date")

@@ -118,8 +118,9 @@ def fetch_finnhub_price(ticker: str) -> dict:
         price = _safe_val(d.get("c"))
         if price:
             result["current_price"] = price
-        result["52w_high"] = _safe_val(d.get("h"))
-        result["52w_low"]  = _safe_val(d.get("l"))
+        # Note: d["h"] and d["l"] are DAILY high/low, not 52-week.
+        # 52-week values come from /stock/metric endpoint in fetch_finnhub()
+        # or from Supabase/yfinance. Do NOT map daily values to 52w fields.
     except Exception as e:
         print(f"[finnhub price] {e}")
     return result
@@ -138,8 +139,7 @@ def fetch_finnhub(ticker: str) -> dict:
         r = requests.get(f"{base}/quote", params={"symbol": ticker}, headers=h, timeout=10)
         d = r.json()
         result["current_price"] = _safe_val(d.get("c"))
-        result["52w_high"]      = _safe_val(d.get("h"))
-        result["52w_low"]       = _safe_val(d.get("l"))
+        # d["h"] and d["l"] are DAILY high/low — 52w values come from /stock/metric below
     except Exception as e:
         print(f"[finnhub quote] {e}")
 

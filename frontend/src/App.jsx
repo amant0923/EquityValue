@@ -27,6 +27,7 @@ import LockedFeatureCard from "./components/LockedFeatureCard";
 import OnboardingFlow from "./components/OnboardingFlow";
 import WatchlistGroups from "./components/WatchlistGroups";
 import WatchlistExport from "./components/WatchlistExport";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 // Lazy-loaded page components — only downloaded when the route is visited
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -244,11 +245,11 @@ function AppInner() {
         {/* App shell routes */}
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={
-            <DashboardPage
+            <ProtectedRoute><DashboardPage
               watchlist={watchlist}
               onSearch={handleSearch}
               onGoAnalysis={() => navigate("/analysis")}
-            />
+            /></ProtectedRoute>
           } />
 
           <Route path="/screener" element={
@@ -302,9 +303,9 @@ function AppInner() {
             )
           } />
 
-          <Route path="/portfolio" element={<PortfolioListPage />} />
-          <Route path="/portfolio/build" element={<PortfolioBuildPage />} />
-          <Route path="/portfolio/:id" element={<PortfolioDetailPage />} />
+          <Route path="/portfolio" element={<ProtectedRoute><PortfolioListPage /></ProtectedRoute>} />
+          <Route path="/portfolio/build" element={<ProtectedRoute><PortfolioBuildPage /></ProtectedRoute>} />
+          <Route path="/portfolio/:id" element={<ProtectedRoute><PortfolioDetailPage /></ProtectedRoute>} />
           {/* Admin routes: auth enforced server-side via _require_admin + rate limiting. AdminPage also checks /admin/check on mount. */}
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/accuracy" element={<PublicAccuracyPage />} />
@@ -312,7 +313,7 @@ function AppInner() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
-          <Route path="/referral" element={<ReferralPage />} />
+          <Route path="/referral" element={<ProtectedRoute><ReferralPage /></ProtectedRoute>} />
           <Route path="/admin/margins" element={<AdminMarginPage />} />
           <Route path="/help" element={<HelpPage />} />
         </Route>

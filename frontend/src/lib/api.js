@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  timeout: 30000,
 });
 
 // Cache the access token in memory to avoid calling getSession() on every request.

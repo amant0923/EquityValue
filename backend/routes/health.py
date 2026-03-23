@@ -2,13 +2,8 @@
 from fastapi import APIRouter, Request
 from datetime import datetime, timezone
 import time
-import os
-from supabase import create_client
 from rate_limit import limiter
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-sb = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+from db import get_supabase
 
 router = APIRouter()
 
@@ -23,6 +18,7 @@ async def health_check(request: Request):
     db_status = "connected"
     evs_stats = {}
     try:
+        sb = get_supabase()
         if not sb:
             db_status = "error"
         else:

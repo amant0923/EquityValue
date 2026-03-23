@@ -1,10 +1,8 @@
 """Routes for financial statements, metrics, growth, segments."""
 from fastapi import APIRouter, HTTPException, Request
-from supabase import create_client
-from config import SUPABASE_URL, SUPABASE_KEY, validate_ticker
+from config import validate_ticker
 from rate_limit import limiter
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+from db import get_supabase
 
 router = APIRouter()
 
@@ -20,7 +18,7 @@ async def get_financials(request: Request, ticker: str, period: str = "annual"):
 
     result = {}
     for stmt_type in ["income", "balance", "cashflow"]:
-        rows = supabase.table("financial_statements") \
+        rows = get_supabase().table("financial_statements") \
             .select("*") \
             .eq("ticker", ticker) \
             .eq("statement_type", stmt_type) \
@@ -39,7 +37,7 @@ async def get_financials(request: Request, ticker: str, period: str = "annual"):
 @limiter.limit("30/minute")
 async def get_growth(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = supabase.table("growth_metrics") \
+    rows = get_supabase().table("growth_metrics") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("period_date", desc=True) \
@@ -56,7 +54,7 @@ async def get_metrics(request: Request, ticker: str, period: str = "annual"):
         raise HTTPException(400, "Invalid period. Use 'annual' or 'quarterly'.")
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
-    rows = supabase.table("key_metrics") \
+    rows = get_supabase().table("key_metrics") \
         .select("*") \
         .eq("ticker", ticker) \
         .in_("period_type", period_types) \
@@ -70,7 +68,7 @@ async def get_metrics(request: Request, ticker: str, period: str = "annual"):
 @limiter.limit("30/minute")
 async def get_segments(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
-    rows = supabase.table("revenue_segments") \
+    rows = get_supabase().table("revenue_segments") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("period_date", desc=True) \

@@ -1,10 +1,8 @@
 """Combined summary endpoint for the company landing page."""
 from fastapi import APIRouter, HTTPException, Request
-from supabase import create_client
-from config import SUPABASE_URL, SUPABASE_KEY, validate_ticker
+from config import validate_ticker
 from rate_limit import limiter
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+from db import get_supabase
 
 router = APIRouter()
 
@@ -16,13 +14,13 @@ async def get_summary(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
 
     # Company basics from existing table
-    basics = supabase.table("stock_fundamentals") \
+    basics = get_supabase().table("stock_fundamentals") \
         .select("*").eq("ticker", ticker).limit(1).execute().data
     if not basics:
         raise HTTPException(404, f"No data for {ticker}")
 
     # Last 4 quarters of financials (income only for snapshot)
-    quarterly_income = supabase.table("financial_statements") \
+    quarterly_income = get_supabase().table("financial_statements") \
         .select("period_date,period_type,revenue,net_income,eps,eps_diluted,gross_profit,operating_income,ebitda") \
         .eq("ticker", ticker) \
         .eq("statement_type", "income") \
@@ -32,7 +30,7 @@ async def get_summary(request: Request, ticker: str):
         .execute().data
 
     # Latest key metrics (FY + quarterly)
-    metrics = supabase.table("key_metrics") \
+    metrics = get_supabase().table("key_metrics") \
         .select("period_date,period_type,pe_ratio,pb_ratio,ev_to_sales,enterprise_value_over_ebitda,roe,roa,dividend_yield,current_ratio,debt_to_equity") \
         .eq("ticker", ticker) \
         .order("period_date", desc=True) \
@@ -40,15 +38,15 @@ async def get_summary(request: Request, ticker: str):
         .execute().data
 
     # Analyst
-    analyst = supabase.table("analyst_data") \
+    analyst = get_supabase().table("analyst_data") \
         .select("*").eq("ticker", ticker).limit(1).execute().data
 
     # Scores
-    scores = supabase.table("company_scores") \
+    scores = get_supabase().table("company_scores") \
         .select("*").eq("ticker", ticker).limit(1).execute().data
 
     # Growth (latest)
-    growth = supabase.table("growth_metrics") \
+    growth = get_supabase().table("growth_metrics") \
         .select("*").eq("ticker", ticker) \
         .order("period_date", desc=True).limit(8).execute().data
 

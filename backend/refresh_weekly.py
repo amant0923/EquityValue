@@ -193,21 +193,32 @@ def refresh_segments(ticker: str) -> int:
 
 
 def main():
+    import sys
     tickers = get_all_tickers()
-    print(f"Weekly refresh for {len(tickers)} tickers\n")
+    total = len(tickers)
+    print(f"Weekly refresh for {total} tickers\n")
 
+    success, fail = 0, 0
     for i, ticker in enumerate(tickers):
-        print(f"[{i+1}/{len(tickers)}] {ticker}...", end=" ", flush=True)
+        print(f"[{i+1}/{total}] {ticker}...", end=" ", flush=True)
         try:
             km = refresh_key_metrics(ticker)
             gr = refresh_growth(ticker)
             dv = refresh_dividends(ticker)
             sg = refresh_segments(ticker)
             print(f"✓ metrics:{km} growth:{gr} divs:{dv} segs:{sg}")
+            success += 1
         except Exception as e:
             print(f"✗ {e}")
+            fail += 1
 
-    print("\nDone.")
+    print(f"\nResults: {success} succeeded, {fail} failed out of {total}")
+    if total > 0 and fail > total * 0.5:
+        print("ERROR: >50% failure rate")
+        sys.exit(1)
+    if fail > 0:
+        print(f"WARNING: {fail} tickers failed")
+    print("Done.")
 
 
 if __name__ == "__main__":
