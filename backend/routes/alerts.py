@@ -1,10 +1,12 @@
 """Alert subscription and history endpoints."""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-from typing import List
+from typing import List, Literal
 import os
 from supabase import create_client
 from auth import get_current_user
+from config import validate_ticker
+from rate_limit import limiter
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -15,7 +17,7 @@ router = APIRouter(prefix="/alerts")
 
 class AlertSubscription(BaseModel):
     ticker: str
-    alert_type: str  # score_threshold, score_change, verdict_flip, analyst_shift
+    alert_type: Literal["score_threshold", "score_change", "verdict_flip", "analyst_shift"]
     threshold: int | None = None
 
 
@@ -24,12 +26,14 @@ class WatchlistSync(BaseModel):
 
 
 @router.post("/subscribe")
-async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def subscribe(request: Request, body: AlertSubscription, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
+    ticker = validate_ticker(body.ticker)
     sb.table("user_alerts").insert({
         "user_id": user["sub"],
-        "ticker": body.ticker.upper(),
+        "ticker": ticker,
         "alert_type": body.alert_type,
         "threshold": body.threshold,
     }).execute()
@@ -37,7 +41,8 @@ async def subscribe(body: AlertSubscription, user=Depends(get_current_user)):
 
 
 @router.post("/sync-watchlist")
-async def sync_watchlist(body: WatchlistSync, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def sync_watchlist(request: Request, body: WatchlistSync, user=Depends(get_current_user)):
     """Auto-create score_change and verdict_flip alert subscriptions for
     each ticker in the user's watchlist, skipping any that already exist."""
     if not sb:
@@ -77,7 +82,8 @@ async def sync_watchlist(body: WatchlistSync, user=Depends(get_current_user)):
 
 
 @router.get("/subscriptions")
-async def subscriptions(user=Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def subscriptions(request: Request, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("user_alerts") \
@@ -90,7 +96,8 @@ async def subscriptions(user=Depends(get_current_user)):
 
 
 @router.get("/history")
-async def history(user=Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def history(request: Request, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("alert_history") \
@@ -103,7 +110,8 @@ async def history(user=Depends(get_current_user)):
 
 
 @router.put("/{alert_id}/read")
-async def mark_read(alert_id: int, user=Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def mark_read(request: Request, alert_id: int, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
     sb.table("alert_history") \
@@ -115,7 +123,8 @@ async def mark_read(alert_id: int, user=Depends(get_current_user)):
 
 
 @router.delete("/{alert_id}")
-async def unsubscribe(alert_id: int, user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def unsubscribe(request: Request, alert_id: int, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
     sb.table("user_alerts") \

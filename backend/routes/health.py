@@ -1,9 +1,10 @@
 """Health check endpoint for uptime monitoring."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from datetime import datetime, timezone
 import time
 import os
 from supabase import create_client
+from rate_limit import limiter
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
@@ -15,7 +16,8 @@ _start_time = time.time()
 
 
 @router.get("/health")
-async def health_check():
+@limiter.limit("30/minute")
+async def health_check(request: Request):
     """Public health check for uptime monitoring."""
     # Check database connectivity
     db_status = "connected"

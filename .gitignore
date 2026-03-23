@@ -23,6 +23,7 @@ frontend/node_modules/.vite/
 .env.local
 *.env
 .worktrees/
+.claude/
 
 # One-off scripts
 backend/diagnostic_valuation.py
@@ -32,3 +33,4 @@ frontend/public/stocks/
 
 # Pytest
 backend/.pytest_cache/
+.vercel

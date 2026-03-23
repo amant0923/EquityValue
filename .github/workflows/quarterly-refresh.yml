@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
     # Note: Only users with write access to the repo can trigger manual runs
 
+permissions:
+  contents: read
+
 jobs:
   refresh:
     runs-on: ubuntu-latest

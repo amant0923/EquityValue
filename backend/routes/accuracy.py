@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 import os
 from supabase import create_client
+from config import validate_ticker
 from utils.wilson import wilson_confidence_interval
 from rate_limit import limiter
 
@@ -99,7 +100,7 @@ async def score_accuracy(request: Request):
 @limiter.limit("30/minute")
 async def ticker_accuracy(request: Request, ticker: str):
     """Per-ticker accuracy history. Pro-gated."""
-    ticker = ticker.upper().strip()
+    ticker = validate_ticker(ticker)
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("accuracy_tracking") \

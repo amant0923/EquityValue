@@ -518,14 +518,17 @@ async def search(query: str, request: Request, user: dict = Depends(get_current_
         return cached
     try:
         q = query.upper()
+        # Escape ILIKE pattern metacharacters to prevent wildcard abuse
+        q_escaped = re.sub(r'([%_])', r'\\\1', q)
+        name_escaped = re.sub(r'([%_])', r'\\\1', query)
         # Search by ticker prefix first, then by name
         by_ticker = _supabase.table("stock_fundamentals")\
             .select("ticker,name,sector")\
-            .ilike("ticker", f"{q}%")\
+            .ilike("ticker", f"{q_escaped}%")\
             .limit(5).execute().data
         by_name = _supabase.table("stock_fundamentals")\
             .select("ticker,name,sector")\
-            .ilike("name", f"%{query}%")\
+            .ilike("name", f"%{name_escaped}%")\
             .limit(5).execute().data
         # Merge, deduplicate, prefer ticker matches first
         seen = set()
