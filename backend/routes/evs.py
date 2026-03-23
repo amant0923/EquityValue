@@ -14,7 +14,7 @@ router = APIRouter(prefix="/evs")
 
 @router.get("/top")
 @limiter.limit("30/minute")
-async def evs_top(request: Request, limit: int = Query(default=20, le=50)):
+async def evs_top(request: Request, limit: int = Query(default=20, ge=1, le=50)):
     """Top N highest EVS scores. Public endpoint for SEO."""
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -28,7 +28,7 @@ async def evs_top(request: Request, limit: int = Query(default=20, le=50)):
 
 @router.get("/bottom")
 @limiter.limit("30/minute")
-async def evs_bottom(request: Request, limit: int = Query(default=20, le=50)):
+async def evs_bottom(request: Request, limit: int = Query(default=20, ge=1, le=50)):
     """Bottom N lowest EVS scores. Public endpoint for SEO."""
     if not sb:
         raise HTTPException(503, "Database not configured")

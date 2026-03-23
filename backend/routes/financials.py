@@ -14,6 +14,8 @@ router = APIRouter()
 async def get_financials(request: Request, ticker: str, period: str = "annual"):
     """Get all 3 financial statements. period=annual|quarterly"""
     ticker = validate_ticker(ticker)
+    if period not in ("annual", "quarterly"):
+        raise HTTPException(400, "Invalid period. Use 'annual' or 'quarterly'.")
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
     result = {}
@@ -50,6 +52,8 @@ async def get_growth(request: Request, ticker: str):
 @limiter.limit("30/minute")
 async def get_metrics(request: Request, ticker: str, period: str = "annual"):
     ticker = validate_ticker(ticker)
+    if period not in ("annual", "quarterly"):
+        raise HTTPException(400, "Invalid period. Use 'annual' or 'quarterly'.")
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
     rows = supabase.table("key_metrics") \
