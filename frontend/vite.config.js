@@ -13,11 +13,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/") || id.includes("node_modules/react-router")) return "vendor-react";
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "vendor-charts";
-          if (id.includes("node_modules/framer-motion")) return "vendor-motion";
-          if (id.includes("node_modules/@supabase")) return "vendor-supabase";
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-charts": ["recharts"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-supabase": ["@supabase/supabase-js"],
         },
       },
     },
