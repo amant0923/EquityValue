@@ -6,7 +6,6 @@ import hmac
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Body, Request
 from auth import get_current_user
-from supabase import create_client
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -74,9 +73,11 @@ def _verify_admin_token(token: str) -> bool:
 
 def _get_sb():
     """Get Supabase client with service_role key (bypasses RLS)."""
-    if not SUPABASE_SERVICE_KEY:
+    from db import get_supabase_service
+    sb = get_supabase_service()
+    if not sb:
         raise HTTPException(500, "SUPABASE_SERVICE_KEY not configured — required for admin access")
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    return sb
 
 
 def _require_admin_from_request(request: Request):

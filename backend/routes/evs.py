@@ -55,7 +55,7 @@ async def evs_sector_summaries(request: Request):
 
 @router.get("/sector/{sector}")
 @limiter.limit("30/minute")
-async def evs_by_sector(request: Request, sector: str, limit: int = Query(default=50, le=100)):
+async def evs_by_sector(request: Request, sector: str, limit: int = Query(default=50, ge=1, le=100)):
     """All tickers in a sector, sorted by EVS score."""
     sb = get_supabase()
     if not sb:
