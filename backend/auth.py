@@ -49,6 +49,11 @@ async def get_current_user(request: Request) -> dict:
                     "role": "authenticated",
                 }
         except Exception as e:
+            err_msg = str(e).lower()
+            if "expired" in err_msg or "invalid" in err_msg:
+                logger.info(f"Supabase auth: token rejected (expected): {e}")
+                detail = "Token expired" if "expired" in err_msg else "Invalid token"
+                raise HTTPException(status_code=401, detail=detail)
             logger.error(f"Supabase auth verification failed: {e}")
             raise HTTPException(status_code=401, detail="Authentication failed")
 
