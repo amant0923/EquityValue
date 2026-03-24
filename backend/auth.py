@@ -28,9 +28,10 @@ async def get_current_user(request: Request) -> dict:
     token = auth_header.split(" ")[1]
 
     # Try local JWT verification first (fast path)
+    # Supports both legacy HS256 (shared secret) and new ES256 (ECC P-256) keys
     if SUPABASE_JWT_SECRET:
         try:
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256", "ES256"], audience="authenticated")
             return payload
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token expired")
