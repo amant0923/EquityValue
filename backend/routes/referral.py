@@ -6,7 +6,7 @@ import secrets
 import logging
 from auth import get_current_user
 from rate_limit import limiter
-from db import get_supabase
+from db import get_supabase_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class ReferralSignup(BaseModel):
 @limiter.limit("10/minute")
 async def track_referral(request: Request, body: ReferralSignup, user=Depends(get_current_user)):
     """Track that a new user signed up via referral link."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     code = body.referral_code.strip()
@@ -63,7 +63,7 @@ async def track_referral(request: Request, body: ReferralSignup, user=Depends(ge
 @limiter.limit("10/minute")
 async def convert_referral(request: Request, user=Depends(get_current_user)):
     """Called when a referred user upgrades to paid. Awards credit to referrer."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     # Find the referral record
@@ -89,7 +89,7 @@ async def convert_referral(request: Request, user=Depends(get_current_user)):
 @limiter.limit("10/minute")
 async def get_referral_code(request: Request, user=Depends(get_current_user)):
     """Get or generate the user's cryptographically random referral code."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     user_id = user["sub"]
@@ -109,7 +109,7 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
 @limiter.limit("10/minute")
 async def referral_stats(request: Request, user=Depends(get_current_user)):
     """Get referral stats for current user."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     referrer_id = user["sub"]

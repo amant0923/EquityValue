@@ -45,10 +45,13 @@ if sentry_dsn:
         pass
 
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
+# Uses service key to bypass RLS — backend is trusted, RLS protects against
+# direct PostgREST access via the public anon key.
 from config import SUPABASE_URL, SUPABASE_KEY
 try:
     from supabase import create_client as _create_sb
-    _supabase = _create_sb(SUPABASE_URL, SUPABASE_KEY)
+    _svc_key = os.environ.get("SUPABASE_SERVICE_KEY", "") or SUPABASE_KEY
+    _supabase = _create_sb(SUPABASE_URL, _svc_key)
 except Exception as _e:
     logging.getLogger(__name__).warning("Supabase init failed")
     _supabase = None

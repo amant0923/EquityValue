@@ -7,7 +7,7 @@ import logging
 import stripe
 from auth import get_current_user
 from rate_limit import limiter
-from db import get_supabase
+from db import get_supabase_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/pricing")
 @limiter.limit("30/minute")
 async def lifetime_status(request: Request):
     """Check if lifetime deal is still available and how many are left."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         return {"available": False, "remaining": 0}
     try:
@@ -41,7 +41,7 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
     """Create Stripe checkout for $99 lifetime Pro deal."""
     if not stripe.api_key or not STRIPE_LIFETIME_PRICE_ID:
         raise HTTPException(503, "Lifetime deal not configured")
-    sb = get_supabase()
+    sb = get_supabase_service()
     if sb:
         rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
         if len(rows) >= LIFETIME_CAP - 5:  # Buffer of 5 to account for concurrent requests
@@ -83,7 +83,7 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
         raise HTTPException(400, "Invalid .edu email format")
     # Generate a verification token and store it (pending state)
     token = secrets.token_urlsafe(32)
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     try:
@@ -124,7 +124,7 @@ async def confirm_student(request: Request, body: StudentConfirm, user=Depends(g
     """Confirm student status by validating the email verification token."""
     import hmac
     from datetime import datetime, timezone, timedelta
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     profile = sb.table("user_profiles").select(
@@ -159,7 +159,7 @@ async def student_checkout(request: Request, user=Depends(get_current_user)):
     if not stripe.api_key:
         raise HTTPException(503, "Payment not configured")
     # Verify student status
-    sb = get_supabase()
+    sb = get_supabase_service()
     if sb:
         profile = sb.table("user_profiles").select("student_verified").eq("id", user["sub"]).single().execute().data
         if not profile or not profile.get("student_verified"):

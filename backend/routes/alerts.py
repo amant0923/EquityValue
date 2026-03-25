@@ -5,7 +5,7 @@ from typing import List, Literal
 from auth import get_current_user
 from config import validate_ticker
 from rate_limit import limiter
-from db import get_supabase
+from db import get_supabase_service
 
 router = APIRouter(prefix="/alerts")
 
@@ -23,7 +23,7 @@ class WatchlistSync(BaseModel):
 @router.post("/subscribe")
 @limiter.limit("10/minute")
 async def subscribe(request: Request, body: AlertSubscription, user=Depends(get_current_user)):
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     ticker = validate_ticker(body.ticker)
@@ -41,7 +41,7 @@ async def subscribe(request: Request, body: AlertSubscription, user=Depends(get_
 async def sync_watchlist(request: Request, body: WatchlistSync, user=Depends(get_current_user)):
     """Auto-create score_change and verdict_flip alert subscriptions for
     each ticker in the user's watchlist, skipping any that already exist."""
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
 
@@ -81,7 +81,7 @@ async def sync_watchlist(request: Request, body: WatchlistSync, user=Depends(get
 @router.get("/subscriptions")
 @limiter.limit("30/minute")
 async def subscriptions(request: Request, user=Depends(get_current_user)):
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("user_alerts") \
@@ -96,7 +96,7 @@ async def subscriptions(request: Request, user=Depends(get_current_user)):
 @router.get("/history")
 @limiter.limit("30/minute")
 async def history(request: Request, user=Depends(get_current_user)):
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     rows = sb.table("alert_history") \
@@ -111,7 +111,7 @@ async def history(request: Request, user=Depends(get_current_user)):
 @router.put("/{alert_id}/read")
 @limiter.limit("30/minute")
 async def mark_read(request: Request, alert_id: int, user=Depends(get_current_user)):
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     sb.table("alert_history") \
@@ -125,7 +125,7 @@ async def mark_read(request: Request, alert_id: int, user=Depends(get_current_us
 @router.delete("/{alert_id}")
 @limiter.limit("10/minute")
 async def unsubscribe(request: Request, alert_id: int, user=Depends(get_current_user)):
-    sb = get_supabase()
+    sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
     sb.table("user_alerts") \
