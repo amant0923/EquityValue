@@ -65,9 +65,9 @@ async def get_user_profile(user_id: str) -> dict:
     """Fetch user profile from Supabase to check plan and limits."""
     sb = _get_supabase()
     if not sb:
-        return {"plan": "free", "analyses_today": 0}
+        return {"plan": "trial", "analyses_today": 0}
     try:
         result = sb.table("user_profiles").select("*").eq("id", user_id).single().execute()
-        return result.data if result.data else {"plan": "free", "analyses_today": 0}
+        return result.data if result.data else {"plan": "trial", "analyses_today": 0}
     except Exception:
-        return {"plan": "free", "analyses_today": 0}
+        return {"plan": "trial", "analyses_today": 0}

@@ -123,7 +123,7 @@ class TestAuthentication:
         result = asyncio.get_event_loop().run_until_complete(
             get_user_profile("nonexistent-user-id")
         )
-        assert result["plan"] == "free"
+        assert result["plan"] == "trial"
         assert result["analyses_today"] == 0
 
 

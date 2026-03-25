@@ -10,6 +10,10 @@ const api = axios.create({
 // Supabase's onAuthStateChange fires whenever the token refreshes or user logs in/out.
 let _cachedToken = null;
 
+// Guard flag: when true, ignore token-restoring events (e.g. TOKEN_REFRESHED
+// racing with signOut). Must be set by calling clearAuthToken() before signOut.
+let _signingOut = false;
+
 if (supabase) {
   // Seed with current session (if any)
   supabase.auth.getSession().then(({ data }) => {
@@ -17,7 +21,10 @@ if (supabase) {
   });
 
   // Keep token in sync — fires on login, logout, and token refresh
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    // While signing out, ignore events that would restore the token
+    if (_signingOut && event !== "SIGNED_OUT") return;
+    if (event === "SIGNED_OUT") _signingOut = false;
     _cachedToken = session?.access_token || null;
   });
 }
@@ -31,6 +38,15 @@ api.interceptors.request.use((config) => {
 
 export function getAuthToken() {
   return _cachedToken;
+}
+
+/**
+ * Call before supabase.auth.signOut() to prevent TOKEN_REFRESHED events
+ * from restoring the cached token during logout.
+ */
+export function clearAuthToken() {
+  _signingOut = true;
+  _cachedToken = null;
 }
 
 export default api;

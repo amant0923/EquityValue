@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { clearAuthToken } from "../lib/api";
 import { TIER_LIMITS, isFeatureAllowed, getFeatureLimit } from "../lib/features";
 
 const AuthContext = createContext({});
@@ -16,6 +17,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const signingOutRef = useRef(false);
 
   // Fetch user profile (plan, usage) from Supabase
   const fetchProfile = async (userId) => {
@@ -118,6 +120,11 @@ export function AuthProvider({ children }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // While signing out, ignore events that would restore the session
+      // (e.g. TOKEN_REFRESHED from an in-flight auto-refresh)
+      if (signingOutRef.current && event !== "SIGNED_OUT") return;
+      if (event === "SIGNED_OUT") signingOutRef.current = false;
+
       const u = session?.user || null;
       setUser(u);
       if (u) {
@@ -144,7 +151,11 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
-    // Always clear local state first — ensures single-click logout even if API fails
+    // Guard: prevent onAuthStateChange from restoring the session
+    // (e.g. if a background token refresh completes during sign-out)
+    signingOutRef.current = true;
+    // Also clear the api.js token cache to prevent stale tokens on API calls
+    clearAuthToken();
     setUser(null);
     setProfile(null);
     if (!supabase) return;

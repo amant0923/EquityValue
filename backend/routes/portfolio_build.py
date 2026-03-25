@@ -168,8 +168,8 @@ async def build_portfolio(request: Request, body: BuildRequest, user: dict = Dep
     # Check portfolio limit if confirming
     if body.confirm:
         profile = await get_user_profile(user_id)
-        plan = profile.get("plan", "free")
-        max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["free"])[0]
+        plan = profile.get("plan", "trial")
+        max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["trial"])[0]
         existing = (
             _sb().table("user_portfolios")
             .select("id", count="exact")
@@ -254,13 +254,13 @@ async def optimize_portfolio(request: Request, body: OptimizeRequest, user: dict
 
     # Pro+ gate
     profile = await get_user_profile(user_id)
-    plan = profile.get("plan", "free")
-    if plan == "free":
-        raise HTTPException(403, "Portfolio optimization requires a Pro or Max plan.")
+    plan = profile.get("plan", "trial")
+    if plan in ("trial", "expired"):
+        raise HTTPException(403, "Portfolio optimization requires a Pro or Lifetime plan.")
 
     # Check portfolio limit if confirming
     if body.confirm:
-        max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["free"])[0]
+        max_portfolios = PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["trial"])[0]
         existing = (
             _sb().table("user_portfolios")
             .select("id", count="exact")

@@ -266,7 +266,7 @@ def send_digest():
             email = auth_user.user.email if auth_user and auth_user.user else None
             if not email:
                 continue
-            is_pro = user.get("plan", "free") in ("pro", "max")
+            is_pro = user.get("plan", "trial") in ("pro", "lifetime")
             if is_pro:
                 # Build personalized watchlist movers for this user
                 watchlist_tickers = get_user_watchlist_tickers(user["id"])

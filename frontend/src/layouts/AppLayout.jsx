@@ -89,8 +89,12 @@ export default function AppLayout() {
                     className="topbar-user-btn"
                     onClick={async () => {
                       setSigningOut(true);
-                      await signOut();
-                      navigate("/");
+                      try {
+                        await signOut();
+                        navigate("/");
+                      } finally {
+                        setSigningOut(false);
+                      }
                     }}
                     disabled={signingOut}
                     title="Sign out"

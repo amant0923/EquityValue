@@ -11,8 +11,8 @@ if not STRIPE_WEBHOOK_SECRET:
 PLAN_PRICE_IDS = {
     "pro": os.environ.get("STRIPE_PRO_PRICE_ID", ""),
     "pro_annual": os.environ.get("STRIPE_PRO_ANNUAL_PRICE_ID", ""),
-    "max": os.environ.get("STRIPE_MAX_PRICE_ID", ""),
-    "max_annual": os.environ.get("STRIPE_MAX_ANNUAL_PRICE_ID", ""),
+    "lifetime": os.environ.get("STRIPE_MAX_PRICE_ID", ""),
+    "lifetime_annual": os.environ.get("STRIPE_MAX_ANNUAL_PRICE_ID", ""),
 }
 
 

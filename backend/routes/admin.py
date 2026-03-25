@@ -117,7 +117,7 @@ async def admin_login(request: Request, username: str = Body(...), password: str
         raise HTTPException(503, "Admin token signing not configured")
     if not ADMIN_USERNAME or not ADMIN_PASSWORD:
         raise HTTPException(503, "Admin credentials not configured")
-    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+    if not hmac.compare_digest(username, ADMIN_USERNAME) or not hmac.compare_digest(password, ADMIN_PASSWORD):
         raise HTTPException(401, "Invalid username or password")
     token = _make_admin_token()
     return {"token": token}
@@ -158,7 +158,7 @@ async def list_users(request: Request):
             "created_at": au.created_at.isoformat() if au.created_at else None,
             "last_sign_in": au.last_sign_in_at.isoformat() if au.last_sign_in_at else None,
             "email_confirmed": au.email_confirmed_at is not None,
-            "plan": profile.get("plan", "free"),
+            "plan": profile.get("plan", "trial"),
             "analyses_today": profile.get("analyses_today", 0),
             "last_analysis_date": str(profile.get("last_analysis_date", "")),
             "stripe_customer_id": profile.get("stripe_customer_id"),
@@ -176,8 +176,8 @@ async def update_user_plan(
     plan: str = Body(..., embed=True),
 ):
     await _require_admin(request)
-    if plan not in ("free", "pro", "max"):
-        raise HTTPException(400, "Plan must be free, pro, or max")
+    if plan not in ("trial", "expired", "pro", "lifetime"):
+        raise HTTPException(400, "Plan must be trial, expired, pro, or lifetime")
     sb = _get_sb()
     try:
         sb.table("user_profiles").update({"plan": plan}).eq("id", user_id).execute()
@@ -274,9 +274,9 @@ async def admin_margins(request: Request):
         profiles = []
     plan_counts = {}
     for p in profiles:
-        plan = p.get("plan", "free")
+        plan = p.get("plan", "trial")
         plan_counts[plan] = plan_counts.get(plan, 0) + 1
-    price_map = {"pro": 30, "max": 50, "lifetime": 0}
+    price_map = {"pro": 30, "lifetime": 50}
     subscribers = [{"plan": k, "count": v, "mrr": v * price_map.get(k, 0)} for k, v in plan_counts.items()]
     revenue = sum(s["mrr"] for s in subscribers)
 
