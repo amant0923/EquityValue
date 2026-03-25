@@ -6,6 +6,7 @@ import SearchBar from "../components/SearchBar";
 import { HeroGraphic } from "../components/ui/css-background";
 import { ShaderAnimation } from "../components/ui/shader-animation";
 import { GlowingEffect } from "../components/ui/glowing-effect";
+import UpgradeModal from "../components/UpgradeModal";
 
 const FEATURES = [
   { icon: <Activity className="w-5 h-5" />, title: "12 Valuation Models", desc: "DCF, comparables, Graham Number, DDM — all run simultaneously and synthesised into one verdict." },
@@ -68,6 +69,7 @@ const fadeUp = {
 
 export default function LandingPage({ ticker, setTicker, onSearch, loading, onEnterApp }) {
   const [annual, setAnnual] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   return (
     <div className="relative max-w-[1100px] mx-auto px-8 pb-20 flex flex-col gap-24 md:gap-28">
 
@@ -341,7 +343,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
                   plan.ctaStyle === "outline" && "bg-transparent text-text border border-border2 hover:border-primary hover:text-primary2",
                   plan.ctaStyle === "featured" && "bg-gradient-to-r from-indigo to-[#7c3aed] text-white border-none shadow-[0_4px_24px_rgba(129,140,248,0.25)] hover:opacity-90 hover:-translate-y-px",
                 )}
-                onClick={onEnterApp}
+                onClick={() => plan.ctaStyle === "primary" ? setShowUpgrade(true) : onEnterApp()}
               >
                 {plan.cta}
               </button>
@@ -398,6 +400,8 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         Valuations are model estimates, not guarantees. Past accuracy does not predict future results.
         Always do your own research and consult a licensed financial advisor.
       </div>
+
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason="upgrade" />}
     </div>
   );
 }
