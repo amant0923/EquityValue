@@ -31,8 +31,9 @@ async def lifetime_status(request: Request):
         sold = len(rows)
         remaining = max(0, LIFETIME_CAP - sold)
         return {"available": remaining > 0, "remaining": remaining, "price": 99, "total": LIFETIME_CAP}
-    except Exception:
-        return {"available": True, "remaining": LIFETIME_CAP, "price": 99, "total": LIFETIME_CAP}
+    except Exception as e:
+        logger.error("Failed to check lifetime deal availability: %s", e)
+        return {"available": False, "remaining": 0, "price": 99, "total": LIFETIME_CAP}
 
 
 @router.post("/lifetime/checkout")
@@ -68,6 +69,10 @@ class StudentVerify(BaseModel):
 
 class StudentConfirm(BaseModel):
     token: str
+
+
+class StudentCheckoutRequest(BaseModel):
+    plan: str = "pro"
 
 
 @router.post("/student/verify")
@@ -154,7 +159,7 @@ async def confirm_student(request: Request, body: StudentConfirm, user=Depends(g
 
 @router.post("/student/checkout")
 @limiter.limit("5/minute")
-async def student_checkout(request: Request, user=Depends(get_current_user)):
+async def student_checkout(request: Request, body: StudentCheckoutRequest, user=Depends(get_current_user)):
     """Create Stripe checkout with 50% student discount applied."""
     if not stripe.api_key:
         raise HTTPException(503, "Payment not configured")
@@ -164,8 +169,7 @@ async def student_checkout(request: Request, user=Depends(get_current_user)):
         profile = sb.table("user_profiles").select("student_verified").eq("id", user["sub"]).single().execute().data
         if not profile or not profile.get("student_verified"):
             raise HTTPException(400, "Please verify your .edu email first")
-    body = await request.json()
-    plan = body.get("plan", "pro")
+    plan = body.plan
     from stripe_handler import get_price_id
     price_id = get_price_id(plan)
     if not price_id:

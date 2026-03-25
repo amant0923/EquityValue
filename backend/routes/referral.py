@@ -55,7 +55,8 @@ async def track_referral(request: Request, body: ReferralSignup, user=Depends(ge
             "status": "signed_up",
         }, on_conflict="referee_id").execute()
     except Exception as e:
-        logger.error("Referral tracking failed")
+        logger.error("Referral tracking failed: %s", e)
+        raise HTTPException(500, "Failed to track referral. Please try again.")
     return {"status": "tracked"}
 
 
@@ -81,7 +82,8 @@ async def convert_referral(request: Request, user=Depends(get_current_user)):
             "referral_credits": current_credits + 1,
         }).eq("id", ref["referrer_id"]).execute()
     except Exception as e:
-        logger.error("Referral conversion credit failed")
+        logger.error("Referral conversion credit failed: %s", e)
+        return {"status": "converted", "referrer_credited": False}
     return {"status": "converted", "referrer_credited": True}
 
 
@@ -103,6 +105,7 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
     except Exception:
         logger.error("Failed to save referral code")
         raise HTTPException(500, "Could not generate referral code")
+    return {"code": code}
 
 
 @router.get("/stats")

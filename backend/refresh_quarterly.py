@@ -4,6 +4,7 @@ Fetches 5 years of quarterly + annual data from FMP and upserts into Supabase.
 Usage: FMP_KEY=... SUPABASE_URL=... SUPABASE_KEY=... python3 refresh_quarterly.py
 """
 import os
+import re
 import time
 from datetime import datetime
 from supabase import create_client
@@ -167,6 +168,13 @@ def upsert_statement(record: dict):
     clean = {k: v for k, v in record.items() if v is not None}
     if not clean.get("period_date"):
         return
+    # Validate date format
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', clean["period_date"]):
+        return
+    # Require at least one data field beyond metadata
+    metadata_fields = {"ticker", "statement_type", "period_date", "period_type"}
+    if not any(k for k in clean if k not in metadata_fields):
+        return  # Skip empty statements
     supabase.table("financial_statements").upsert(
         clean, on_conflict="ticker,period_date,period_type,statement_type"
     ).execute()
@@ -195,6 +203,8 @@ def fetch_earnings(ticker: str):
         if record.get("revenue_actual") is not None and record.get("revenue_estimate") is not None:
             record["revenue_surprise"] = record["revenue_actual"] - record["revenue_estimate"]
 
+        if record.get("eps_actual") is None and record.get("eps_estimate") is None:
+            continue  # Skip earnings records with no EPS data
         clean = {k: v for k, v in record.items() if v is not None}
         if clean.get("date"):
             supabase.table("earnings_history").upsert(

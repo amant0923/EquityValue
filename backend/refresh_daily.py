@@ -20,6 +20,14 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+def _validate_record(record: dict, required_fields: list[str]) -> bool:
+    """Check that required fields exist and are non-null."""
+    for field in required_fields:
+        if record.get(field) is None:
+            return False
+    return True
+
+
 def get_all_tickers():
     rows = supabase.table("stock_fundamentals").select("ticker").execute().data
     return [r["ticker"] for r in rows]
@@ -58,6 +66,9 @@ def refresh_analyst(ticker: str) -> bool:
         } for g in grades[:10]])
 
     clean = {k: v for k, v in record.items() if v is not None}
+    # Skip if we got no meaningful data from FMP
+    if len(clean) <= 2:  # only ticker + updated_date
+        return False
     supabase.table("analyst_data").upsert(clean, on_conflict="ticker").execute()
     return True
 
@@ -78,6 +89,8 @@ def refresh_insider(ticker: str) -> int:
             "shares_owned_after": _safe(row.get("securitiesOwned")),
         }
         shares = record.get("shares_traded")
+        if shares and shares <= 0:
+            continue  # Skip nonsensical negative/zero share trades
         price = record.get("price")
         if shares and price:
             record["total_value"] = abs(shares * price)
@@ -142,6 +155,9 @@ def refresh_scores(ticker: str) -> bool:
         record["owner_earnings_per_share"] = _safe(d.get("ownerEarningsPerShare"))
 
     clean = {k: v for k, v in record.items() if v is not None}
+    # Skip if we got no score data
+    if len(clean) <= 2:  # only ticker + updated_date
+        return False
     supabase.table("company_scores").upsert(clean, on_conflict="ticker").execute()
     return True
 

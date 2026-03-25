@@ -40,6 +40,9 @@ async def get_financials(request: Request, ticker: str, period: str = "annual"):
 @limiter.limit("30/minute")
 async def get_growth(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
     rows = sb.table("growth_metrics") \
         .select("*") \
         .eq("ticker", ticker) \
@@ -55,6 +58,9 @@ async def get_metrics(request: Request, ticker: str, period: str = "annual"):
     ticker = validate_ticker(ticker)
     if period not in ("annual", "quarterly"):
         raise HTTPException(400, "Invalid period. Use 'annual' or 'quarterly'.")
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
     period_types = ["FY"] if period == "annual" else ["Q1", "Q2", "Q3", "Q4"]
 
     rows = sb.table("key_metrics") \
@@ -71,10 +77,14 @@ async def get_metrics(request: Request, ticker: str, period: str = "annual"):
 @limiter.limit("30/minute")
 async def get_segments(request: Request, ticker: str):
     ticker = validate_ticker(ticker)
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
     rows = sb.table("revenue_segments") \
         .select("*") \
         .eq("ticker", ticker) \
         .order("period_date", desc=True) \
+        .limit(50) \
         .execute().data
 
     product = [r for r in rows if r.get("segment_type") == "product"]

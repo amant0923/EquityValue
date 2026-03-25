@@ -16,9 +16,10 @@ router = APIRouter()
 
 # Tier limits: {plan: (max_portfolios, max_holdings_per_portfolio)}
 PORTFOLIO_LIMITS = {
-    "free": (1, 5),
+    "trial": (1, 5),
+    "expired": (0, 0),
     "pro": (5, 25),
-    "max": (999999, 999999),
+    "lifetime": (999999, 999999),
 }
 
 
@@ -42,8 +43,8 @@ class EditHoldingRequest(BaseModel):
 async def _get_limits(user_id: str):
     """Return (max_portfolios, max_holdings) for user's plan."""
     profile = await get_user_profile(user_id)
-    plan = profile.get("plan", "free")
-    return PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["free"])
+    plan = profile.get("plan", "trial")
+    return PORTFOLIO_LIMITS.get(plan, PORTFOLIO_LIMITS["trial"])
 
 
 async def _verify_portfolio_owner(portfolio_id: str, user_id: str):
@@ -70,13 +71,20 @@ async def list_portfolios(request: Request, user: dict = Depends(get_current_use
         .order("created_at") \
         .execute().data or []
 
-    # Attach holding count to each portfolio
-    for p in portfolios:
-        count = _sb().table("portfolio_holdings") \
-            .select("id", count="exact") \
-            .eq("portfolio_id", p["id"]) \
-            .execute()
-        p["holding_count"] = count.count if count.count is not None else 0
+    # Attach holding count to each portfolio (single batch query instead of N+1)
+    portfolio_ids = [p["id"] for p in portfolios]
+    if portfolio_ids:
+        from collections import Counter
+        all_holdings = _sb().table("portfolio_holdings") \
+            .select("portfolio_id") \
+            .in_("portfolio_id", portfolio_ids) \
+            .execute().data or []
+        holding_counts = Counter(h["portfolio_id"] for h in all_holdings)
+        for p in portfolios:
+            p["holding_count"] = holding_counts.get(p["id"], 0)
+    else:
+        for p in portfolios:
+            p["holding_count"] = 0
 
     max_portfolios, max_holdings = await _get_limits(user_id)
     return {

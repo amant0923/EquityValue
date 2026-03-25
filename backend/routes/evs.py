@@ -44,8 +44,8 @@ async def evs_sector_summaries(request: Request):
     sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
-    evs_result = sb.table("equity_value_scores").select("ticker, score, verdict").execute()
-    fund_result = sb.table("stock_fundamentals").select("ticker, sector").execute()
+    evs_result = sb.table("equity_value_scores").select("ticker, score, verdict").limit(1000).execute()
+    fund_result = sb.table("stock_fundamentals").select("ticker, sector").limit(1000).execute()
     sector_map = {f["ticker"]: f["sector"] for f in fund_result.data}
     scores = [{"ticker": r["ticker"], "score": r["score"], "sector": sector_map.get(r["ticker"], "Unknown")}
               for r in evs_result.data if r["ticker"] in sector_map]
@@ -57,6 +57,9 @@ async def evs_sector_summaries(request: Request):
 @limiter.limit("30/minute")
 async def evs_by_sector(request: Request, sector: str, limit: int = Query(default=50, ge=1, le=100)):
     """All tickers in a sector, sorted by EVS score."""
+    # Validate sector input to prevent injection via PostgREST operators
+    if not sector or len(sector) > 100 or not all(c.isalnum() or c in (' ', '&', '-') for c in sector):
+        raise HTTPException(400, "Invalid sector name")
     sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
@@ -114,8 +117,12 @@ async def evs_detail(request: Request, ticker: str):
             sector_tickers = sb.table("stock_fundamentals") \
                 .select("ticker, sector, industry") \
                 .eq("sector", sector).execute().data
+            sector_ticker_list = [t["ticker"] for t in sector_tickers]
+            # Only fetch EVS scores for tickers in this sector (not ALL scores)
             sector_evs = sb.table("equity_value_scores") \
-                .select("ticker, score").execute().data
+                .select("ticker, score") \
+                .in_("ticker", sector_ticker_list) \
+                .execute().data if sector_ticker_list else []
             evs_map = {e["ticker"]: e["score"] for e in sector_evs}
             scores = [{"ticker": t["ticker"], "score": evs_map.get(t["ticker"], 0),
                        "sector": t["sector"], "industry": t.get("industry", "")}

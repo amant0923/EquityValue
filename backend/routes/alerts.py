@@ -46,7 +46,12 @@ async def sync_watchlist(request: Request, body: WatchlistSync, user=Depends(get
         raise HTTPException(503, "Database not configured")
 
     user_id = user["sub"]
-    tickers = [t.upper().strip() for t in body.tickers if t.strip()]
+    tickers = []
+    for t in body.tickers:
+        try:
+            tickers.append(validate_ticker(t))
+        except Exception:
+            continue  # Skip invalid tickers silently
     if not tickers:
         return {"created": 0, "skipped": 0}
 
@@ -61,19 +66,24 @@ async def sync_watchlist(request: Request, body: WatchlistSync, user=Depends(get
     created = 0
     skipped = 0
     auto_types = ["score_change", "verdict_flip"]
+    to_insert = []
 
     for ticker in tickers:
         for alert_type in auto_types:
             if (ticker, alert_type) in existing_keys:
                 skipped += 1
                 continue
-            sb.table("user_alerts").insert({
+            to_insert.append({
                 "user_id": user_id,
                 "ticker": ticker,
                 "alert_type": alert_type,
                 "threshold": None,
-            }).execute()
+            })
             created += 1
+
+    # Batch insert all new alert subscriptions at once
+    if to_insert:
+        sb.table("user_alerts").insert(to_insert).execute()
 
     return {"created": created, "skipped": skipped}
 

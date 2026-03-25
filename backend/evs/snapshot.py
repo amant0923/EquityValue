@@ -268,15 +268,18 @@ def fire_alerts():
     # Compute volatility-based thresholds for score_change alerts
     thresholds, volatilities = _compute_volatility_thresholds()
 
-    # Store volatility_30d on equity_value_scores for each ticker
-    for ticker, vol in volatilities.items():
-        if vol is not None:
-            try:
-                sb.table("equity_value_scores").update({
-                    "volatility_30d": vol,
-                }).eq("ticker", ticker).execute()
-            except Exception as e:
-                print(f"  VOLATILITY UPDATE ERROR {ticker}: {e}")
+    # Store volatility_30d on equity_value_scores for each ticker.
+    # One update per ticker (supabase-py doesn't support bulk update).
+    vol_items = [(t, v) for t, v in volatilities.items() if v is not None]
+    for i, (ticker, vol) in enumerate(vol_items):
+        try:
+            sb.table("equity_value_scores").update({
+                "volatility_30d": vol,
+            }).eq("ticker", ticker).execute()
+        except Exception as e:
+            print(f"  VOLATILITY UPDATE ERROR {ticker}: {e}")
+        if (i + 1) % 100 == 0:
+            print(f"  Volatility updates: {i + 1}/{len(vol_items)}")
 
     alerts = sb.table("user_alerts").select("*").eq("enabled", True).execute().data
 
@@ -362,12 +365,16 @@ def compute_sector_rankings():
 
     enriched = compute_sector_percentiles(scores)
 
-    for item in enriched:
+    # Update sector rankings one-by-one (supabase-py doesn't support bulk update).
+    # Progress logged every 100 tickers to reduce log noise.
+    for i, item in enumerate(enriched):
         sb.table("equity_value_scores").update({
             "sector_rank": item["sector_rank"],
             "sector_percentile": item["sector_percentile"],
             "sector_total": item["sector_total"],
         }).eq("ticker", item["ticker"]).execute()
+        if (i + 1) % 100 == 0:
+            print(f"  Sector rankings: {i + 1}/{len(enriched)}")
 
     print(f"Updated sector rankings for {len(enriched)} tickers")
 

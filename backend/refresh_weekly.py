@@ -3,8 +3,11 @@ Weekly refresh: key_metrics, growth_metrics, dividends_history, revenue_segments
 Usage: FMP_KEY=... SUPABASE_URL=... SUPABASE_KEY=... python3 refresh_weekly.py
 """
 import os
+import re
 from supabase import create_client
 from fmp_client import fmp_get_list, fmp_get_first, _safe
+
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", os.environ.get("SUPABASE_KEY", ""))
@@ -97,7 +100,7 @@ def refresh_key_metrics(ticker: str) -> int:
                 "roa": _safe(row.get("returnOnAssets")),
             }
             clean = {k: v for k, v in record.items() if v is not None}
-            if clean.get("period_date"):
+            if clean.get("period_date") and DATE_RE.match(clean["period_date"]):
                 supabase.table("key_metrics").upsert(
                     clean, on_conflict="ticker,period_date,period_type"
                 ).execute()
@@ -133,7 +136,7 @@ def refresh_growth(ticker: str) -> int:
                 "sga_expense_growth": _safe(row.get("growthSGA")),
             }
             clean = {k: v for k, v in record.items() if v is not None}
-            if clean.get("period_date"):
+            if clean.get("period_date") and DATE_RE.match(clean["period_date"]):
                 supabase.table("growth_metrics").upsert(
                     clean, on_conflict="ticker,period_date,period_type"
                 ).execute()
@@ -155,6 +158,8 @@ def refresh_dividends(ticker: str) -> int:
             "yield": _safe(row.get("yield")),
             "frequency": row.get("frequency"),
         }
+        if record.get("amount") is not None and record["amount"] <= 0:
+            continue  # Skip invalid dividend amounts
         clean = {k: v for k, v in record.items() if v is not None}
         if clean.get("ex_date"):
             supabase.table("dividends_history").upsert(
