@@ -27,8 +27,8 @@ async def lifetime_status(request: Request):
     if not sb:
         return {"available": False, "remaining": 0}
     try:
-        rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
-        sold = len(rows)
+        result = sb.table("user_profiles").select("id", count="exact").eq("plan", "lifetime").limit(1).execute()
+        sold = result.count or 0
         remaining = max(0, LIFETIME_CAP - sold)
         return {"available": remaining > 0, "remaining": remaining, "price": 99, "total": LIFETIME_CAP}
     except Exception as e:
@@ -44,8 +44,8 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
         raise HTTPException(503, "Lifetime deal not configured")
     sb = get_supabase_service()
     if sb:
-        rows = sb.table("user_profiles").select("id").eq("plan", "lifetime").execute().data or []
-        if len(rows) >= LIFETIME_CAP - 5:  # Buffer of 5 to account for concurrent requests
+        count_result = sb.table("user_profiles").select("id", count="exact").eq("plan", "lifetime").limit(1).execute()
+        if (count_result.count or 0) >= LIFETIME_CAP - 5:  # Buffer of 5 to account for concurrent requests
             raise HTTPException(410, "Lifetime deal sold out")
     try:
         session = stripe.checkout.Session.create(
@@ -59,8 +59,8 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
         )
         return {"checkout_url": session.url}
     except Exception as e:
-        logger.error("Lifetime checkout failed")
-        raise HTTPException(500, "Could not create checkout session")
+        logger.error("Lifetime checkout failed: %s", e, exc_info=True)
+        raise HTTPException(500, "Checkout failed. Please try again.")
 
 
 class StudentVerify(BaseModel):
@@ -190,5 +190,5 @@ async def student_checkout(request: Request, body: StudentCheckoutRequest, user=
         session = stripe.checkout.Session.create(**checkout_params)
         return {"checkout_url": session.url}
     except Exception as e:
-        logger.error("Student checkout failed")
-        raise HTTPException(500, "Could not create checkout session")
+        logger.error("Student checkout failed: %s", e, exc_info=True)
+        raise HTTPException(500, "Checkout failed. Please try again.")

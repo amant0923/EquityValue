@@ -45,8 +45,9 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
         setCheckoutError(res.data?.detail || "Could not start checkout. Please try again.");
         setUpgrading(false);
       }
-    } catch {
-      setCheckoutError("Could not connect to payment server. Please try again.");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setCheckoutError(detail || "Could not connect to payment server. Please try again.");
       setUpgrading(false);
     }
   };
@@ -162,7 +163,7 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
                   const ltUrl = res.data.checkout_url;
                   if (ltUrl && (ltUrl.startsWith("https://checkout.stripe.com/") || ltUrl.startsWith("https://billing.stripe.com/"))) window.location.href = ltUrl;
                   else { setCheckoutError(ltUrl ? "Invalid checkout URL received." : "Could not start checkout."); setUpgrading(false); }
-                } catch { setCheckoutError("Could not connect to payment server."); setUpgrading(false); }
+                } catch (err) { setCheckoutError(err.response?.data?.detail || "Could not connect to payment server."); setUpgrading(false); }
               }}
               disabled={upgrading}
             >

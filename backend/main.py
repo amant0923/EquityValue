@@ -137,7 +137,7 @@ async def audit_and_cost_middleware(request: Request, call_next):
                     pass  # Invalid/expired token — skip user attribution for this log entry
             # Hash IP for privacy
             ip = request.client.host if request.client else "unknown"
-            daily_salt = datetime.utcnow().strftime("%Y-%m-%d")
+            daily_salt = datetime.now().strftime("%Y-%m-%d")
             hashed_ip = _hashlib.sha256(f"{ip}{daily_salt}".encode()).hexdigest()[:16]
             # Estimate cost
             cost = 0.0001
@@ -785,6 +785,11 @@ async def top_picks(request: Request, user: dict = Depends(get_current_user)):
 @limiter.limit("5/minute")
 async def create_checkout(request: Request, body: CheckoutRequest, user: dict = Depends(get_current_user)):
     plan = body.plan
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe not configured: STRIPE_SECRET_KEY missing")
+    from stripe_handler import get_price_id
+    if not get_price_id(plan):
+        raise HTTPException(status_code=400, detail=f"No price ID configured for plan '{plan}'. Set STRIPE_PRO_PRICE_ID env var.")
     try:
         session = create_checkout_session(
             user_id=user["sub"],
@@ -797,8 +802,8 @@ async def create_checkout(request: Request, body: CheckoutRequest, user: dict = 
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid plan selected.")
     except Exception as e:
-        logger.error("Stripe checkout error")
-        raise HTTPException(status_code=500, detail="Could not create checkout session.")
+        logger.error("Stripe checkout error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Checkout failed. Please try again.")
 
 @app.post("/stripe/webhook")
 @limiter.limit("60/minute")
