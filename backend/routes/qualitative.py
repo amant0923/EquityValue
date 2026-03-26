@@ -1,8 +1,13 @@
-"""AI-powered qualitative analysis endpoints (SWOT, PESTLE)."""
+"""AI-powered qualitative analysis endpoints (SWOT, PESTLE).
+
+Data is pre-computed monthly by refresh_qualitative.py and cached in Supabase.
+POST endpoints check cache first; generate on demand only if stale/missing.
+"""
 import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
@@ -11,7 +16,6 @@ from slowapi.util import get_remote_address
 from auth import get_current_user
 from config import validate_ticker
 from db import get_supabase_service
-from redis_cache import cache_get, cache_set
 
 try:
     from rate_limit import limiter
@@ -22,13 +26,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis")
 
-SWOT_TTL = 604800  # 7 days
-PESTLE_TTL = 604800  # 7 days
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+FRESHNESS_DAYS = 30
 
 
 def _get_anthropic_client():
-    """Return an Anthropic client or raise 503 if not configured."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(503, "AI analysis not available — ANTHROPIC_API_KEY not configured")
@@ -37,7 +39,6 @@ def _get_anthropic_client():
 
 
 def _fetch_company_data(ticker: str) -> dict:
-    """Fetch fundamentals from Supabase. Returns empty dict on failure."""
     sb = get_supabase_service()
     if not sb:
         return {}
@@ -50,7 +51,6 @@ def _fetch_company_data(ticker: str) -> dict:
 
 
 def _fmt(value, prefix="", suffix="", default="N/A") -> str:
-    """Format a value for the prompt, returning default if None."""
     if value is None:
         return default
     if isinstance(value, (int, float)):
@@ -63,11 +63,9 @@ def _fmt(value, prefix="", suffix="", default="N/A") -> str:
 
 
 def _fmt_pct(value, default="N/A") -> str:
-    """Format a ratio (0.15) or percentage (15.0) as a percent string."""
     if value is None:
         return default
     if isinstance(value, (int, float)):
-        # If value looks like a ratio (between -1 and 1), multiply by 100
         if -1 < value < 1:
             return f"{value * 100:.1f}%"
         return f"{value:.1f}%"
@@ -75,44 +73,52 @@ def _fmt_pct(value, default="N/A") -> str:
 
 
 def _extract_json(text: str) -> dict:
-    """Try to parse JSON from Claude's response, with fallback regex extraction."""
-    # Direct parse
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
         pass
-
-    # Try to find JSON object in the response
     match = re.search(r"\{[\s\S]*\}", text)
     if match:
         try:
             return json.loads(match.group())
         except (json.JSONDecodeError, TypeError):
             pass
-
     raise ValueError("Could not parse JSON from AI response")
+
+
+def _is_fresh(timestamp_str) -> bool:
+    if not timestamp_str:
+        return False
+    try:
+        ts = datetime.fromisoformat(str(timestamp_str).replace("Z", "+00:00"))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=FRESHNESS_DAYS)
+        return ts > cutoff
+    except Exception:
+        return False
 
 
 # ── SWOT Analysis ────────────────────────────────────────────────────────────
 
-
 @router.post("/swot/{ticker}")
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_current_user)):
-    """Generate an AI-powered SWOT analysis for a company."""
+    """Return SWOT analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 
-    # Check cache
-    cache_key = f"swot:{ticker}"
-    cached = cache_get(cache_key)
-    if cached:
-        return cached
+    sb = get_supabase_service()
+    if sb:
+        row = sb.table("qualitative_cache").select("ticker, swot, swot_generated_at").eq("ticker", ticker).limit(1).execute().data
+        if row and row[0].get("swot") and _is_fresh(row[0].get("swot_generated_at")):
+            cached = row[0]["swot"]
+            if isinstance(cached, str):
+                cached = json.loads(cached)
+            cached["ticker"] = ticker
+            return cached
 
-    # Fetch company data
+    # Generate on demand
     data = _fetch_company_data(ticker)
     company_name = data.get("name", ticker)
     sector = data.get("sector", "Unknown")
-    industry = data.get("industry", "Unknown")
     market_cap = _fmt(data.get("market_cap"), prefix="$")
     revenue = _fmt(data.get("revenue"), prefix="$")
     profit_margin = _fmt_pct(data.get("profit_margin"))
@@ -135,8 +141,7 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
     client = _get_anthropic_client()
     try:
         response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=1000,
+            model=CLAUDE_MODEL, max_tokens=1000,
             system="Return only valid JSON, no markdown.",
             messages=[{"role": "user", "content": prompt}],
         )
@@ -160,26 +165,40 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
         "summary": parsed.get("summary", ""),
     }
 
-    cache_set(cache_key, result, ttl=SWOT_TTL)
+    # Save to cache
+    if sb:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            sb.table("qualitative_cache").upsert({
+                "ticker": ticker,
+                "swot": json.dumps(result),
+                "swot_generated_at": now,
+            }, on_conflict="ticker").execute()
+        except Exception as e:
+            logger.warning("Failed to cache SWOT for %s: %s", ticker, e)
+
     return result
 
 
 # ── PESTLE Analysis ──────────────────────────────────────────────────────────
 
-
 @router.post("/pestle/{ticker}")
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(get_current_user)):
-    """Generate an AI-powered PESTLE analysis for a company."""
+    """Return PESTLE analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 
-    # Check cache
-    cache_key = f"pestle:{ticker}"
-    cached = cache_get(cache_key)
-    if cached:
-        return cached
+    sb = get_supabase_service()
+    if sb:
+        row = sb.table("qualitative_cache").select("ticker, pestle, pestle_generated_at").eq("ticker", ticker).limit(1).execute().data
+        if row and row[0].get("pestle") and _is_fresh(row[0].get("pestle_generated_at")):
+            cached = row[0]["pestle"]
+            if isinstance(cached, str):
+                cached = json.loads(cached)
+            cached["ticker"] = ticker
+            return cached
 
-    # Fetch company data
+    # Generate on demand
     data = _fetch_company_data(ticker)
     company_name = data.get("name", ticker)
     sector = data.get("sector", "Unknown")
@@ -202,8 +221,7 @@ async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(ge
     client = _get_anthropic_client()
     try:
         response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=1500,
+            model=CLAUDE_MODEL, max_tokens=1500,
             system="Return only valid JSON, no markdown.",
             messages=[{"role": "user", "content": prompt}],
         )
@@ -228,5 +246,16 @@ async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(ge
             "factors": entry.get("factors", []),
         }
 
-    cache_set(cache_key, result, ttl=PESTLE_TTL)
+    # Save to cache
+    if sb:
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            sb.table("qualitative_cache").upsert({
+                "ticker": ticker,
+                "pestle": json.dumps(result),
+                "pestle_generated_at": now,
+            }, on_conflict="ticker").execute()
+        except Exception as e:
+            logger.warning("Failed to cache PESTLE for %s: %s", ticker, e)
+
     return result

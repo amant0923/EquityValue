@@ -1,0 +1,24 @@
+name: Monthly Qualitative Analysis
+on:
+  schedule:
+    - cron: '0 14 1-7 * 0'  # First Sunday of month, 14:00 UTC = 9am ET
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Refresh SWOT & PESTLE
+        working-directory: backend
+        run: python refresh_qualitative.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

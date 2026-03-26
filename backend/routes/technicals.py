@@ -1,4 +1,7 @@
-"""Technical analysis indicators for a given ticker."""
+"""Technical analysis indicators for a given ticker.
+
+Data is pre-computed by refresh_technicals.py and served from Supabase.
+"""
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 from slowapi import Limiter
@@ -8,8 +11,7 @@ import logging
 
 from config import validate_ticker
 from auth import get_current_user
-from redis_cache import cache_get, cache_set
-from data_fetcher import fetch_price_history
+from db import get_supabase_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,6 +21,8 @@ try:
 except Exception:
     limiter = Limiter(key_func=get_remote_address)
 
+
+# ── Computation functions (used by refresh_technicals.py) ─────────────────────
 
 def _compute_sma(closes, period):
     if len(closes) < period:
@@ -95,7 +99,6 @@ def _compute_supertrend(highs, lows, closes, period=10, multiplier=3):
     for i in range(1, len(closes)):
         tr = max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
         atr_values.append(tr)
-    # Compute ATR using SMA
     if len(atr_values) < period:
         return [], []
     atr = []
@@ -170,7 +173,6 @@ def _compute_support_resistance(closes, highs, lows, window=20):
             supports.append(lows[i])
         if highs[i] == max(highs[i - window:i + window + 1]):
             resistances.append(highs[i])
-    # Cluster nearby levels and pick top 3
     def cluster(levels, threshold_pct=0.02):
         if not levels:
             return []
@@ -196,7 +198,6 @@ def _generate_signals(rsi_last, macd_last, macd_signal_last, price, sma_20, sma_
     sell = 0
     neutral = 0
 
-    # RSI
     if rsi_last is not None:
         if rsi_last < 30:
             buy += 1
@@ -205,14 +206,12 @@ def _generate_signals(rsi_last, macd_last, macd_signal_last, price, sma_20, sma_
         else:
             neutral += 1
 
-    # MACD
     if macd_last is not None and macd_signal_last is not None:
         if macd_last > macd_signal_last:
             buy += 1
         else:
             sell += 1
 
-    # SMA crossovers
     for sma_val in [sma_20, sma_50, sma_200]:
         if sma_val is not None:
             if price > sma_val:
@@ -220,14 +219,12 @@ def _generate_signals(rsi_last, macd_last, macd_signal_last, price, sma_20, sma_
             else:
                 sell += 1
 
-    # EMA 50
     if ema_50 is not None:
         if price > ema_50:
             buy += 1
         else:
             sell += 1
 
-    # Bollinger
     if bb_upper is not None and bb_lower is not None:
         if price < bb_lower:
             buy += 1
@@ -236,7 +233,6 @@ def _generate_signals(rsi_last, macd_last, macd_signal_last, price, sma_20, sma_
         else:
             neutral += 1
 
-    # Supertrend
     if supertrend_dir is not None:
         if supertrend_dir == 1:
             buy += 1
@@ -257,7 +253,6 @@ def _generate_signals(rsi_last, macd_last, macd_signal_last, price, sma_20, sma_
 
 
 def _compute_performance(prices):
-    """Compute period returns from price history list [{date, close}]."""
     if not prices or len(prices) < 2:
         return {}
     current = prices[-1]["close"]
@@ -271,128 +266,19 @@ def _compute_performance(prices):
     return result
 
 
+# ── API Endpoint (reads from Supabase cache) ─────────────────────────────────
+
 @router.get("/technicals/{ticker}")
-@limiter.limit("30/minute")
+@limiter.limit("60/minute")
 async def get_technicals(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_current_user)):
     ticker = validate_ticker(ticker)
-    if period not in ("6mo", "1y", "2y", "5y"):
-        raise HTTPException(status_code=400, detail="Invalid period. Use 6mo, 1y, 2y, or 5y.")
 
-    cache_key = f"tech:{ticker}:{period}"
-    cached = cache_get(cache_key)
-    if cached:
-        return cached
+    sb = get_supabase_service()
+    if not sb:
+        raise HTTPException(503, "Database not configured")
 
-    history = fetch_price_history(ticker, period)
-    if not history or len(history) < 50:
-        raise HTTPException(status_code=404, detail="Insufficient price history for technical analysis.")
+    row = sb.table("technicals_cache").select("*").eq("ticker", ticker).limit(1).execute().data
+    if not row:
+        raise HTTPException(404, "Technical data not yet computed for this ticker. Check back in a few hours.")
 
-    dates = [p["date"] for p in history]
-    closes = [float(p["close"]) for p in history]
-    highs = [float(p.get("high", p["close"])) for p in history]
-    lows = [float(p.get("low", p["close"])) for p in history]
-    volumes = [int(p.get("volume", 0)) for p in history]
-
-    n = len(closes)
-
-    # RSI (14)
-    rsi_vals = _compute_rsi(closes, 14)
-    rsi_offset = n - len(rsi_vals)
-    rsi_data = [{"date": dates[rsi_offset + i], "value": round(v, 2)} for i, v in enumerate(rsi_vals)]
-
-    # SMA (20, 50, 100, 200)
-    sma_data = {}
-    for p in [20, 50, 100, 200]:
-        vals = _compute_sma(closes, p)
-        offset = n - len(vals)
-        sma_data[str(p)] = [{"date": dates[offset + i], "value": round(v, 4)} for i, v in enumerate(vals)]
-
-    # EMA (5, 21, 50, 100, 200)
-    ema_data = {}
-    for p in [5, 21, 50, 100, 200]:
-        vals = _compute_ema(closes, p)
-        offset = n - len(vals)
-        ema_data[str(p)] = [{"date": dates[offset + i], "value": round(v, 4)} for i, v in enumerate(vals)]
-
-    # MACD (12, 26, 9)
-    macd_line, signal_line, histogram = _compute_macd(closes, 12, 26, 9)
-    macd_offset = n - len(macd_line)
-    sig_offset = len(macd_line) - len(signal_line)
-    hist_offset = len(macd_line) - len(histogram)
-    macd_data = []
-    for i in range(len(macd_line)):
-        entry = {"date": dates[macd_offset + i], "macd": round(macd_line[i], 4)}
-        si = i - sig_offset
-        hi = i - hist_offset
-        entry["signal"] = round(signal_line[si], 4) if 0 <= si < len(signal_line) else None
-        entry["histogram"] = round(histogram[hi], 4) if 0 <= hi < len(histogram) else None
-        macd_data.append(entry)
-
-    # Bollinger Bands (20, 2)
-    bb_upper, bb_middle, bb_lower = _compute_bollinger(closes, 20, 2)
-    bb_offset = n - len(bb_upper)
-    bb_data = [{"date": dates[bb_offset + i], "upper": round(bb_upper[i], 4), "middle": round(bb_middle[i], 4), "lower": round(bb_lower[i], 4)} for i in range(len(bb_upper))]
-
-    # Supertrend (10, 3)
-    st_vals, st_dirs = _compute_supertrend(highs, lows, closes, 10, 3)
-    st_start = n - len(st_vals)
-    st_data = [{"date": dates[st_start + i], "supertrend": round(st_vals[i], 4), "direction": st_dirs[i]} for i in range(len(st_vals))]
-
-    # Pivot Points (last day)
-    pivots = _compute_pivot_points(highs[-1], lows[-1], closes[-1])
-
-    # Fibonacci Retracement (52-week high/low)
-    period_high = max(highs[-252:]) if len(highs) >= 252 else max(highs)
-    period_low = min(lows[-252:]) if len(lows) >= 252 else min(lows)
-    fib = _compute_fibonacci(period_high, period_low)
-
-    # Support/Resistance
-    sr = _compute_support_resistance(closes, highs, lows)
-
-    # Volume
-    volume_data = [{"date": dates[i], "volume": volumes[i]} for i in range(n)]
-
-    # Signal Summary
-    rsi_last = rsi_vals[-1] if rsi_vals else None
-    macd_last = macd_line[-1] if macd_line else None
-    macd_sig_last = signal_line[-1] if signal_line else None
-    sma_20_last = _compute_sma(closes, 20)[-1] if len(closes) >= 20 else None
-    sma_50_last = _compute_sma(closes, 50)[-1] if len(closes) >= 50 else None
-    sma_200_last = _compute_sma(closes, 200)[-1] if len(closes) >= 200 else None
-    ema_50_last = _compute_ema(closes, 50)[-1] if len(closes) >= 50 else None
-    bb_up_last = bb_upper[-1] if bb_upper else None
-    bb_lo_last = bb_lower[-1] if bb_lower else None
-    st_dir_last = st_dirs[-1] if st_dirs else None
-
-    signals = _generate_signals(
-        rsi_last, macd_last, macd_sig_last, closes[-1],
-        sma_20_last, sma_50_last, sma_200_last, ema_50_last,
-        bb_up_last, bb_lo_last, st_dir_last,
-    )
-
-    # Performance Returns
-    performance = _compute_performance(history)
-
-    # Price data for charts
-    price_data = [{"date": dates[i], "open": float(history[i].get("open", closes[i])), "high": highs[i], "low": lows[i], "close": closes[i]} for i in range(n)]
-
-    result = {
-        "ticker": ticker,
-        "period": period,
-        "price": price_data,
-        "rsi": rsi_data,
-        "sma": sma_data,
-        "ema": ema_data,
-        "macd": macd_data,
-        "bollinger": bb_data,
-        "supertrend": st_data,
-        "pivot_points": pivots,
-        "fibonacci": fib,
-        "support_resistance": sr,
-        "volume": volume_data,
-        "signals": signals,
-        "performance": performance,
-    }
-
-    cache_set(cache_key, result, ttl=3600)
-    return result
+    return row[0]

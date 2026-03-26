@@ -31,6 +31,8 @@ FMP_KEY=... python3 fetch_missing.py
 
 **Stack:** FastAPI backend + React/Vite frontend. No test suite.
 
+**Architecture principle:** All analysis data (technicals, risk, forecasts, macro, governance, WACC, estimates, SWOT/PESTLE) is **pre-computed** by scheduled GitHub Actions scripts and stored in Supabase cache tables. API routes perform a single `SELECT` from Supabase — no computation in the request path. This makes every page load instant.
+
 ### Data flow
 Every valuation request goes through three layers:
 1. **`data_fetcher.py`** — fetches raw data. Priority order:
@@ -77,16 +79,16 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `GET /alerts/history` | User's alert history (auth) |
 | `PUT /alerts/{id}/read` | Mark alert as read (auth) |
 | `DELETE /alerts/{id}` | Unsubscribe from alert (auth) |
-| `GET /technicals/{ticker}?period=1y` | Technical indicators (RSI, MACD, SMA/EMA, Bollinger, Supertrend, Fibonacci, pivots, signals) |
-| `GET /risk/{ticker}` | Risk analysis (QQ-plot, distribution stats, VaR, drawdown, Sharpe/Sortino) |
-| `GET /forecast/{ticker}` | ARIMA-GARCH price + volatility forecast (2yr horizon) |
-| `GET /macro/overview` | Macroeconomic data (GDP, CPI, Fed Funds, unemployment, confidence) via FRED |
-| `GET /macro/sector/{sector}` | Sector-relevant macro indicators via FRED |
-| `POST /analysis/swot/{ticker}` | AI-generated SWOT analysis (Claude Haiku) |
-| `POST /analysis/pestle/{ticker}` | AI-generated PESTLE analysis (Claude Haiku) |
-| `GET /governance/{ticker}` | Corporate governance (executives, board, holders, capital structure) |
-| `GET /wacc/{ticker}` | WACC calculation (CAPM-based, full component breakdown) |
-| `GET /estimates/{ticker}` | Forward consensus estimates from FMP (revenue, EBITDA, EPS) |
+| `GET /technicals/{ticker}?period=1y` | Technical indicators — pre-computed, served from `technicals_cache` |
+| `GET /risk/{ticker}` | Risk analysis — pre-computed, served from `risk_analysis_cache` |
+| `GET /forecast/{ticker}` | ARIMA-GARCH forecast — pre-computed, served from `price_forecasts` |
+| `GET /macro/overview` | Macroeconomic data — pre-computed, served from `macro_cache` |
+| `GET /macro/sector/{sector}` | Sector macro indicators — pre-computed, served from `macro_sector_cache` |
+| `POST /analysis/swot/{ticker}` | SWOT analysis — cached in `qualitative_cache`, generates on demand if stale |
+| `POST /analysis/pestle/{ticker}` | PESTLE analysis — cached in `qualitative_cache`, generates on demand if stale |
+| `GET /governance/{ticker}` | Corporate governance — pre-computed, served from `governance_cache` |
+| `GET /wacc/{ticker}` | WACC — pre-computed, served from `wacc_cache` |
+| `GET /estimates/{ticker}` | Forward estimates — pre-computed, served from `estimates_cache` |
 
 ### Supabase schema
 **Core table:** `stock_fundamentals` — S&P 500 company basics (cached from FMP).
@@ -116,18 +118,46 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `alert_history` | user_id, ticker, alert_type, message, read | Nightly |
 | `api_usage_log` | endpoint, method, user_id, timestamp, response_time_ms | On demand |
 
-### FMP data refresh pipeline
-Three Python scripts in `backend/` fetch from FMP API and upsert to Supabase:
+**Pre-computed analysis cache tables** (populated by scheduled refresh scripts):
+| Table | Key Fields | Refresh |
+|-------|-----------|---------|
+| `technicals_cache` | ticker (PK), price/rsi/sma/ema/macd/bollinger/supertrend/signals (JSONB) | Daily Mon-Fri |
+| `risk_analysis_cache` | ticker (PK), qq_plot/distribution/histogram/rolling_var/var_summary (JSONB) | Weekly |
+| `price_forecasts` | ticker (PK), price_forecast/volatility_forecast/model_params (JSONB) | Weekly |
+| `macro_cache` | id='global' (PK), gdp/inflation/interest_rates/unemployment/current (JSONB) | Weekly |
+| `macro_sector_cache` | sector (PK), indicators (JSONB) | Weekly |
+| `governance_cache` | ticker (PK), executives/board/institutional_holders/capital_structure (JSONB) | Weekly |
+| `wacc_cache` | ticker (PK), wacc (FLOAT), components/capital_structure (JSONB) | Weekly |
+| `estimates_cache` | ticker (PK), estimates (JSONB) | Weekly |
+| `qualitative_cache` | ticker (PK), swot/pestle (JSONB), swot_generated_at, pestle_generated_at | Monthly |
+
+### Data refresh pipeline
+Python scripts in `backend/` fetch from external APIs and upsert to Supabase. All analysis data is **pre-computed** — API routes serve instant reads from cache tables.
+
+**FMP-based refresh scripts:**
 - `refresh_quarterly.py` — financial statements + earnings (runs quarterly via GitHub Actions)
 - `refresh_weekly.py` — key metrics, growth, dividends, segments (runs weekly)
 - `refresh_daily.py` — analyst, insider, senate, scores (runs daily Mon-Fri)
 
-All use `fmp_client.py` (shared rate-limited FMP client). GitHub Actions workflows in `.github/workflows/`.
+**Analysis cache refresh scripts:**
+- `refresh_technicals.py` — technical indicators for all tickers (daily Mon-Fri, ~4 min)
+- `refresh_risk.py` — risk analysis: QQ plot, VaR, Sharpe/Sortino (weekly, ~8 min)
+- `refresh_forecasts.py` — ARIMA-GARCH price/volatility forecasts (weekly, ~2-4 hrs)
+- `refresh_macro.py` — FRED macroeconomic data (weekly, <1 min)
+- `refresh_governance.py` — corporate governance via FMP + Supabase (weekly, ~8 min)
+- `refresh_wacc.py` — WACC from Supabase data only (weekly, <1 min)
+- `refresh_estimates.py` — forward consensus estimates via FMP (weekly, ~2 min)
+- `refresh_qualitative.py` — AI SWOT/PESTLE via Claude Haiku (monthly, ~17 min, ~$7.50)
+
+**Migration:** `backend/migrations/create_cache_tables.py` — creates all 9 cache tables.
 
 ### GitHub Actions
 | Workflow | Schedule | Purpose |
 |----------|----------|---------|
 | `nightly-evs-pipeline.yml` | Mon-Fri 6am ET | Compute EVS, snapshot valuations, backfill accuracy, fire alerts |
+| `refresh-technicals.yml` | Mon-Fri 7am ET | Pre-compute technical indicators for all tickers |
+| `refresh-weekly-analysis.yml` | Sunday 6am ET | Pre-compute risk, forecasts, macro, governance, WACC, estimates |
+| `refresh-qualitative.yml` | 1st Sunday/month | Pre-generate SWOT & PESTLE analyses via Claude Haiku |
 | `weekly-digest.yml` | Sunday 6pm ET | Send weekly digest emails via Resend |
 | `generate-seo-pages.yml` | Mon-Fri 10am ET | Generate static SEO pages from EVS data |
 

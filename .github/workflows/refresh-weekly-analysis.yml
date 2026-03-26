@@ -1,0 +1,62 @@
+name: Weekly Analysis Refresh
+on:
+  schedule:
+    - cron: '0 11 * * 0'  # Sunday 11:00 UTC = 6am ET
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours (forecasts are slow)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Refresh Risk Analysis
+        working-directory: backend
+        run: python refresh_risk.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Refresh Price Forecasts
+        working-directory: backend
+        run: python refresh_forecasts.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Refresh Macro Data
+        working-directory: backend
+        run: python refresh_macro.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Refresh Governance
+        working-directory: backend
+        run: python refresh_governance.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+
+      - name: Refresh WACC
+        working-directory: backend
+        run: python refresh_wacc.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Refresh Estimates
+        working-directory: backend
+        run: python refresh_estimates.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FMP_KEY: ${{ secrets.FMP_KEY }}
