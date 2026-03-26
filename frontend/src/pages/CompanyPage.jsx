@@ -9,6 +9,9 @@ import EVModelWidget from "../components/company/EVModelWidget";
 import KeyMetricsRow from "../components/company/KeyMetricsRow";
 import FinancialSnapshot from "../components/company/FinancialSnapshot";
 import MarginGrowthTrends from "../components/company/MarginGrowthTrends";
+import PeerComparisonCharts from "../components/company/PeerComparisonCharts";
+import MacroContext from "../components/company/MacroContext";
+import PerformanceReturns from "../components/company/PerformanceReturns";
 import SkeletonLoader from "../components/SkeletonLoader";
 import SectorComparison from "../components/evs/SectorComparison";
 import PeerComparison from "../components/evs/PeerComparison";
@@ -308,6 +311,10 @@ export default function CompanyPage() {
           growth={data.growth}
         />
       )}
+
+      <PeerComparisonCharts ticker={ticker} />
+
+      <MacroContext ticker={ticker} />
 
       <style>{`
         .company-page {

@@ -625,7 +625,10 @@ def lbo_table(lbo, s):
     return t
 
 # ── Main generator ────────────────────────────────────────────────────────────
-def generate_pdf(data: dict, memo: str = "", monte_carlo: dict = None, lbo: dict = None) -> bytes:
+def generate_pdf(data: dict, memo: str = "", monte_carlo: dict = None, lbo: dict = None,
+                 technicals: dict = None, risk: dict = None, forecast: dict = None,
+                 governance: dict = None, wacc: dict = None, estimates: dict = None,
+                 swot: dict = None, pestle: dict = None, macro: dict = None) -> bytes:
     import re as _re
     buf      = BytesIO()
     s        = S()
@@ -736,6 +739,254 @@ def generate_pdf(data: dict, memo: str = "", monte_carlo: dict = None, lbo: dict
     if peers:
         story += sec("Sector Peer Comparison", s)
         story.append(peers)
+
+    # ── WACC Analysis ────────────────────────────────────────────────────────
+    if wacc:
+        story += sec("WACC Analysis", s)
+        comp = wacc.get("components", {})
+        cap = wacc.get("capital_structure", {})
+        wacc_items = [
+            ("Risk-Free Rate", f"{comp.get('risk_free_rate',0)*100:.2f}%"),
+            ("Beta", f"{comp.get('beta',0):.2f}"),
+            ("Market Risk Premium", f"{comp.get('market_risk_premium',0)*100:.2f}%"),
+            ("Cost of Equity", f"{comp.get('cost_of_equity',0)*100:.2f}%"),
+            ("Cost of Debt (Pre-tax)", f"{comp.get('cost_of_debt_pretax',0)*100:.2f}%"),
+            ("Effective Tax Rate", f"{comp.get('effective_tax_rate',0)*100:.1f}%"),
+            ("Cost of Debt (After-tax)", f"{comp.get('cost_of_debt_after_tax',0)*100:.2f}%"),
+            ("Equity Weight", f"{comp.get('equity_weight',0)*100:.1f}%"),
+            ("Debt Weight", f"{comp.get('debt_weight',0)*100:.1f}%"),
+            ("WACC", f"{wacc.get('wacc',0)*100:.2f}%"),
+        ]
+        rows = [[Paragraph("Component", s["th"]), Paragraph("Value", s["th"])]]
+        for lbl, val in wacc_items:
+            st = s["tdb"] if lbl in ("Cost of Equity", "Cost of Debt (After-tax)", "WACC") else s["td"]
+            rows.append([Paragraph(lbl, st), Paragraph(val, st)])
+        t = Table(rows, colWidths=[INNER*0.6, INNER*0.4])
+        t.setStyle(tbl_style([
+            ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#1e3a6e")),
+            ("TEXTCOLOR", (0,-1), (-1,-1), WHITE),
+        ]))
+        story.append(t)
+        # Capital structure summary
+        story.append(gap(2))
+        cap_rows = [[Paragraph(h, s["th"]) for h in ["Market Cap", "Total Debt", "Net Debt", "Enterprise Value"]]]
+        cap_rows.append([
+            Paragraph(fmtv(cap.get("market_cap"), "currency"), s["tdb"]),
+            Paragraph(fmtv(cap.get("total_debt"), "currency"), s["tdb"]),
+            Paragraph(fmtv(cap.get("net_debt"), "currency"), s["tdb"]),
+            Paragraph(fmtv(cap.get("enterprise_value"), "currency"), s["tdb"]),
+        ])
+        ct = Table(cap_rows, colWidths=[INNER/4]*4)
+        ct.setStyle(tbl_style())
+        story.append(ct)
+        story.append(gap(3))
+
+    # ── Forward Estimates ────────────────────────────────────────────────────
+    if estimates and estimates.get("estimates"):
+        story += sec("Forward Consensus Estimates", s)
+        est_header = [Paragraph(h, s["th"]) for h in ["Period", "Revenue", "EBITDA", "Net Income", "EPS", "Analysts"]]
+        est_rows = [est_header]
+        for e in estimates["estimates"][:5]:
+            est_rows.append([
+                Paragraph(str(e.get("date",""))[:4], s["td"]),
+                Paragraph(fmtv(e.get("estimated_revenue"), "currency"), s["td"]),
+                Paragraph(fmtv(e.get("estimated_ebitda"), "currency"), s["td"]),
+                Paragraph(fmtv(e.get("estimated_net_income"), "currency"), s["td"]),
+                Paragraph(f"${e.get('estimated_eps',0):.2f}" if e.get("estimated_eps") else "—", s["tdb"]),
+                Paragraph(str(e.get("number_analysts","—")), s["td"]),
+            ])
+        et = Table(est_rows, colWidths=[INNER*0.12, INNER*0.20, INNER*0.18, INNER*0.20, INNER*0.14, INNER*0.16])
+        et.setStyle(tbl_style())
+        story.append(et)
+        story.append(gap(3))
+
+    # ── Corporate Governance ─────────────────────────────────────────────────
+    if governance:
+        story += sec("Corporate Governance", s)
+        # Board stats
+        bs = governance.get("board_stats", {})
+        story.append(Paragraph(
+            f"Board Members: {bs.get('total_members','—')}  |  "
+            f"Female Representation: {bs.get('female_pct', 0):.1f}%  |  "
+            f"Insider Sentiment: {governance.get('insider_sentiment',{}).get('net_sentiment','—').title()}",
+            s["bold"]))
+        story.append(gap(2))
+        # Executives table
+        execs = governance.get("executives", [])[:8]
+        if execs:
+            ex_header = [Paragraph(h, s["th"]) for h in ["Name", "Title", "Compensation"]]
+            ex_rows = [ex_header]
+            for ex in execs:
+                pay = ex.get("pay")
+                pay_str = fmtv(pay, "currency") if pay else "—"
+                ex_rows.append([
+                    Paragraph(str(ex.get("name","")), s["tdb"]),
+                    Paragraph(str(ex.get("title","")), s["td"]),
+                    Paragraph(pay_str, s["td"]),
+                ])
+            ext = Table(ex_rows, colWidths=[INNER*0.30, INNER*0.45, INNER*0.25])
+            ext.setStyle(tbl_style())
+            story.append(ext)
+        # Institutional holders
+        holders = governance.get("institutional_holders", [])[:5]
+        if holders:
+            story.append(gap(2))
+            h_header = [Paragraph(h, s["th"]) for h in ["Institutional Holder", "Shares", "Weight %"]]
+            h_rows = [h_header]
+            for h in holders:
+                h_rows.append([
+                    Paragraph(str(h.get("holder_name","")), s["td"]),
+                    Paragraph(f"{h.get('shares',0):,.0f}" if h.get("shares") else "—", s["td"]),
+                    Paragraph(f"{h.get('weight_pct',0):.2f}%" if h.get("weight_pct") else "—", s["td"]),
+                ])
+            ht = Table(h_rows, colWidths=[INNER*0.50, INNER*0.25, INNER*0.25])
+            ht.setStyle(tbl_style())
+            story.append(ht)
+        story.append(gap(3))
+
+    # ── Technical Analysis ───────────────────────────────────────────────────
+    if technicals:
+        story += sec("Technical Analysis", s)
+        sig = technicals.get("signals", {})
+        story.append(Paragraph(
+            f"Signal: {sig.get('overall','—')}  |  "
+            f"Buy: {sig.get('buy_count',0)} / Sell: {sig.get('sell_count',0)} / Neutral: {sig.get('neutral_count',0)}",
+            s["bold"]))
+        story.append(gap(2))
+        # Performance returns
+        perf = technicals.get("performance", {})
+        if perf:
+            perf_header = [Paragraph(h, s["th"]) for h in perf.keys()]
+            perf_vals = []
+            for k, v in perf.items():
+                clr = GREEN2 if v > 0 else RED2
+                perf_vals.append(Paragraph(f"{'+' if v>0 else ''}{v:.1f}%",
+                    ParagraphStyle("pv", parent=s["tdb"], textColor=clr)))
+            pt = Table([perf_header, perf_vals], colWidths=[INNER/len(perf)]*len(perf))
+            pt.setStyle(tbl_style())
+            story.append(pt)
+        # Pivot points
+        pivots = technicals.get("pivot_points", {})
+        if pivots:
+            story.append(gap(2))
+            pv_header = [Paragraph(h, s["th"]) for h in ["S3","S2","S1","Pivot","R1","R2","R3"]]
+            pv_vals = [Paragraph(f"${pivots.get(k,0):.2f}", s["td"])
+                       for k in ["s3","s2","s1","pivot","r1","r2","r3"]]
+            pvt = Table([pv_header, pv_vals], colWidths=[INNER/7]*7)
+            pvt.setStyle(tbl_style())
+            story.append(pvt)
+        # Support/Resistance
+        sr = technicals.get("support_resistance", {})
+        if sr:
+            story.append(gap(2))
+            story.append(Paragraph(
+                f"Support: {', '.join(f'${v:.2f}' for v in (sr.get('support') or []))}  |  "
+                f"Resistance: {', '.join(f'${v:.2f}' for v in (sr.get('resistance') or []))}",
+                s["body"]))
+        story.append(gap(3))
+
+    # ── Risk Analysis ────────────────────────────────────────────────────────
+    if risk:
+        story += sec("Risk Analysis", s)
+        dist = risk.get("distribution", {})
+        vs = risk.get("var_summary", {})
+        risk_items = [
+            ("Ann. Return", f"{dist.get('mean',0)*252*100:.2f}%"),
+            ("Ann. Volatility", f"{dist.get('std',0)*252**0.5*100:.2f}%"),
+            ("Sharpe Ratio", f"{vs.get('sharpe_ratio',0):.2f}"),
+            ("Sortino Ratio", f"{vs.get('sortino_ratio',0):.2f}"),
+            ("Max Drawdown", f"{vs.get('max_drawdown',0)*100:.1f}%"),
+            ("VaR (1%)", f"{vs.get('var_1pct',0)*100:.2f}%"),
+            ("VaR (5%)", f"{vs.get('var_5pct',0)*100:.2f}%"),
+            ("Skewness", f"{dist.get('skewness',0):.3f}"),
+            ("Kurtosis", f"{dist.get('kurtosis',0):.3f}"),
+            ("Normal Dist?", "Yes" if dist.get("is_normal") else "No"),
+        ]
+        r_header = [Paragraph("Metric", s["th"]), Paragraph("Value", s["th"]),
+                    Paragraph("Metric", s["th"]), Paragraph("Value", s["th"])]
+        r_rows = [r_header]
+        for i in range(0, len(risk_items), 2):
+            row = []
+            for j in range(2):
+                if i+j < len(risk_items):
+                    row += [Paragraph(risk_items[i+j][0], s["td"]), Paragraph(risk_items[i+j][1], s["tdb"])]
+                else:
+                    row += [Paragraph("", s["td"]), Paragraph("", s["td"])]
+            r_rows.append(row)
+        rt = Table(r_rows, colWidths=[INNER*0.25]*4)
+        rt.setStyle(tbl_style())
+        story.append(rt)
+        story.append(gap(3))
+
+    # ── SWOT Analysis ────────────────────────────────────────────────────────
+    if swot:
+        story += sec("SWOT Analysis", s)
+        for label, key, color in [("Strengths", "strengths", GREEN2), ("Weaknesses", "weaknesses", RED2),
+                                   ("Opportunities", "opportunities", BLUE3), ("Threats", "threats", YELLOW2)]:
+            items = swot.get(key, [])
+            if items:
+                story.append(Paragraph(label.upper(),
+                    ParagraphStyle("sw", fontName="Helvetica-Bold", fontSize=7.5, textColor=color, leading=11, spaceBefore=4)))
+                for item in items:
+                    story.append(Paragraph(f"• {item}", s["body"]))
+        if swot.get("summary"):
+            story.append(gap(2))
+            story.append(Paragraph(swot["summary"], s["bold"]))
+        story.append(gap(3))
+
+    # ── PESTLE Analysis ──────────────────────────────────────────────────────
+    if pestle:
+        story += sec("PESTLE Analysis", s)
+        for key in ["political", "economic", "social", "technological", "legal", "environmental"]:
+            section = pestle.get(key, {})
+            if section:
+                impact = section.get("impact", "medium")
+                ic = RED2 if impact == "high" else YELLOW2 if impact == "medium" else GREEN2
+                story.append(Paragraph(f"{key.upper()} (Impact: {impact.title()})",
+                    ParagraphStyle("pe", fontName="Helvetica-Bold", fontSize=7.5, textColor=ic, leading=11, spaceBefore=4)))
+                if section.get("analysis"):
+                    story.append(Paragraph(section["analysis"], s["body"]))
+                for f in section.get("factors", []):
+                    story.append(Paragraph(f"• {f}", s["body"]))
+        story.append(gap(3))
+
+    # ── Macroeconomic Context ────────────────────────────────────────────────
+    if macro:
+        story += sec("Macroeconomic Context", s)
+        current = macro.get("current", {})
+        if current:
+            macro_items = [
+                ("GDP Growth", f"{current.get('gdp_growth','—')}%"),
+                ("Inflation", f"{current.get('inflation_rate','—')}%"),
+                ("Fed Funds Rate", f"{current.get('fed_funds_rate','—')}%"),
+                ("Consumer Confidence", str(current.get('consumer_confidence','—'))),
+                ("Unemployment", f"{current.get('unemployment_rate','—')}%"),
+            ]
+            m_header = [Paragraph(h, s["th"]) for h in [x[0] for x in macro_items]]
+            m_vals = [Paragraph(x[1], s["tdb"]) for x in macro_items]
+            mt = Table([m_header, m_vals], colWidths=[INNER/5]*5)
+            mt.setStyle(tbl_style())
+            story.append(mt)
+        story.append(gap(3))
+
+    # ── Price Forecast ───────────────────────────────────────────────────────
+    if forecast:
+        story += sec("Price Forecast (ARIMA-GARCH)", s)
+        mp = forecast.get("model_params", {})
+        story.append(Paragraph(
+            f"Model: ARIMA{tuple(mp.get('arima_order',[1,1,1]))} + GARCH{tuple(mp.get('garch_order',[1,1]))}  |  "
+            f"AIC: {mp.get('aic','—'):.1f}  |  BIC: {mp.get('bic','—'):.1f}" if mp.get("aic") else
+            f"Model: ARIMA + GARCH (parameters unavailable)",
+            s["body"]))
+        # Show last forecast point
+        fc = forecast.get("price_forecast", {}).get("forecast", [])
+        if fc:
+            last = fc[-1]
+            story.append(Paragraph(
+                f"2-Year Forecast End: ${last.get('predicted',0):.2f}  "
+                f"(95% CI: ${last.get('lower_95',0):.2f} - ${last.get('upper_95',0):.2f})",
+                s["bold"]))
+        story.append(gap(3))
 
     # ── AI Memo ───────────────────────────────────────────────────────────────
     if memo and memo.strip():

@@ -77,6 +77,16 @@ All 11 models live in `valuation/models.py`. Each returns a dict with `applicabl
 | `GET /alerts/history` | User's alert history (auth) |
 | `PUT /alerts/{id}/read` | Mark alert as read (auth) |
 | `DELETE /alerts/{id}` | Unsubscribe from alert (auth) |
+| `GET /technicals/{ticker}?period=1y` | Technical indicators (RSI, MACD, SMA/EMA, Bollinger, Supertrend, Fibonacci, pivots, signals) |
+| `GET /risk/{ticker}` | Risk analysis (QQ-plot, distribution stats, VaR, drawdown, Sharpe/Sortino) |
+| `GET /forecast/{ticker}` | ARIMA-GARCH price + volatility forecast (2yr horizon) |
+| `GET /macro/overview` | Macroeconomic data (GDP, CPI, Fed Funds, unemployment, confidence) via FRED |
+| `GET /macro/sector/{sector}` | Sector-relevant macro indicators via FRED |
+| `POST /analysis/swot/{ticker}` | AI-generated SWOT analysis (Claude Haiku) |
+| `POST /analysis/pestle/{ticker}` | AI-generated PESTLE analysis (Claude Haiku) |
+| `GET /governance/{ticker}` | Corporate governance (executives, board, holders, capital structure) |
+| `GET /wacc/{ticker}` | WACC calculation (CAPM-based, full component breakdown) |
+| `GET /estimates/{ticker}` | Forward consensus estimates from FMP (revenue, EBITDA, EPS) |
 
 ### Supabase schema
 **Core table:** `stock_fundamentals` — S&P 500 company basics (cached from FMP).
@@ -138,6 +148,8 @@ React Router v6 (`react-router-dom`). Routes defined in `App.jsx`:
 | `/company/:ticker/financials` | CompanyFinancialsPage | Financial statements + charts |
 | `/company/:ticker/intelligence` | CompanyIntelligencePage | Analyst, insider, earnings data |
 | `/company/:ticker/valuation` | CompanyValuationPage | Valuation models + DCF comparison |
+| `/company/:ticker/technical` | CompanyTechnicalPage | Technical indicators + signal gauge |
+| `/company/:ticker/risk` | CompanyRiskPage | Risk distribution, VaR, ARIMA-GARCH forecast |
 | `/compare` | ComparePage | Side-by-side stock comparison (Pro) |
 | `/accuracy` | AccuracyPage | Model accuracy dashboard |
 
@@ -151,6 +163,7 @@ App shell layout in `layouts/AppLayout.jsx`. Company tab navigation in `componen
 - `RESEND_API_KEY` — weekly digest email sending (used by GitHub Actions only)
 - `STRIPE_PRO_ANNUAL_PRICE_ID` — annual Pro plan Stripe price ID
 - `STRIPE_MAX_ANNUAL_PRICE_ID` — annual Max plan Stripe price ID
+- `FRED_API_KEY` — FRED API key for macroeconomic data (used by `/macro` endpoints)
 
 ### Deployment
 - Frontend → Vercel (root: `frontend`). `VITE_API_URL` in `.env.production` points to the Render backend URL.

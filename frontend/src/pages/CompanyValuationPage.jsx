@@ -16,6 +16,8 @@ import InvestmentThesis from "../components/InvestmentThesis";
 import LockedFeatureCard from "../components/LockedFeatureCard";
 import PriceChart from "../components/PriceChart";
 import ReverseDCF from "../components/ReverseDCF";
+import WACCBreakdown from "../components/company/WACCBreakdown";
+import TaxRateChart from "../components/company/TaxRateChart";
 import SkeletonLoader from "../components/SkeletonLoader";
 
 const fadeUp = {
@@ -296,6 +298,12 @@ export default function CompanyValuationPage() {
             </div>
           </motion.section>
         )}
+
+        {/* WACC Breakdown + Tax Rate */}
+        <motion.div variants={fadeUp} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <WACCBreakdown ticker={ticker} />
+          <TaxRateChart data={[]} />
+        </motion.div>
 
         {/* 11. PDF Export button */}
         <motion.div variants={fadeUp} className="cvp-export-row">

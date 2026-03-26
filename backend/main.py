@@ -29,6 +29,13 @@ from routes.alerts import router as alerts_router
 from routes.health import router as health_router
 from routes.referral import router as referral_router
 from routes.pricing import router as pricing_router
+from routes.technicals import router as technicals_router
+from routes.risk_analysis import router as risk_router
+from routes.macro import router as macro_router
+from routes.qualitative import router as qualitative_router
+from routes.governance import router as governance_router
+from routes.wacc import router as wacc_router
+from routes.estimates import router as estimates_router
 from utils.thesis_cache import get_cached_thesis, cache_thesis
 
 # ── Sentry error tracking initialization ──────────────────────────────────────
@@ -169,6 +176,13 @@ app.include_router(alerts_router)
 app.include_router(health_router)
 app.include_router(referral_router)
 app.include_router(pricing_router)
+app.include_router(technicals_router)
+app.include_router(risk_router)
+app.include_router(macro_router)
+app.include_router(qualitative_router)
+app.include_router(governance_router)
+app.include_router(wacc_router)
+app.include_router(estimates_router)
 
 # ── Ticker validation ────────────────────────────────────────────────────────
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")

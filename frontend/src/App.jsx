@@ -37,6 +37,8 @@ const CompanyPage = lazy(() => import("./pages/CompanyPage"));
 const CompanyFinancialsPage = lazy(() => import("./pages/CompanyFinancialsPage"));
 const CompanyIntelligencePage = lazy(() => import("./pages/CompanyIntelligencePage"));
 const CompanyValuationPage = lazy(() => import("./pages/CompanyValuationPage"));
+const CompanyTechnicalPage = lazy(() => import("./pages/CompanyTechnicalPage"));
+const CompanyRiskPage = lazy(() => import("./pages/CompanyRiskPage"));
 const PortfolioListPage = lazy(() => import("./pages/PortfolioListPage"));
 const PortfolioBuildPage = lazy(() => import("./pages/PortfolioBuildPage"));
 const PortfolioDetailPage = lazy(() => import("./pages/PortfolioDetailPage"));
@@ -287,6 +289,14 @@ function AppInner() {
 
           <Route path="/company/:ticker/valuation" element={
             <CompanyValuationPage />
+          } />
+
+          <Route path="/company/:ticker/technical" element={
+            <CompanyTechnicalPage />
+          } />
+
+          <Route path="/company/:ticker/risk" element={
+            <CompanyRiskPage />
           } />
 
           <Route path="/company/:ticker" element={

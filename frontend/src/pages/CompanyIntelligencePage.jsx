@@ -9,6 +9,9 @@ import EarningsChart from "../components/company/EarningsChart";
 import ScoresRadar from "../components/company/ScoresRadar";
 import InsiderChart from "../components/company/InsiderChart";
 import TradesTable from "../components/company/TradesTable";
+import GovernanceSection from "../components/company/GovernanceSection";
+import SWOTAnalysis from "../components/company/SWOTAnalysis";
+import PESTLEAnalysis from "../components/company/PESTLEAnalysis";
 import api from "../lib/api";
 
 function SectionSkeleton() {
@@ -185,6 +188,15 @@ export default function CompanyIntelligencePage() {
               title="Senate Trades"
             />
           )}
+
+          {/* Corporate Governance */}
+          <GovernanceSection ticker={ticker} />
+
+          {/* Qualitative Analysis */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <SWOTAnalysis ticker={ticker} />
+            <PESTLEAnalysis ticker={ticker} />
+          </div>
 
           {/* Empty state */}
           {!analyst && !earnings?.length && !scores && !insider?.insider?.length && !insider?.senate?.length && !dividends?.length && (

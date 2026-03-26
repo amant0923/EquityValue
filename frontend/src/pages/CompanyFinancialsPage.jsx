@@ -9,6 +9,10 @@ import CashFlowWaterfall from "../components/company/CashFlowWaterfall";
 import BalanceSheetChart from "../components/company/BalanceSheetChart";
 import PerShareChart from "../components/company/PerShareChart";
 import SegmentCharts from "../components/company/SegmentCharts";
+import ForwardEstimates from "../components/company/ForwardEstimates";
+import ReturnRatiosChart from "../components/company/ReturnRatiosChart";
+import DividendAnalysis from "../components/company/DividendAnalysis";
+import CashFlowTrends from "../components/company/CashFlowTrends";
 import api from "../lib/api";
 
 const STATEMENT_TABS = [
@@ -151,6 +155,20 @@ export default function CompanyFinancialsPage() {
           {/* Segments (shown on income statement tab) */}
           {activeStatement === "income" && segments && (
             <SegmentCharts segments={segments} />
+          )}
+
+          {/* Enhanced financial charts */}
+          {activeStatement === "income" && (
+            <ForwardEstimates ticker={ticker} />
+          )}
+          {activeStatement === "income" && rows.length > 0 && (
+            <ReturnRatiosChart data={rows} />
+          )}
+          {activeStatement === "cashflow" && rows.length > 0 && (
+            <CashFlowTrends data={rows} />
+          )}
+          {activeStatement === "income" && (
+            <DividendAnalysis data={[]} />
           )}
         </>
       )}

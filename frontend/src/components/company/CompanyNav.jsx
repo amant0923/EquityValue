@@ -5,6 +5,8 @@ const tabs = [
   { label: "Financials", path: "/financials" },
   { label: "Company Intelligence", path: "/intelligence" },
   { label: "Valuation Modelling", path: "/valuation" },
+  { label: "Technical", path: "/technical" },
+  { label: "Risk", path: "/risk" },
 ];
 
 export default function CompanyNav() {
