@@ -4,7 +4,7 @@ Data is pre-computed by refresh_macro.py and served from Supabase.
 """
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
-from auth import get_current_user
+from auth import get_optional_user
 from db import get_supabase_service, get_supabase
 
 try:
@@ -39,7 +39,7 @@ SECTOR_SERIES = {
 
 @router.get("/overview")
 @limiter.limit("60/minute")
-async def macro_overview(request: Request, user: dict = Depends(get_current_user)):
+async def macro_overview(request: Request, user: dict = Depends(get_optional_user)):
     """Return cached US macroeconomic indicators from Supabase."""
     sb = get_supabase_service() or get_supabase()
     if not sb:
@@ -58,7 +58,7 @@ async def macro_overview(request: Request, user: dict = Depends(get_current_user
 
 @router.get("/sector/{sector}")
 @limiter.limit("60/minute")
-async def macro_sector(request: Request, sector: str, user: dict = Depends(get_current_user)):
+async def macro_sector(request: Request, sector: str, user: dict = Depends(get_optional_user)):
     """Return cached FRED macro series relevant to a given stock sector."""
     sector_key = sector.strip().title()
 

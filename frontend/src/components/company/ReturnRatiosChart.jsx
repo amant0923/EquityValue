@@ -37,6 +37,40 @@ export default function ReturnRatiosChart({ data, balanceRows, cashflowRows }) {
         const bal = balanceMap[r.period_date];
         const cf = cfMap[r.period_date];
 
+        // ROE = Net Income / Shareholders' Equity
+        let roe = r.roe != null ? Number(r.roe) * 100 : null;
+        if (roe == null && bal && r.net_income != null) {
+          const equity = bal.total_stockholders_equity || bal.total_equity;
+          if (equity && equity > 0) {
+            roe = (r.net_income / equity) * 100;
+          }
+        }
+
+        // ROA = Net Income / Total Assets
+        let roa = r.roa != null ? Number(r.roa) * 100 : null;
+        if (roa == null && bal && r.net_income != null) {
+          const totalAssets = bal.total_assets;
+          if (totalAssets && totalAssets > 0) {
+            roa = (r.net_income / totalAssets) * 100;
+          }
+        }
+
+        // ROIC = NOPAT / Invested Capital (approx: operating_income * (1 - tax_rate) / (equity + debt - cash))
+        let roic = r.roic != null ? Number(r.roic) * 100 : null;
+        if (roic == null && bal && r.operating_income != null) {
+          const equity = bal.total_stockholders_equity || bal.total_equity || 0;
+          const totalDebt = bal.total_debt || bal.long_term_debt || 0;
+          const cash = bal.cash_and_cash_equivalents || bal.cash_and_short_term_investments || 0;
+          const investedCapital = equity + totalDebt - cash;
+          if (investedCapital > 0) {
+            const taxRate = (r.income_tax_expense != null && r.income_before_tax != null && r.income_before_tax > 0)
+              ? r.income_tax_expense / r.income_before_tax
+              : 0.21;
+            const nopat = r.operating_income * (1 - taxRate);
+            roic = (nopat / investedCapital) * 100;
+          }
+        }
+
         // ROCE = EBIT / Capital Employed, where Capital Employed = Total Assets - Current Liabilities
         let roce = null;
         if (bal && r.operating_income != null) {
@@ -59,9 +93,9 @@ export default function ReturnRatiosChart({ data, balanceRows, cashflowRows }) {
 
         return {
           year: r.period_date?.slice(0, 4) || "",
-          roe: r.roe != null ? Number(r.roe) * 100 : null,
-          roa: r.roa != null ? Number(r.roa) * 100 : null,
-          roic: r.roic != null ? Number(r.roic) * 100 : null,
+          roe,
+          roa,
+          roic,
           roce,
           fcfMargin,
         };

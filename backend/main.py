@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from data_fetcher import fetch_stock_data, fetch_price_history
 from valuation.router import run_valuation
-from auth import get_current_user, get_user_profile
+from auth import get_current_user, get_optional_user, get_user_profile
 from stripe_handler import create_checkout_session, handle_webhook_event, price_id_to_plan
 import stripe
 import logging
@@ -277,19 +277,21 @@ def root():
 
 @app.get("/valuation/{ticker}")
 @limiter.limit("60/minute")
-async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_current_user)):
+async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_optional_user)):
     ticker = _validate_ticker(ticker)
 
-    # Check plan limits
-    try:
-        profile = await get_user_profile(user["sub"])
-    except Exception:
-        profile = {"plan": "trial", "analyses_today": 0}
+    # Check plan limits (only for authenticated users)
+    profile = {"plan": "trial", "analyses_today": 0}
+    if user:
+        try:
+            profile = await get_user_profile(user["sub"])
+        except Exception:
+            profile = {"plan": "trial", "analyses_today": 0}
     plan = profile.get("plan", "trial")
     analyses_today = profile.get("analyses_today", 0)
     PLAN_LIMITS = {"trial": 3, "expired": 0, "pro": 50, "lifetime": 999999}
     limit = PLAN_LIMITS.get(plan, 1)
-    if analyses_today >= limit:
+    if user and analyses_today >= limit:
         raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
 
     cached = _get_cached(f"val:{ticker}")
@@ -312,23 +314,24 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
     result = run_valuation(ticker, data)
     _set_cached(f"val:{ticker}", result)
 
-    # Increment usage counter (best-effort, don't fail the response)
-    try:
-        from datetime import date
-        today = date.today().isoformat()
-        new_count = (analyses_today + 1) if profile.get("last_analysis_date") == today else 1
-        _supabase.table("user_profiles").update({
-            "analyses_today": new_count,
-            "last_analysis_date": today,
-        }).eq("id", user["sub"]).execute()
-    except Exception as e:
-        logger.warning("Usage increment failed for user")
+    # Increment usage counter (best-effort, only for authenticated users)
+    if user:
+        try:
+            from datetime import date
+            today = date.today().isoformat()
+            new_count = (analyses_today + 1) if profile.get("last_analysis_date") == today else 1
+            _supabase.table("user_profiles").update({
+                "analyses_today": new_count,
+                "last_analysis_date": today,
+            }).eq("id", user["sub"]).execute()
+        except Exception as e:
+            logger.warning("Usage increment failed for user")
 
     return result
 
 @app.get("/history/{ticker}")
 @limiter.limit("30/minute")
-async def get_history(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_current_user)):
+async def get_history(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_optional_user)):
     ticker = _validate_ticker(ticker)
     if period not in ("1mo", "3mo", "6mo", "1y", "2y", "5y"):
         raise HTTPException(status_code=400, detail="Invalid period.")
@@ -345,7 +348,7 @@ async def get_history(ticker: str, request: Request, period: str = "1y", user: d
 
 @app.get("/comps/{ticker}")
 @limiter.limit("30/minute")
-async def get_comps(ticker: str, request: Request, user: dict = Depends(get_current_user)):
+async def get_comps(ticker: str, request: Request, user: dict = Depends(get_optional_user)):
     ticker = _validate_ticker(ticker)
     cached = _get_cached(f"comps:{ticker}")
     if cached:
@@ -507,7 +510,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
 
 @app.get("/search/{query}")
 @limiter.limit("60/minute")
-async def search(query: str, request: Request, user: dict = Depends(get_current_user)):
+async def search(query: str, request: Request, user: dict = Depends(get_optional_user)):
     if len(query) < 1 or len(query) > 20:
         return {"results": []}
     if not re.match(r'^[A-Za-z0-9 .\-]+$', query):
@@ -676,7 +679,7 @@ async def screener(request: Request, sector: str = None, min_pe: float = None, m
              min_roe: float = None, min_rev_growth: float = None,
              max_pb: float = None, limit: int = 200,
              min_evs: int = None, max_evs: int = None, sort_by: str = None,
-             user: dict = Depends(get_current_user)):
+             user: dict = Depends(get_optional_user)):
     """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
     limit = min(limit, 500)
     try:
@@ -733,7 +736,7 @@ async def screener(request: Request, sector: str = None, min_pe: float = None, m
 
 @app.get("/dashboard/top-picks")
 @limiter.limit("30/minute")
-async def top_picks(request: Request, user: dict = Depends(get_current_user)):
+async def top_picks(request: Request, user: dict = Depends(get_optional_user)):
     """Return top 5 stocks to buy and top 5 to avoid based on analyst target upside."""
     try:
         rows = _supabase.table("stock_fundamentals").select(

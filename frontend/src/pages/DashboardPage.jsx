@@ -53,10 +53,14 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
     });
   }, [watchlist]);
 
+  const [topPicksError, setTopPicksError] = useState("");
   useEffect(() => {
     api.get("/dashboard/top-picks")
       .then(({ data }) => setTopPicks(data))
-      .catch(() => {})
+      .catch((e) => {
+        console.error("Top picks error:", e.response?.status, e.response?.data);
+        setTopPicksError(e.response?.data?.detail || e.message || "Failed to load top picks");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -137,6 +141,14 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
 
         {/* Top Picks */}
         <motion.section variants={blurReveal} className="db-section">
+          {topPicksError && (
+            <div className="error-box" style={{ marginBottom: 16 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {topPicksError}
+            </div>
+          )}
           <div className="db-picks-grid">
             {/* Top 5 Buy */}
             <div>
@@ -147,6 +159,8 @@ export default function DashboardPage({ watchlist, onSearch, onGoAnalysis }) {
               <div className="db-movers-card">
                 {loading ? (
                   <div className="db-mover" style={{ justifyContent: "center", color: "var(--text3)" }}>Loading...</div>
+                ) : topPicks.buy.length === 0 && !topPicksError ? (
+                  <div className="db-mover" style={{ justifyContent: "center", color: "var(--text3)", fontSize: "0.82rem" }}>No picks available — sign in for personalized recommendations</div>
                 ) : topPicks.buy.map((s, i) => (
                   <div key={s.ticker} className="db-mover" onClick={() => navigate(`/company/${s.ticker}`)}>
                     <div className="db-mover-left">

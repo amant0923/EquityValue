@@ -43,14 +43,26 @@ import numpy as np
 def compute_technicals(ticker: str, period: str = "1y") -> dict | None:
     """Compute all technical indicators for a ticker. Returns dict or None on failure."""
     history = fetch_price_history(ticker, period)
-    if not history or len(history) < 50:
+    if not history:
         return None
 
-    dates = [p["date"] for p in history]
-    closes = [float(p["close"]) for p in history]
-    highs = [float(p.get("high", p["close"])) for p in history]
-    lows = [float(p.get("low", p["close"])) for p in history]
-    volumes = [int(p.get("volume", 0)) for p in history]
+    # fetch_price_history returns {"dates": [], "closes": [], "volumes": []}
+    if isinstance(history, dict):
+        dates = history.get("dates", [])
+        closes = [float(c) for c in history.get("closes", [])]
+        highs = [float(h) for h in history.get("highs", closes)]
+        lows = [float(l) for l in history.get("lows", closes)]
+        volumes = [int(v) for v in history.get("volumes", [0] * len(closes))]
+    else:
+        # Legacy list-of-dicts format
+        dates = [p["date"] for p in history]
+        closes = [float(p["close"]) for p in history]
+        highs = [float(p.get("high", p["close"])) for p in history]
+        lows = [float(p.get("low", p["close"])) for p in history]
+        volumes = [int(p.get("volume", 0)) for p in history]
+
+    if len(closes) < 50:
+        return None
     n = len(closes)
 
     # RSI (14)

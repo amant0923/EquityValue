@@ -4,7 +4,7 @@ Data is pre-computed by refresh_wacc.py and served from Supabase.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 from config import validate_ticker
-from auth import get_current_user
+from auth import get_optional_user
 from db import get_supabase, get_supabase_service
 
 try:
@@ -19,7 +19,7 @@ router = APIRouter()
 
 @router.get("/wacc/{ticker}")
 @limiter.limit("60/minute")
-async def get_wacc(request: Request, ticker: str, user: dict = Depends(get_current_user)):
+async def get_wacc(request: Request, ticker: str, user: dict = Depends(get_optional_user)):
     """Return cached WACC data from Supabase."""
     ticker = validate_ticker(ticker)
 

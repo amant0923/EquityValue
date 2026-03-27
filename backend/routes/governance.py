@@ -4,7 +4,7 @@ Data is pre-computed by refresh_governance.py and served from Supabase.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
 from config import validate_ticker
-from auth import get_current_user
+from auth import get_optional_user
 from db import get_supabase, get_supabase_service
 
 try:
@@ -26,7 +26,7 @@ def _governance_limiter(func):
 async def get_governance(
     request: Request,
     ticker: str,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(get_optional_user),
 ):
     """Return cached corporate governance data from Supabase."""
     ticker = validate_ticker(ticker)

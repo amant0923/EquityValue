@@ -34,10 +34,15 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
   const [maxEvs, setMaxEvs] = useState("");
   const [sortBy, setSortBy] = useState("market_cap");
   const [trend, setTrend] = useState("all");
+  const [error, setError] = useState("");
+
+  // Auto-load on mount
+  useEffect(() => { runScreener(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runScreener = async () => {
     setLoading(true);
     setSearched(true);
+    setError("");
     try {
       const params = new URLSearchParams();
       if (sector !== "All Sectors") params.set("sector", sector);
@@ -48,7 +53,9 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
       const res = await api.get(`/screener?${params}`);
       setResults(res.data.results || []);
     } catch (e) {
-      if (import.meta.env.DEV) console.error("Screener fetch error:", e);
+      console.error("Screener fetch error:", e);
+      const detail = e.response?.data?.detail || e.message || "Failed to load screener data";
+      setError(detail);
       setResults([]);
     }
     setLoading(false);
@@ -122,7 +129,16 @@ export default function ScreenerPage({ onSearch, onGoAnalysis }) {
           </button>
         </div>
 
-        {searched && results.length === 0 && !loading && (
+        {error && !loading && (
+          <div className="error-box" style={{ marginBottom: 16 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {error}
+          </div>
+        )}
+
+        {searched && results.length === 0 && !loading && !error && (
           <div className="sc-empty">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>

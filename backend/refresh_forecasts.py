@@ -47,11 +47,19 @@ def _round(val, decimals=6):
 def compute_forecast(ticker: str) -> dict | None:
     """Compute ARIMA-GARCH forecast for a ticker. Returns dict or None on failure."""
     history = fetch_price_history(ticker, "5y")
-    if not history or len(history) < 100:
+    if not history:
         return None
 
-    closes = np.array([float(p["close"]) for p in history])
-    dates = [p["date"] for p in history]
+    # fetch_price_history returns {"dates": [], "closes": [], ...}
+    if isinstance(history, dict):
+        closes = np.array([float(c) for c in history.get("closes", [])])
+        dates = history.get("dates", [])
+    else:
+        closes = np.array([float(p["close"]) for p in history])
+        dates = [p["date"] for p in history]
+
+    if len(closes) < 100:
+        return None
     log_prices = np.log(closes)
     log_returns = np.diff(log_prices)
 
@@ -151,8 +159,10 @@ def compute_forecast(ticker: str) -> dict | None:
             "upper_95": _round(float(upper_95_prices[i])),
         })
 
-    hist_slice = history[-252:] if len(history) > 252 else history
-    historical_prices = [{"date": p["date"], "price": _round(float(p["close"]))} for p in hist_slice]
+    # Build historical prices list from the last ~252 trading days
+    n_hist = len(closes)
+    start_idx = max(0, n_hist - 252)
+    historical_prices = [{"date": dates[i], "price": _round(float(closes[i]))} for i in range(start_idx, n_hist)]
 
     vol_forecast_list = []
     for i in range(forecast_horizon):

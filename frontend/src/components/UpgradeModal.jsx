@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 const PLANS = [
   {
@@ -17,6 +18,7 @@ const PLANS = [
 ];
 
 export default function UpgradeModal({ onClose, reason = "limit", currentPlan = "trial" }) {
+  const { user } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
   const [annual, setAnnual] = useState(false);
   const [lifetimeStatus, setLifetimeStatus] = useState(null);
@@ -31,6 +33,10 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
   }, []);
 
   const handleUpgrade = async (planKey) => {
+    if (!user) {
+      setCheckoutError("Please sign in first to upgrade your plan.");
+      return;
+    }
     setUpgrading(true);
     try {
       const res = await api.post("/stripe/create-checkout", { plan: planKey });

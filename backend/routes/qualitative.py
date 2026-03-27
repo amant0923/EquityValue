@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from auth import get_current_user
+from auth import get_optional_user
 from config import validate_ticker
 from db import get_supabase, get_supabase_service
 
@@ -101,7 +101,7 @@ def _is_fresh(timestamp_str) -> bool:
 
 @router.post("/swot/{ticker}")
 @limiter.limit("10/minute")
-async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_current_user)):
+async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_optional_user)):
     """Return SWOT analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 
@@ -184,7 +184,7 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
 
 @router.post("/pestle/{ticker}")
 @limiter.limit("10/minute")
-async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(get_current_user)):
+async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(get_optional_user)):
     """Return PESTLE analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 

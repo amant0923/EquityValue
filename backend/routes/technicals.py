@@ -10,7 +10,7 @@ import numpy as np
 import logging
 
 from config import validate_ticker
-from auth import get_current_user
+from auth import get_optional_user
 from db import get_supabase, get_supabase_service
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,7 @@ def _compute_performance(prices):
 
 @router.get("/technicals/{ticker}")
 @limiter.limit("60/minute")
-async def get_technicals(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_current_user)):
+async def get_technicals(ticker: str, request: Request, period: str = "1y", user: dict = Depends(get_optional_user)):
     ticker = validate_ticker(ticker)
 
     sb = get_supabase_service() or get_supabase()

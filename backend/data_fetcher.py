@@ -12,13 +12,25 @@ except ImportError:
     USE_YFINANCE = False
 
 try:
-    from supabase import create_client, Client
-    from config import SUPABASE_URL as _SUPABASE_URL, SUPABASE_KEY as _SUPABASE_KEY
-    supabase: Client = create_client(_SUPABASE_URL, _SUPABASE_KEY)
-    USE_SUPABASE = bool(_SUPABASE_URL and _SUPABASE_KEY)
+    from db import get_supabase
+    _sb_instance = get_supabase()
+    USE_SUPABASE = _sb_instance is not None
 except Exception as _e:
     print(f"[supabase init] {_e}")
     USE_SUPABASE = False
+    _sb_instance = None
+
+def _get_sb():
+    """Get the shared Supabase client (lazy, avoids duplicate connections)."""
+    global _sb_instance, USE_SUPABASE
+    if _sb_instance is None:
+        try:
+            from db import get_supabase
+            _sb_instance = get_supabase()
+            USE_SUPABASE = _sb_instance is not None
+        except Exception:
+            pass
+    return _sb_instance
 
 FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 
@@ -38,7 +50,7 @@ def fetch_supabase(ticker: str) -> dict:
         return {}
     result = {}
     try:
-        resp = supabase.table("stock_fundamentals").select("*").eq("ticker", ticker).limit(1).execute()
+        resp = _get_sb().table("stock_fundamentals").select("*").eq("ticker", ticker).limit(1).execute()
         rows = resp.data
         if not rows:
             return {}
@@ -358,7 +370,7 @@ def _fetch_valuation_supplements(ticker: str) -> dict:
     result = {}
     try:
         # Latest annual income statement for operating_income, interest_expense
-        income = supabase.table("financial_statements") \
+        income = _get_sb().table("financial_statements") \
             .select("operating_income, interest_expense, ebitda") \
             .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "income") \
             .order("period_date", desc=True).limit(2).execute().data or []
@@ -369,7 +381,7 @@ def _fetch_valuation_supplements(ticker: str) -> dict:
                 result["ebitda_prev"] = _safe_val(income[1].get("ebitda"))
 
         # Latest annual cash flow for depreciation
-        cashflow = supabase.table("financial_statements") \
+        cashflow = _get_sb().table("financial_statements") \
             .select("depreciation_amortization") \
             .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "cashflow") \
             .order("period_date", desc=True).limit(1).execute().data or []
@@ -377,7 +389,7 @@ def _fetch_valuation_supplements(ticker: str) -> dict:
             result["depreciation_amortization"] = _safe_val(cashflow[0].get("depreciation_amortization"))
 
         # Latest 2 annual balance sheets for total_assets (current + prior)
-        balance = supabase.table("financial_statements") \
+        balance = _get_sb().table("financial_statements") \
             .select("total_assets") \
             .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "balance") \
             .order("period_date", desc=True).limit(2).execute().data or []
@@ -387,7 +399,7 @@ def _fetch_valuation_supplements(ticker: str) -> dict:
                 result["total_assets_prev"] = _safe_val(balance[1].get("total_assets"))
 
         # 3-year avg annual EPS from financial_statements (has eps_diluted column per FY)
-        eps_rows = supabase.table("financial_statements") \
+        eps_rows = _get_sb().table("financial_statements") \
             .select("eps_diluted") \
             .eq("ticker", ticker).eq("period_type", "FY").eq("statement_type", "income") \
             .order("period_date", desc=True).limit(3).execute().data or []
@@ -396,7 +408,7 @@ def _fetch_valuation_supplements(ticker: str) -> dict:
             result["eps_3yr_avg"] = sum(eps_vals) / len(eps_vals)
 
         # 3-year avg ROE from key_metrics
-        metrics = supabase.table("key_metrics") \
+        metrics = _get_sb().table("key_metrics") \
             .select("roe, payout_ratio") \
             .eq("ticker", ticker).eq("period_type", "FY") \
             .order("period_date", desc=True).limit(3).execute().data or []
@@ -478,11 +490,16 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
         try:
             hist = yf.Ticker(ticker).history(period=period)
             if hist is not None and not hist.empty:
-                return {
+                result = {
                     "dates":   [str(d.date()) for d in hist.index],
                     "closes":  [round(float(c), 2) for c in hist["Close"]],
                     "volumes": [int(v) for v in hist["Volume"]],
                 }
+                if "High" in hist.columns:
+                    result["highs"] = [round(float(h), 2) for h in hist["High"]]
+                if "Low" in hist.columns:
+                    result["lows"] = [round(float(l), 2) for l in hist["Low"]]
+                return result
         except Exception as e:
             print(f"[yfinance history] {e}")
 

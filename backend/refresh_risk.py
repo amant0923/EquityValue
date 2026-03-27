@@ -39,11 +39,19 @@ def _round(val, decimals=6):
 def compute_risk(ticker: str) -> dict | None:
     """Compute risk analysis for a ticker. Returns dict or None on failure."""
     history = fetch_price_history(ticker, "5y")
-    if not history or len(history) < 100:
+    if not history:
         return None
 
-    closes = np.array([float(p["close"]) for p in history])
-    dates = [p["date"] for p in history]
+    # fetch_price_history returns {"dates": [], "closes": [], ...}
+    if isinstance(history, dict):
+        closes = np.array([float(c) for c in history.get("closes", [])])
+        dates = history.get("dates", [])
+    else:
+        closes = np.array([float(p["close"]) for p in history])
+        dates = [p["date"] for p in history]
+
+    if len(closes) < 100:
+        return None
 
     log_returns = np.diff(np.log(closes))
     return_dates = dates[1:]
