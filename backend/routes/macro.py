@@ -5,7 +5,7 @@ Data is pre-computed by refresh_macro.py and served from Supabase.
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from auth import get_current_user
-from db import get_supabase_service
+from db import get_supabase_service, get_supabase
 
 try:
     from rate_limit import limiter
@@ -41,7 +41,7 @@ SECTOR_SERIES = {
 @limiter.limit("60/minute")
 async def macro_overview(request: Request, user: dict = Depends(get_current_user)):
     """Return cached US macroeconomic indicators from Supabase."""
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
 
@@ -62,7 +62,7 @@ async def macro_sector(request: Request, sector: str, user: dict = Depends(get_c
     """Return cached FRED macro series relevant to a given stock sector."""
     sector_key = sector.strip().title()
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
 

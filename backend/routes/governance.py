@@ -5,7 +5,7 @@ Data is pre-computed by refresh_governance.py and served from Supabase.
 from fastapi import APIRouter, Depends, HTTPException, Request
 from config import validate_ticker
 from auth import get_current_user
-from db import get_supabase_service
+from db import get_supabase, get_supabase_service
 
 try:
     from rate_limit import limiter
@@ -31,7 +31,7 @@ async def get_governance(
     """Return cached corporate governance data from Supabase."""
     ticker = validate_ticker(ticker)
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
 

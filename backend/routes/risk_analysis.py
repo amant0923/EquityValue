@@ -10,7 +10,7 @@ import logging
 
 from config import validate_ticker
 from auth import get_current_user
-from db import get_supabase_service
+from db import get_supabase, get_supabase_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,7 +26,7 @@ except Exception:
 async def get_risk_analysis(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = validate_ticker(ticker)
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
 
@@ -42,7 +42,7 @@ async def get_risk_analysis(ticker: str, request: Request, user: dict = Depends(
 async def get_forecast(ticker: str, request: Request, user: dict = Depends(get_current_user)):
     ticker = validate_ticker(ticker)
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
 

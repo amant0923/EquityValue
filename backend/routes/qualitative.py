@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 
 from auth import get_current_user
 from config import validate_ticker
-from db import get_supabase_service
+from db import get_supabase, get_supabase_service
 
 try:
     from rate_limit import limiter
@@ -39,7 +39,7 @@ def _get_anthropic_client():
 
 
 def _fetch_company_data(ticker: str) -> dict:
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if not sb:
         return {}
     try:
@@ -105,7 +105,7 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
     """Return SWOT analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if sb:
         row = sb.table("qualitative_cache").select("ticker, swot, swot_generated_at").eq("ticker", ticker).limit(1).execute().data
         if row and row[0].get("swot") and _is_fresh(row[0].get("swot_generated_at")):
@@ -148,7 +148,7 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
         raw_text = response.content[0].text
     except Exception as e:
         logger.error("Claude API error for SWOT %s: %s", ticker, e)
-        raise HTTPException(502, f"AI analysis failed: {str(e)}")
+        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.")
 
     try:
         parsed = _extract_json(raw_text)
@@ -188,7 +188,7 @@ async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(ge
     """Return PESTLE analysis — from cache if fresh, else generate on demand."""
     ticker = validate_ticker(ticker)
 
-    sb = get_supabase_service()
+    sb = get_supabase_service() or get_supabase()
     if sb:
         row = sb.table("qualitative_cache").select("ticker, pestle, pestle_generated_at").eq("ticker", ticker).limit(1).execute().data
         if row and row[0].get("pestle") and _is_fresh(row[0].get("pestle_generated_at")):
@@ -228,7 +228,7 @@ async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(ge
         raw_text = response.content[0].text
     except Exception as e:
         logger.error("Claude API error for PESTLE %s: %s", ticker, e)
-        raise HTTPException(502, f"AI analysis failed: {str(e)}")
+        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.")
 
     try:
         parsed = _extract_json(raw_text)

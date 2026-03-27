@@ -351,84 +351,44 @@ async def get_comps(ticker: str, request: Request, user: dict = Depends(get_curr
     if cached:
         return cached
 
-    # Get the main stock data first
-    raw = fetch_stock_data(ticker)
-    if not raw:
+    if not _supabase:
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    # Get the subject company from Supabase (instant, no external API calls)
+    subj_rows = _supabase.table("stock_fundamentals").select("*").eq("ticker", ticker).limit(1).execute().data
+    if not subj_rows:
         raise HTTPException(status_code=404, detail="Ticker not found.")
-    data = normalise(raw)
-    sector = data.get("sector", "Technology")
+    subj = subj_rows[0]
+    sector = subj.get("sector", "Technology")
 
-    # Sector peer tickers
-    SECTOR_PEERS = {
-        "Technology": ["MSFT", "GOOGL", "META", "NVDA", "AMZN"],
-        "Information Technology": ["MSFT", "GOOGL", "META", "NVDA", "AMZN"],
-        "Consumer Electronics": ["MSFT", "GOOGL", "META", "NVDA", "SAMSUNG"],
-        "Healthcare": ["JNJ", "UNH", "PFE", "ABBV", "MRK"],
-        "Health Care": ["JNJ", "UNH", "PFE", "ABBV", "MRK"],
-        "Financial Services": ["JPM", "BAC", "WFC", "GS", "MS"],
-        "Consumer Cyclical": ["AMZN", "TSLA", "HD", "MCD", "NKE"],
-        "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE"],
-        "Consumer Staples": ["PG", "KO", "PEP", "WMT", "COST"],
-        "Energy": ["XOM", "CVX", "COP", "SLB", "EOG"],
-        "Industrials": ["HON", "UPS", "CAT", "BA", "GE"],
-        "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "T"],
-        "Utilities": ["NEE", "DUK", "SO", "D", "AEP"],
-        "Real Estate": ["AMT", "PLD", "CCI", "EQIX", "PSA"],
-        "Materials": ["LIN", "APD", "ECL", "NEM", "FCX"],
-    }
-    peers = [t for t in SECTOR_PEERS.get(sector, ["MSFT", "GOOGL", "META", "NVDA", "AMZN"]) if t != ticker][:5]
+    # Find peers: same sector, sorted by market cap, excluding subject
+    peer_rows = _supabase.table("stock_fundamentals").select("*") \
+        .eq("sector", sector).neq("ticker", ticker) \
+        .order("market_cap", desc=True).limit(5).execute().data or []
 
-    comps = []
-    for peer in peers:
-        try:
-            peer_raw = fetch_stock_data(peer)
-            if not peer_raw or not peer_raw.get("current_price"):
-                continue
-            pd = normalise(peer_raw)
-            comps.append({
-                "ticker": peer,
-                "name": pd.get("name", peer),
-                "price": pd.get("price"),
-                "market_cap": pd.get("market_cap"),
-                "pe_ratio": pd.get("pe_ratio"),
-                "pb_ratio": pd.get("pb_ratio"),
-                "ps_ratio": pd.get("ps_ratio"),
-                "ev_ebitda": pd.get("ev_ebitda") or pd.get("ev_to_ebitda"),
-                "ev_revenue": pd.get("ev_to_revenue") or pd.get("ev_revenue"),
-                "ebitda_margin": pd.get("ebitda_margin"),
-                "forward_pe": pd.get("forward_pe"),
-                "revenue_growth": pd.get("revenue_growth"),
-                "profit_margin": pd.get("profit_margin"),
-                "roe": pd.get("roe"),
-                "beta": pd.get("beta"),
-                "dividend_yield": pd.get("dividend_yield"),
-                "eps": pd.get("eps"),
-            })
-        except Exception as e:
-            logger.warning("Comps fetch failed for peer %s", peer)
-            continue
+    def _pick(r):
+        return {
+            "ticker": r.get("ticker"),
+            "name": r.get("name", r.get("ticker", "")),
+            "price": r.get("current_price"),
+            "market_cap": r.get("market_cap"),
+            "pe_ratio": r.get("pe_ratio"),
+            "pb_ratio": r.get("pb_ratio"),
+            "ps_ratio": r.get("ps_ratio"),
+            "ev_ebitda": r.get("ev_to_ebitda"),
+            "ev_revenue": r.get("ev_to_revenue"),
+            "ebitda_margin": r.get("ebitda_margin"),
+            "forward_pe": r.get("forward_pe"),
+            "revenue_growth": r.get("revenue_growth"),
+            "profit_margin": r.get("profit_margin"),
+            "roe": r.get("roe"),
+            "beta": r.get("beta"),
+            "dividend_yield": r.get("dividend_yield"),
+            "eps": r.get("eps"),
+        }
 
-    # Include the subject company
-    subject = {
-        "ticker": ticker,
-        "name": data.get("name", ticker),
-        "price": data.get("price"),
-        "market_cap": data.get("market_cap"),
-        "pe_ratio": data.get("pe_ratio"),
-        "pb_ratio": data.get("pb_ratio"),
-        "ps_ratio": data.get("ps_ratio"),
-        "ev_ebitda": data.get("ev_ebitda") or data.get("ev_to_ebitda"),
-        "ev_revenue": data.get("ev_to_revenue") or data.get("ev_revenue"),
-        "ebitda_margin": data.get("ebitda_margin"),
-        "forward_pe": data.get("forward_pe"),
-        "revenue_growth": data.get("revenue_growth"),
-        "profit_margin": data.get("profit_margin"),
-        "roe": data.get("roe"),
-        "beta": data.get("beta"),
-        "dividend_yield": data.get("dividend_yield"),
-        "eps": data.get("eps"),
-        "is_subject": True,
-    }
+    subject = {**_pick(subj), "is_subject": True}
+    comps = [_pick(p) for p in peer_rows]
 
     result = {"ticker": ticker, "sector": sector, "subject": subject, "peers": comps}
     _set_cached(f"comps:{ticker}", result)
