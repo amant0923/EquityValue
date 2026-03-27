@@ -7,7 +7,12 @@ from db import get_supabase
 
 logger = logging.getLogger(__name__)
 
-if not SUPABASE_JWT_SECRET:
+# Fix PEM key formatting: env vars often store \n as literal backslash-n
+_jwt_secret = SUPABASE_JWT_SECRET
+if _jwt_secret and "\\n" in _jwt_secret:
+    _jwt_secret = _jwt_secret.replace("\\n", "\n")
+
+if not _jwt_secret:
     logger.warning("SUPABASE_JWT_SECRET not set — JWT verification will use Supabase API (slower)")
 
 
@@ -20,7 +25,10 @@ async def get_optional_user(request: Request):
     """Return user dict if a valid token is present, else None (no 401)."""
     try:
         return await get_current_user(request)
-    except HTTPException:
+    except (HTTPException, Exception) as e:
+        if isinstance(e, HTTPException):
+            return None
+        logger.warning("Unexpected auth error (treating as anonymous): %s", e)
         return None
 
 
@@ -33,15 +41,17 @@ async def get_current_user(request: Request) -> dict:
     token = auth_header.split(" ")[1]
 
     # Try local JWT verification first (fast path)
-    # Supports both legacy HS256 (shared secret) and new ES256 (ECC P-256) keys
-    if SUPABASE_JWT_SECRET:
+    if _jwt_secret:
         try:
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256", "ES256"], audience="authenticated")
+            payload = jwt.decode(token, _jwt_secret, algorithms=["HS256", "ES256"], audience="authenticated")
             return payload
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token expired")
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
+        except Exception as e:
+            # Catches cryptography PEM errors, key format issues, etc.
+            logger.warning("JWT local decode failed (falling back to Supabase API): %s", e)
 
     # Fallback: verify token via Supabase API (only if JWT secret not configured)
     sb = _get_supabase()
