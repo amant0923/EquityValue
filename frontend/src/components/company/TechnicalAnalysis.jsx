@@ -87,12 +87,33 @@ export default function TechnicalAnalysis({ data }) {
     if (!priceData.length) return [];
     const sma = data.sma || {};
     const ema = data.ema || {};
+    // Build date-keyed lookup maps for each MA series
+    const maLookups = {};
+    MA_LINES.forEach((ml) => {
+      const src = ml.source === "sma" ? sma : ema;
+      const arr = src[ml.period] || src[`sma_${ml.period}`] || src[`ema_${ml.period}`] || [];
+      const map = {};
+      if (Array.isArray(arr)) {
+        arr.forEach((item) => {
+          if (item && typeof item === "object" && item.date != null) {
+            map[item.date] = item.value ?? item.close ?? null;
+          } else if (typeof item === "number") {
+            // flat number array fallback (indexed by position)
+          }
+        });
+      }
+      maLookups[ml.key] = { arr, map };
+    });
     return priceData.map((p, i) => {
       const row = { ...p };
       MA_LINES.forEach((ml) => {
-        const src = ml.source === "sma" ? sma : ema;
-        const arr = src[ml.period] || src[`sma_${ml.period}`] || src[`ema_${ml.period}`] || [];
-        if (arr[i] != null) row[ml.key] = arr[i];
+        const { arr, map } = maLookups[ml.key];
+        // Try date-keyed lookup first, then positional fallback
+        if (Object.keys(map).length > 0) {
+          if (map[p.date] != null) row[ml.key] = map[p.date];
+        } else if (arr[i] != null && typeof arr[i] === "number") {
+          row[ml.key] = arr[i];
+        }
       });
       return row;
     });
@@ -101,9 +122,19 @@ export default function TechnicalAnalysis({ data }) {
   // RSI data
   const rsiData = useMemo(() => {
     if (!data?.rsi || !priceData.length) return [];
+    // RSI may be array of {date, value} objects or flat numbers
+    const rsiArr = data.rsi;
+    if (rsiArr.length > 0 && typeof rsiArr[0] === "object" && rsiArr[0].date != null) {
+      const rsiMap = {};
+      rsiArr.forEach((item) => { rsiMap[item.date] = item.value ?? item.rsi ?? null; });
+      return priceData.map((p) => ({
+        date: p.date,
+        rsi: rsiMap[p.date] ?? null,
+      }));
+    }
     return priceData.map((p, i) => ({
       date: p.date,
-      rsi: data.rsi[i] != null ? data.rsi[i] : null,
+      rsi: rsiArr[i] != null ? rsiArr[i] : null,
     }));
   }, [priceData, data?.rsi]);
 
@@ -111,6 +142,18 @@ export default function TechnicalAnalysis({ data }) {
   const macdData = useMemo(() => {
     if (!data?.macd || !priceData.length) return [];
     const m = data.macd;
+    // MACD may be array of {date, macd, signal, histogram} objects or a dict of arrays
+    if (Array.isArray(m) && m.length > 0 && typeof m[0] === "object" && m[0].date != null) {
+      const macdMap = {};
+      m.forEach((item) => { macdMap[item.date] = item; });
+      return priceData.map((p) => ({
+        date: p.date,
+        macd: macdMap[p.date]?.macd ?? null,
+        signal: macdMap[p.date]?.signal ?? null,
+        histogram: macdMap[p.date]?.histogram ?? null,
+      }));
+    }
+    // Legacy dict-of-arrays format
     return priceData.map((p, i) => ({
       date: p.date,
       macd: m.macd?.[i] ?? null,
@@ -123,6 +166,17 @@ export default function TechnicalAnalysis({ data }) {
   const bollingerData = useMemo(() => {
     if (!data?.bollinger || !priceData.length) return [];
     const b = data.bollinger;
+    // Bollinger may be array of {date, upper, middle, lower} objects or a dict of arrays
+    if (Array.isArray(b) && b.length > 0 && typeof b[0] === "object" && b[0].date != null) {
+      const bMap = {};
+      b.forEach((item) => { bMap[item.date] = item; });
+      return priceData.map((p) => ({
+        ...p,
+        upper: bMap[p.date]?.upper ?? null,
+        middle: bMap[p.date]?.middle ?? null,
+        lower: bMap[p.date]?.lower ?? null,
+      }));
+    }
     return priceData.map((p, i) => ({
       ...p,
       upper: b.upper?.[i] ?? null,
@@ -134,9 +188,19 @@ export default function TechnicalAnalysis({ data }) {
   // Volume data
   const volumeData = useMemo(() => {
     if (!data?.volume || !priceData.length) return [];
+    const vol = data.volume;
+    // Volume may be array of {date, volume} objects or flat numbers
+    if (vol.length > 0 && typeof vol[0] === "object" && vol[0].date != null) {
+      const volMap = {};
+      vol.forEach((item) => { volMap[item.date] = item.volume ?? null; });
+      return priceData.map((p) => ({
+        date: p.date,
+        volume: volMap[p.date] ?? null,
+      }));
+    }
     return priceData.map((p, i) => ({
       date: p.date,
-      volume: data.volume[i] ?? null,
+      volume: vol[i] ?? null,
     }));
   }, [priceData, data?.volume]);
 
@@ -144,6 +208,22 @@ export default function TechnicalAnalysis({ data }) {
   const supertrendData = useMemo(() => {
     if (!data?.supertrend || !priceData.length) return [];
     const st = data.supertrend;
+    // Supertrend may be array of {date, direction, supertrend} objects or a dict of arrays
+    if (Array.isArray(st) && st.length > 0 && typeof st[0] === "object" && st[0].date != null) {
+      const stMap = {};
+      st.forEach((item) => { stMap[item.date] = item; });
+      return priceData.map((p) => {
+        const item = stMap[p.date];
+        const dir = item?.direction;
+        const val = item?.value ?? item?.supertrend ?? null;
+        return {
+          ...p,
+          st_green: dir === 1 && val != null ? val : null,
+          st_red: dir === -1 && val != null ? val : null,
+        };
+      });
+    }
+    // Legacy dict-of-arrays format
     return priceData.map((p, i) => {
       const dir = st.direction?.[i];
       const val = st.value?.[i] ?? st.supertrend?.[i] ?? null;

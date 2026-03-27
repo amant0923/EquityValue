@@ -14,8 +14,8 @@ export default function PriceChart({ ticker, currentPrice }) {
     setError(false);
     api.get(`/history/${ticker}?period=${period}`)
       .then(r => {
-        const prices = r.data.prices;
-        // FIX: backend now always returns prices object (never 404)
+        // Support both {"prices": {"dates", "closes"}} and {"dates", "closes"} formats
+        const prices = r.data.prices || r.data;
         if (prices && prices.dates && prices.dates.length > 0) {
           const mapped = prices.dates.map((t, i) => ({
             t,

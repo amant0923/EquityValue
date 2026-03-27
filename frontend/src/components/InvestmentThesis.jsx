@@ -275,7 +275,7 @@ export default function InvestmentThesis({ data, onMemoGenerated }) {
       }
     } catch (err) {
       if (err.name !== "AbortError") {
-        setError("Failed to generate thesis. Check your API connection and try again.");
+        setError(err.message || "Failed to generate thesis. Check your API connection and try again.");
       }
     } finally {
       setLoading(false);

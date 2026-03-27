@@ -93,7 +93,10 @@ export default function GovernanceSection({ ticker }) {
   const boardCount = data.board?.length || 0;
   const femaleCount = data.board?.filter((b) => b.gender?.toLowerCase() === "female").length || 0;
   const femalePct = boardCount > 0 ? ((femaleCount / boardCount) * 100).toFixed(0) : 0;
-  const sentiment = data.insider_sentiment || "neutral";
+  const rawSentiment = data.insider_sentiment;
+  const sentiment = typeof rawSentiment === "string"
+    ? rawSentiment
+    : (rawSentiment?.net_sentiment || "neutral");
   const sentimentStyle = SENTIMENT_COLORS[sentiment.toLowerCase()] || SENTIMENT_COLORS.neutral;
 
   return (
