@@ -46,7 +46,10 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
         setUpgrading(false);
       }
     } catch (err) {
-      const detail = err.response?.data?.detail;
+      const detail = err.response?.data?.detail
+        || (typeof err.response?.data === "string" && err.response.data.slice(0, 200))
+        || err.message;
+      console.error("Stripe checkout error:", err.response?.status, err.response?.data, err.message);
       setCheckoutError(detail || "Could not connect to payment server. Please try again.");
       setUpgrading(false);
     }

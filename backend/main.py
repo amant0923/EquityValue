@@ -773,6 +773,17 @@ async def top_picks(request: Request, user: dict = Depends(get_current_user)):
         logger.error("Top picks failed")
         raise HTTPException(status_code=500, detail="Failed to load top picks")
 
+@app.get("/stripe/health")
+async def stripe_health():
+    """Diagnostic: check Stripe configuration (no secrets exposed)."""
+    from stripe_handler import PLAN_PRICE_IDS
+    key = stripe.api_key or ""
+    return {
+        "secret_key_set": bool(key),
+        "secret_key_prefix": key[:7] + "..." if len(key) > 7 else "(empty)",
+        "price_ids": {k: bool(v) for k, v in PLAN_PRICE_IDS.items()},
+    }
+
 @app.post("/stripe/create-checkout")
 @limiter.limit("5/minute")
 async def create_checkout(request: Request, body: CheckoutRequest, user: dict = Depends(get_current_user)):

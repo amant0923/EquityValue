@@ -4,9 +4,17 @@ import stripe
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+import logging as _logging
+_stripe_logger = _logging.getLogger(__name__)
+if not stripe.api_key:
+    _stripe_logger.warning("STRIPE_SECRET_KEY not set — all checkout requests will fail")
+elif stripe.api_key.startswith("pk_"):
+    _stripe_logger.error("STRIPE_SECRET_KEY contains a PUBLISHABLE key (pk_...) — must be a SECRET key (sk_...)")
+elif not stripe.api_key.startswith("sk_"):
+    _stripe_logger.warning("STRIPE_SECRET_KEY doesn't start with sk_ — verify it's the correct secret key")
 if not STRIPE_WEBHOOK_SECRET:
-    import logging
-    logging.getLogger(__name__).warning("STRIPE_WEBHOOK_SECRET not set — webhook signature verification will fail")
+    _stripe_logger.warning("STRIPE_WEBHOOK_SECRET not set — webhook signature verification will fail")
 
 PLAN_PRICE_IDS = {
     "pro": os.environ.get("STRIPE_PRO_PRICE_ID", ""),
