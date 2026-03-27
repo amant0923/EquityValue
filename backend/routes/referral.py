@@ -37,12 +37,9 @@ async def track_referral(request: Request, body: ReferralSignup, user=Depends(ge
         referrer_id = row[0]["id"]
     else:
         # Legacy fallback: match UUID prefix for old referral links
-        users = sb.table("user_profiles").select("id").execute().data or []
-        referrer_id = None
-        for u in users:
-            if u["id"][:8] == code:
-                referrer_id = u["id"]
-                break
+        # Use ilike filter instead of fetching ALL users (fixes N+1 / full table scan)
+        users = sb.table("user_profiles").select("id").like("id", f"{code}%").limit(1).execute().data or []
+        referrer_id = users[0]["id"] if users else None
     if not referrer_id:
         raise HTTPException(404, "Referral code not found")
     if referrer_id == user["sub"]:
@@ -75,8 +72,9 @@ async def convert_referral(request: Request, user=Depends(get_current_user)):
     # Update status to converted
     sb.table("referrals").update({"status": "converted"}).eq("referee_id", user["sub"]).execute()
     # Award 1 month credit to referrer
+    # Use select("referral_credits") instead of select("*") to minimize data transfer
     try:
-        referrer_profile = sb.table("user_profiles").select("*").eq("id", ref["referrer_id"]).single().execute().data
+        referrer_profile = sb.table("user_profiles").select("referral_credits").eq("id", ref["referrer_id"]).single().execute().data
         current_credits = referrer_profile.get("referral_credits", 0) if referrer_profile else 0
         sb.table("user_profiles").update({
             "referral_credits": current_credits + 1,
@@ -95,7 +93,10 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
     if not sb:
         raise HTTPException(503, "Database not configured")
     user_id = user["sub"]
-    profile = sb.table("user_profiles").select("referral_code").eq("id", user_id).single().execute().data
+    try:
+        profile = sb.table("user_profiles").select("referral_code").eq("id", user_id).single().execute().data
+    except Exception:
+        profile = None
     if profile and profile.get("referral_code"):
         return {"code": profile["referral_code"]}
     # Generate a new random code and store it

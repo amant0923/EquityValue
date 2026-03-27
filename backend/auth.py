@@ -2,21 +2,26 @@
 import jwt
 import logging
 from fastapi import Request, HTTPException
-from supabase import create_client
-from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET
+from config import SUPABASE_JWT_SECRET
+from db import get_supabase
 
 logger = logging.getLogger(__name__)
 
 if not SUPABASE_JWT_SECRET:
     logger.warning("SUPABASE_JWT_SECRET not set — JWT verification will use Supabase API (slower)")
 
-# Shared Supabase client — created once, reused across requests
-_sb_client = None
+
 def _get_supabase():
-    global _sb_client
-    if _sb_client is None and SUPABASE_URL and SUPABASE_KEY:
-        _sb_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    return _sb_client
+    """Use centralized Supabase client factory instead of creating a duplicate."""
+    return get_supabase()
+
+
+async def get_optional_user(request: Request):
+    """Return user dict if a valid token is present, else None (no 401)."""
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
 
 
 async def get_current_user(request: Request) -> dict:

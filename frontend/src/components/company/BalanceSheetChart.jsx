@@ -15,7 +15,7 @@ export default function BalanceSheetChart({ rows }) {
   const data = useMemo(() => {
     if (!rows || rows.length === 0) return [];
     return [...rows]
-      .sort((a, b) => a.period_date.localeCompare(b.period_date))
+      .sort((a, b) => (a.period_date || "").localeCompare(b.period_date || ""))
       .slice(-12)
       .map((r) => ({
         period: formatLabel(r.period_date, r.period_type),

@@ -9,7 +9,7 @@ export default function MarginsChart({ rows }) {
   const data = useMemo(() => {
     if (!rows || rows.length === 0) return [];
     return [...rows]
-      .sort((a, b) => a.period_date.localeCompare(b.period_date))
+      .sort((a, b) => (a.period_date || "").localeCompare(b.period_date || ""))
       .slice(-12)
       .map((r) => {
         const rev = r.revenue || 0;

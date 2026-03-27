@@ -161,11 +161,11 @@ export default function CompanyFinancialsPage() {
           {activeStatement === "income" && (
             <ForwardEstimates ticker={ticker} />
           )}
-          {activeStatement === "income" && rows.length > 0 && (
-            <ReturnRatiosChart data={rows} />
+          {activeStatement === "income" && currentRows.length > 0 && (
+            <ReturnRatiosChart data={currentRows} />
           )}
-          {activeStatement === "cashflow" && rows.length > 0 && (
-            <CashFlowTrends data={rows} />
+          {activeStatement === "cashflow" && currentRows.length > 0 && (
+            <CashFlowTrends data={currentRows} />
           )}
           {activeStatement === "income" && (
             <DividendAnalysis data={[]} />

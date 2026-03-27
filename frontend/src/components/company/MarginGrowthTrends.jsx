@@ -7,7 +7,7 @@ export default function MarginGrowthTrends({ quarters, growth }) {
 
   // Build chart data from quarters (margins)
   const sorted = quarters
-    ? [...quarters].sort((a, b) => a.period_date.localeCompare(b.period_date)).slice(-8)
+    ? [...quarters].sort((a, b) => (a.period_date || "").localeCompare(b.period_date || "")).slice(-8)
     : [];
 
   const marginData = sorted.map((q) => ({
@@ -19,7 +19,7 @@ export default function MarginGrowthTrends({ quarters, growth }) {
 
   // Build growth data
   const growthSorted = growth
-    ? [...growth].sort((a, b) => a.period_date.localeCompare(b.period_date)).slice(-8)
+    ? [...growth].sort((a, b) => (a.period_date || "").localeCompare(b.period_date || "")).slice(-8)
     : [];
 
   const growthData = growthSorted.map((g) => ({

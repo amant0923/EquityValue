@@ -776,6 +776,20 @@ async def top_picks(request: Request, user: dict = Depends(get_current_user)):
         ranked = sorted(rows, key=lambda r: r["upside_pct"], reverse=True)
         buy = ranked[:5]
         avoid = ranked[-5:][::-1]  # worst 5, most overvalued first
+
+        # Enrich with EVS scores
+        pick_tickers = [r["ticker"] for r in buy + avoid]
+        if pick_tickers and _supabase:
+            try:
+                evs_rows = _supabase.table("equity_value_scores").select("ticker,score,verdict").in_("ticker", pick_tickers).execute().data or []
+                evs_map = {r["ticker"]: r for r in evs_rows}
+                for r in buy + avoid:
+                    evs = evs_map.get(r["ticker"])
+                    r["evs_score"] = evs["score"] if evs else None
+                    r["evs_verdict"] = evs["verdict"] if evs else None
+            except Exception:
+                pass  # EVS enrichment is best-effort
+
         return {"buy": buy, "avoid": avoid}
     except Exception as e:
         logger.error("Top picks failed")

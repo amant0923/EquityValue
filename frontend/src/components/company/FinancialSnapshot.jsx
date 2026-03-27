@@ -12,7 +12,7 @@ export default function FinancialSnapshot({ quarters }) {
   if (!quarters || quarters.length === 0) return null;
 
   // Reverse to chronological order, take last 8
-  const sorted = [...quarters].sort((a, b) => a.period_date.localeCompare(b.period_date)).slice(-8);
+  const sorted = [...quarters].sort((a, b) => (a.period_date || "").localeCompare(b.period_date || "")).slice(-8);
 
   const chartData = sorted.map((q) => ({
     period: `${q.period_type} ${q.period_date?.slice(0, 4)}`,

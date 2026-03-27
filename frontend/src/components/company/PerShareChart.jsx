@@ -24,7 +24,7 @@ export default function PerShareChart({ incomeRows, balanceRows }) {
     }
 
     return Object.values(map)
-      .sort((a, b) => a.period_date.localeCompare(b.period_date))
+      .sort((a, b) => (a.period_date || "").localeCompare(b.period_date || ""))
       .slice(-12)
       .map((r) => ({
         period: formatLabel(r.period_date, r.period_type),

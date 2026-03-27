@@ -22,7 +22,7 @@ const INCOME_ITEMS = [
   { key: "cost_of_revenue", label: "Cost of Revenue" },
   { key: "gross_profit", label: "Gross Profit", total: true },
   { key: "gross_margin", label: "Gross Margin", pct: true },
-  { key: "research_development", label: "R&D Expenses" },
+  { key: "research_and_development", label: "R&D Expenses" },
   { key: "selling_general_admin", label: "SG&A Expenses" },
   { key: "operating_expenses", label: "Total Operating Expenses" },
   { key: "operating_income", label: "Operating Income", total: true },
@@ -33,7 +33,6 @@ const INCOME_ITEMS = [
   { key: "net_income", label: "Net Income", total: true },
   { key: "net_margin", label: "Net Margin", pct: true },
   { key: "eps", label: "EPS (Basic)" },
-  { key: "eps_diluted", label: "EPS (Diluted)" },
   { key: "weighted_avg_shares", label: "Shares Outstanding" },
   { key: "ebitda", label: "EBITDA", total: true },
 ];
@@ -41,7 +40,7 @@ const INCOME_ITEMS = [
 const BALANCE_ITEMS = [
   { key: "cash_and_equivalents", label: "Cash & Equivalents" },
   { key: "short_term_investments", label: "Short-term Investments" },
-  { key: "accounts_receivable", label: "Accounts Receivable" },
+  { key: "net_receivables", label: "Accounts Receivable" },
   { key: "inventory", label: "Inventory" },
   { key: "total_current_assets", label: "Total Current Assets", total: true },
   { key: "property_plant_equipment", label: "PP&E (Net)" },
@@ -61,18 +60,16 @@ const BALANCE_ITEMS = [
 ];
 
 const CASHFLOW_ITEMS = [
-  { key: "net_income", label: "Net Income" },
+  { key: "net_income_cf", label: "Net Income" },
   { key: "depreciation_amortization", label: "Depreciation & Amortization" },
   { key: "stock_based_compensation", label: "Stock-Based Compensation" },
   { key: "change_in_working_capital", label: "Change in Working Capital" },
   { key: "operating_cash_flow", label: "Operating Cash Flow", total: true },
-  { key: "capital_expenditures", label: "Capital Expenditures" },
+  { key: "capital_expenditure", label: "Capital Expenditures" },
   { key: "acquisitions", label: "Acquisitions" },
-  { key: "investing_cash_flow", label: "Investing Cash Flow", total: true },
-  { key: "debt_repayment", label: "Debt Repayment" },
+  { key: "purchases_of_investments", label: "Investment Purchases" },
+  { key: "sales_of_investments", label: "Investment Sales" },
   { key: "common_stock_repurchased", label: "Share Buybacks" },
-  { key: "dividends_paid", label: "Dividends Paid" },
-  { key: "financing_cash_flow", label: "Financing Cash Flow", total: true },
   { key: "free_cash_flow", label: "Free Cash Flow", total: true },
   { key: "net_change_in_cash", label: "Net Change in Cash" },
 ];
@@ -89,7 +86,7 @@ export default function StatementTable({ rows, statementType }) {
   const periods = useMemo(() => {
     if (!rows || rows.length === 0) return [];
     return [...rows]
-      .sort((a, b) => b.period_date.localeCompare(a.period_date))
+      .sort((a, b) => (b.period_date || "").localeCompare(a.period_date || ""))
       .slice(0, 10);
   }, [rows]);
 

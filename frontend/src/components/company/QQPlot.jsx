@@ -54,9 +54,11 @@ export default function QQPlot({ data }) {
   const slope = reference_line?.slope ?? 1;
   const intercept = reference_line?.intercept ?? 0;
 
-  const minX = Math.min(...(theoretical_quantiles || [0]));
-  const maxX = Math.max(...(theoretical_quantiles || [1]));
-  const padding = (maxX - minX) * 0.05;
+  const tq = theoretical_quantiles || [];
+  if (tq.length === 0) return null;
+  const minX = Math.min(...tq);
+  const maxX = Math.max(...tq);
+  const padding = (maxX - minX) * 0.05 || 0.1;
 
   const refLineData = [
     { x: minX - padding, y: slope * (minX - padding) + intercept },
