@@ -214,9 +214,9 @@ def main():
 
             record = {
                 "ticker": ticker,
-                "price_forecast": json.dumps(result["price_forecast"]),
-                "volatility_forecast": json.dumps(result["volatility_forecast"]),
-                "model_params": json.dumps(result["model_params"]),
+                "price_forecast": result["price_forecast"],
+                "volatility_forecast": result["volatility_forecast"],
+                "model_params": result["model_params"],
             }
 
             supabase.table("price_forecasts").upsert(record, on_conflict="ticker").execute()

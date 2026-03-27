@@ -5,7 +5,7 @@ Data is pre-computed by refresh_estimates.py and served from Supabase.
 from fastapi import APIRouter, HTTPException, Depends, Request
 from config import validate_ticker
 from auth import get_optional_user
-from db import get_supabase, get_supabase_service
+from db import get_supabase, get_supabase_service, parse_json_strings
 
 try:
     from rate_limit import limiter
@@ -33,4 +33,4 @@ async def get_estimates(request: Request, ticker: str, user: dict = Depends(get_
 
     data = row[0]
     data.pop("computed_at", None)
-    return data
+    return parse_json_strings(data)

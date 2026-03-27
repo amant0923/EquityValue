@@ -182,23 +182,23 @@ def main():
                 fail += 1
                 continue
 
-            # Convert nested dicts/lists to JSON strings for JSONB columns
+            # Pass dicts/lists directly — Supabase client handles JSONB serialization
             record = {
                 "ticker": ticker,
                 "period": "1y",
-                "price": json.dumps(result["price"]),
-                "rsi": json.dumps(result["rsi"]),
-                "sma": json.dumps(result["sma"]),
-                "ema": json.dumps(result["ema"]),
-                "macd": json.dumps(result["macd"]),
-                "bollinger": json.dumps(result["bollinger"]),
-                "supertrend": json.dumps(result["supertrend"]),
-                "pivot_points": json.dumps(result["pivot_points"]),
-                "fibonacci": json.dumps(result["fibonacci"]),
-                "support_resistance": json.dumps(result["support_resistance"]),
-                "volume": json.dumps(result["volume"]),
-                "signals": json.dumps(result["signals"]),
-                "performance": json.dumps(result["performance"]),
+                "price": result["price"],
+                "rsi": result["rsi"],
+                "sma": result["sma"],
+                "ema": result["ema"],
+                "macd": result["macd"],
+                "bollinger": result["bollinger"],
+                "supertrend": result["supertrend"],
+                "pivot_points": result["pivot_points"],
+                "fibonacci": result["fibonacci"],
+                "support_resistance": result["support_resistance"],
+                "volume": result["volume"],
+                "signals": result["signals"],
+                "performance": result["performance"],
             }
 
             supabase.table("technicals_cache").upsert(record, on_conflict="ticker").execute()

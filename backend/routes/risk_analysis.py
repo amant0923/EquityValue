@@ -10,7 +10,7 @@ import logging
 
 from config import validate_ticker
 from auth import get_optional_user
-from db import get_supabase, get_supabase_service
+from db import get_supabase, get_supabase_service, parse_json_strings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,7 +34,7 @@ async def get_risk_analysis(ticker: str, request: Request, user: dict = Depends(
     if not row:
         raise HTTPException(404, "Risk data not yet computed for this ticker. Check back in a few hours.")
 
-    return row[0]
+    return parse_json_strings(row[0])
 
 
 @router.get("/forecast/{ticker}")
@@ -50,4 +50,4 @@ async def get_forecast(ticker: str, request: Request, user: dict = Depends(get_o
     if not row:
         raise HTTPException(404, "Forecast data not yet computed for this ticker. Check back in a few hours.")
 
-    return row[0]
+    return parse_json_strings(row[0])

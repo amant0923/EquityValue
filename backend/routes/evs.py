@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 from config import validate_ticker
 from rate_limit import limiter
-from db import get_supabase
+from db import get_supabase, parse_json_strings
 
 router = APIRouter(prefix="/evs")
 
@@ -19,7 +19,7 @@ async def evs_top(request: Request, limit: int = Query(default=20, ge=1, le=50))
         .order("score", desc=True) \
         .limit(limit) \
         .execute().data
-    return rows
+    return [parse_json_strings(r) for r in rows]
 
 
 @router.get("/bottom")
@@ -34,7 +34,7 @@ async def evs_bottom(request: Request, limit: int = Query(default=20, ge=1, le=5
         .order("score", desc=False) \
         .limit(limit) \
         .execute().data
-    return rows
+    return [parse_json_strings(r) for r in rows]
 
 
 @router.get("/sectors")
@@ -44,6 +44,7 @@ async def evs_sector_summaries(request: Request):
     sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
+    # ~500 S&P tickers; 1000 limit provides headroom for index expansion
     evs_result = sb.table("equity_value_scores").select("ticker, score, verdict").limit(1000).execute()
     fund_result = sb.table("stock_fundamentals").select("ticker, sector").limit(1000).execute()
     sector_map = {f["ticker"]: f["sector"] for f in fund_result.data}
@@ -64,7 +65,7 @@ async def evs_by_sector(request: Request, sector: str, limit: int = Query(defaul
     if not sb:
         raise HTTPException(503, "Database not configured")
     # Get tickers in this sector from fundamentals
-    fund_rows = sb.table("stock_fundamentals").select("ticker").eq("sector", sector).execute().data
+    fund_rows = sb.table("stock_fundamentals").select("ticker").eq("sector", sector).limit(200).execute().data
     if not fund_rows:
         raise HTTPException(404, f"No tickers found for sector: {sector}")
     tickers = [f["ticker"] for f in fund_rows]
@@ -116,12 +117,13 @@ async def evs_detail(request: Request, ticker: str):
         if sector:
             sector_tickers = sb.table("stock_fundamentals") \
                 .select("ticker, sector, industry") \
-                .eq("sector", sector).execute().data
+                .eq("sector", sector).limit(200).execute().data
             sector_ticker_list = [t["ticker"] for t in sector_tickers]
             # Only fetch EVS scores for tickers in this sector (not ALL scores)
             sector_evs = sb.table("equity_value_scores") \
                 .select("ticker, score") \
                 .in_("ticker", sector_ticker_list) \
+                .limit(200) \
                 .execute().data if sector_ticker_list else []
             evs_map = {e["ticker"]: e["score"] for e in sector_evs}
             scores = [{"ticker": t["ticker"], "score": evs_map.get(t["ticker"], 0),
@@ -130,4 +132,4 @@ async def evs_detail(request: Request, ticker: str):
             from evs.sector import get_peer_context
             peer_context = get_peer_context(ticker, scores)
 
-    return {**row[0], "history": history, "peer_context": peer_context, "trend": trend}
+    return {**parse_json_strings(row[0]), "history": history, "peer_context": peer_context, "trend": trend}

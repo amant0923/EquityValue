@@ -47,3 +47,19 @@ def get_supabase_service():
                 from supabase import create_client
                 _service_client = create_client(url, key)
     return _service_client
+
+
+def parse_json_strings(row: dict) -> dict:
+    """Parse any double-encoded JSON string fields in a Supabase row.
+
+    Refresh scripts stored dicts/lists with json.dumps() into JSONB columns,
+    causing double-encoding. This parses them back to native Python objects.
+    """
+    import json
+    for key, val in row.items():
+        if isinstance(val, str) and val and val[0] in ('{', '['):
+            try:
+                row[key] = json.loads(val)
+            except (ValueError, TypeError):
+                pass
+    return row

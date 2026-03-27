@@ -172,12 +172,12 @@ def main():
 
             record = {
                 "ticker": ticker,
-                "qq_plot": json.dumps(result["qq_plot"]),
-                "distribution": json.dumps(result["distribution"]),
-                "histogram": json.dumps(result["histogram"]),
-                "rolling_var": json.dumps(result["rolling_var"]),
-                "rolling_mean": json.dumps(result["rolling_mean"]),
-                "var_summary": json.dumps(result["var_summary"]),
+                "qq_plot": result["qq_plot"],
+                "distribution": result["distribution"],
+                "histogram": result["histogram"],
+                "rolling_var": result["rolling_var"],
+                "rolling_mean": result["rolling_mean"],
+                "var_summary": result["var_summary"],
             }
 
             supabase.table("risk_analysis_cache").upsert(record, on_conflict="ticker").execute()

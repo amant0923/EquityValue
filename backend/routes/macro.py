@@ -5,7 +5,7 @@ Data is pre-computed by refresh_macro.py and served from Supabase.
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from auth import get_optional_user
-from db import get_supabase_service, get_supabase
+from db import get_supabase_service, get_supabase, parse_json_strings
 
 try:
     from rate_limit import limiter
@@ -50,10 +50,9 @@ async def macro_overview(request: Request, user: dict = Depends(get_optional_use
         raise HTTPException(404, "Macro data not yet computed. Check back in a few hours.")
 
     data = row[0]
-    # Remove the 'id' and 'computed_at' fields to match original response shape
     data.pop("id", None)
     data.pop("computed_at", None)
-    return data
+    return parse_json_strings(data)
 
 
 @router.get("/sector/{sector}")
@@ -70,8 +69,7 @@ async def macro_sector(request: Request, sector: str, user: dict = Depends(get_o
     if not row:
         raise HTTPException(404, f"Macro data not available for sector '{sector_key}'. Check back in a few hours.")
 
-    data = row[0]
-    # Reshape to match original response: {sector, series: {...}}
+    data = parse_json_strings(row[0])
     return {
         "sector": data["sector"],
         "series": data.get("indicators", {}),
