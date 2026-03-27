@@ -87,6 +87,26 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credenti
 from starlette.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# ── Global exception handler — ensures CORS headers on 500 errors ────────────
+from starlette.responses import JSONResponse
+import traceback as _traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions and return JSON with CORS headers.
+    Without this, 500 errors from middleware/route crashes have no CORS
+    headers, causing browsers to show 'Network Error' instead of the actual error."""
+    logger.error("Unhandled exception on %s: %s\n%s", request.url.path, exc, _traceback.format_exc())
+    origin = request.headers.get("origin", "")
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)[:200]}"},
+    )
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 # ── Security response headers ────────────────────────────────────────────────
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):

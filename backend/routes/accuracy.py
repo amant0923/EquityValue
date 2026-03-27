@@ -15,6 +15,7 @@ async def accuracy_models(request: Request):
     sb = get_supabase()
     if not sb:
         raise HTTPException(503, "Database not configured")
+    # ~500 tickers x ~11 models = ~5500 rows max currently; 10000 provides headroom
     rows = sb.table("accuracy_tracking") \
         .select("model_name, direction_correct_6mo, direction_correct_12mo") \
         .limit(10000) \

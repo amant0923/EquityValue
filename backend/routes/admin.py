@@ -124,6 +124,7 @@ async def admin_login(request: Request, username: str = Body(...), password: str
 
 
 @router.get("/users")
+@limiter.limit("10/minute")
 async def list_users(request: Request):
     await _require_admin(request)
     sb = _get_sb()
@@ -238,6 +239,7 @@ async def check_admin(request: Request):
 
 
 @router.get("/margins")
+@limiter.limit("10/minute")
 async def admin_margins(request: Request):
     """Admin margin dashboard — revenue vs costs this month."""
     await _require_admin(request)
@@ -250,7 +252,7 @@ async def admin_margins(request: Request):
 
     # API usage this month
     try:
-        usage = sb.table("api_usage_log").select("endpoint, estimated_cost, response_time_ms").gte("timestamp", month_start).execute().data or []
+        usage = sb.table("api_usage_log").select("endpoint, estimated_cost, response_time_ms").gte("timestamp", month_start).limit(50000).execute().data or []
     except Exception:
         usage = []
 

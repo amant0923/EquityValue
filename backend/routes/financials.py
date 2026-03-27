@@ -1,8 +1,11 @@
 """Routes for financial statements, metrics, growth, segments."""
+import logging
 from fastapi import APIRouter, HTTPException, Request
 from config import validate_ticker
 from rate_limit import limiter
 from db import get_supabase
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
