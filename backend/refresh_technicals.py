@@ -140,11 +140,12 @@ def compute_technicals(ticker: str, period: str = "1y") -> dict | None:
         bb_up_last, bb_lo_last, st_dir_last,
     )
 
-    # Performance Returns
-    performance = _compute_performance(history)
+    # Performance Returns — build list-of-dicts format expected by _compute_performance
+    price_dicts = [{"date": dates[i], "close": closes[i]} for i in range(n)]
+    performance = _compute_performance(price_dicts)
 
     # Price data for charts
-    price_data = [{"date": dates[i], "open": float(history[i].get("open", closes[i])), "high": highs[i], "low": lows[i], "close": closes[i]} for i in range(n)]
+    price_data = [{"date": dates[i], "open": closes[i], "high": highs[i], "low": lows[i], "close": closes[i]} for i in range(n)]
 
     return {
         "ticker": ticker,
