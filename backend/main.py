@@ -621,6 +621,15 @@ class PDFRequest(BaseModel):
     memo: str = ""
     monte_carlo: dict | None = None
     lbo: dict | None = None
+    technicals: dict | None = None
+    risk: dict | None = None
+    forecast: dict | None = None
+    governance: dict | None = None
+    wacc: dict | None = None
+    estimates: dict | None = None
+    swot: dict | None = None
+    pestle: dict | None = None
+    macro: dict | None = None
 
     @field_validator("memo")
     @classmethod
@@ -640,6 +649,15 @@ async def export_pdf(request: Request, payload: PDFRequest, user: dict = Depends
             memo=payload.memo,
             monte_carlo=payload.monte_carlo,
             lbo=payload.lbo,
+            technicals=payload.technicals,
+            risk=payload.risk,
+            forecast=payload.forecast,
+            governance=payload.governance,
+            wacc=payload.wacc,
+            estimates=payload.estimates,
+            swot=payload.swot,
+            pestle=payload.pestle,
+            macro=payload.macro,
         )
     except Exception as e:
         logger.error("PDF generation failed", exc_info=True)

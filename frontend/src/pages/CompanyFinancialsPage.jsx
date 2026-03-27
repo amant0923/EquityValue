@@ -13,6 +13,7 @@ import ForwardEstimates from "../components/company/ForwardEstimates";
 import ReturnRatiosChart from "../components/company/ReturnRatiosChart";
 import DividendAnalysis from "../components/company/DividendAnalysis";
 import CashFlowTrends from "../components/company/CashFlowTrends";
+import MarginDecomposition from "../components/company/MarginDecomposition";
 import api from "../lib/api";
 
 const STATEMENT_TABS = [
@@ -34,6 +35,7 @@ export default function CompanyFinancialsPage() {
   const [period, setPeriod] = useState("annual");
   const [financials, setFinancials] = useState(null);
   const [segments, setSegments] = useState(null);
+  const [dividends, setDividends] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -42,9 +44,10 @@ export default function CompanyFinancialsPage() {
       setLoading(true);
       setError("");
       try {
-        const [finRes, segRes] = await Promise.allSettled([
+        const [finRes, segRes, divRes] = await Promise.allSettled([
           api.get(`/financials/${ticker}?period=${period}`),
           api.get(`/segments/${ticker}`),
+          api.get(`/dividends/${ticker}`),
         ]);
 
         if (finRes.status === "fulfilled") {
@@ -55,6 +58,10 @@ export default function CompanyFinancialsPage() {
 
         if (segRes.status === "fulfilled") {
           setSegments(segRes.value.data);
+        }
+
+        if (divRes.status === "fulfilled") {
+          setDividends(divRes.value.data?.dividends || divRes.value.data || []);
         }
       } catch (err) {
         setError(err.response?.data?.detail || "Failed to load financial data.");
@@ -162,13 +169,20 @@ export default function CompanyFinancialsPage() {
             <ForwardEstimates ticker={ticker} />
           )}
           {activeStatement === "income" && currentRows.length > 0 && (
-            <ReturnRatiosChart data={currentRows} />
+            <MarginDecomposition rows={currentRows} />
+          )}
+          {activeStatement === "income" && currentRows.length > 0 && (
+            <ReturnRatiosChart
+              data={currentRows}
+              balanceRows={financials?.balance || []}
+              cashflowRows={financials?.cashflow || []}
+            />
           )}
           {activeStatement === "cashflow" && currentRows.length > 0 && (
             <CashFlowTrends data={currentRows} />
           )}
-          {activeStatement === "income" && (
-            <DividendAnalysis data={[]} />
+          {activeStatement === "income" && dividends.length > 0 && (
+            <DividendAnalysis data={dividends} />
           )}
         </>
       )}

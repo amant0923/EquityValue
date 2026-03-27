@@ -79,9 +79,39 @@ export default function CompanyValuationPage() {
 
   const exportPDF = async () => {
     try {
+      // Fetch all supplementary data in parallel for the full research report
+      const [techRes, riskRes, forecastRes, govRes, waccRes, estRes, swotRes, pestleRes, macroRes] =
+        await Promise.allSettled([
+          api.get(`/technicals/${ticker}`),
+          api.get(`/risk/${ticker}`),
+          api.get(`/forecast/${ticker}`),
+          api.get(`/governance/${ticker}`),
+          api.get(`/wacc/${ticker}`),
+          api.get(`/estimates/${ticker}`),
+          api.post(`/analysis/swot/${ticker}`),
+          api.post(`/analysis/pestle/${ticker}`),
+          api.get("/macro/overview"),
+        ]);
+
+      const val = (r) => (r.status === "fulfilled" ? r.value.data : null);
+
       const res = await api.post(
         "/pdf/export",
-        { data: valuation, memo: memoText || "", monte_carlo: mcStats || null, lbo: lboStats || null },
+        {
+          data: valuation,
+          memo: memoText || "",
+          monte_carlo: mcStats || null,
+          lbo: lboStats || null,
+          technicals: val(techRes),
+          risk: val(riskRes),
+          forecast: val(forecastRes),
+          governance: val(govRes),
+          wacc: val(waccRes),
+          estimates: val(estRes),
+          swot: val(swotRes),
+          pestle: val(pestleRes),
+          macro: val(macroRes),
+        },
         { responseType: "blob" }
       );
       // Check if response is actually an error (JSON) disguised as blob
