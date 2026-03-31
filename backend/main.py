@@ -155,25 +155,12 @@ async def audit_and_cost_middleware(request: Request, call_next):
                     # than trusting an unverified token.
                 except Exception:
                     pass  # Invalid/expired token — skip user attribution for this log entry
-            # Hash IP for privacy
-            ip = request.client.host if request.client else "unknown"
-            daily_salt = datetime.now().strftime("%Y-%m-%d")
-            hashed_ip = _hashlib.sha256(f"{ip}{daily_salt}".encode()).hexdigest()[:16]
-            # Estimate cost
-            cost = 0.0001
-            for prefix, c in COST_MAP.items():
-                if prefix in path:
-                    cost = c
-                    break
             _asyncio.create_task(_asyncio.to_thread(
                 lambda: _supabase.table("api_usage_log").insert({
                     "endpoint": path,
                     "method": request.method,
                     "user_id": user_id,
                     "response_time_ms": elapsed_ms,
-                    "hashed_ip": hashed_ip,
-                    "response_code": response.status_code,
-                    "estimated_cost": cost,
                 }).execute()
             ))
         except Exception:
