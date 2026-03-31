@@ -815,8 +815,9 @@ async def create_checkout(request: Request, body: CheckoutRequest, user: dict = 
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid plan selected.") from None
     except Exception as e:
-        logger.error("Stripe checkout error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Checkout failed. Please try again.") from None
+        error_msg = str(e)
+        logger.error("Stripe checkout error for plan '%s': %s", plan, error_msg)
+        raise HTTPException(status_code=500, detail=f"Checkout failed: {error_msg[:150]}") from None
 
 @app.post("/stripe/webhook")
 @limiter.limit("60/minute")
