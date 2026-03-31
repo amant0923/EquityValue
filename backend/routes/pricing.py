@@ -60,7 +60,7 @@ async def lifetime_checkout(request: Request, user=Depends(get_current_user)):
         return {"checkout_url": session.url}
     except Exception as e:
         logger.error("Lifetime checkout failed: %s", e, exc_info=True)
-        raise HTTPException(500, "Checkout failed. Please try again.")
+        raise HTTPException(500, "Checkout failed. Please try again.") from None
 
 
 class StudentVerify(BaseModel):
@@ -100,7 +100,7 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
         }).eq("id", user["sub"]).execute()
     except Exception as e:
         logger.error("Student verification DB update failed")
-        raise HTTPException(500, "Failed to initiate verification")
+        raise HTTPException(500, "Failed to initiate verification") from None
     # Send verification email via Resend (if configured)
     resend_key = os.environ.get("RESEND_API_KEY", "")
     if resend_key:
@@ -191,4 +191,4 @@ async def student_checkout(request: Request, body: StudentCheckoutRequest, user=
         return {"checkout_url": session.url}
     except Exception as e:
         logger.error("Student checkout failed: %s", e, exc_info=True)
-        raise HTTPException(500, "Checkout failed. Please try again.")
+        raise HTTPException(500, "Checkout failed. Please try again.") from None

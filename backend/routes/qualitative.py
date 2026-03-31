@@ -148,13 +148,13 @@ async def swot_analysis(request: Request, ticker: str, user: dict = Depends(get_
         raw_text = response.content[0].text
     except Exception as e:
         logger.error("Claude API error for SWOT %s: %s", ticker, e)
-        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.")
+        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.") from None
 
     try:
         parsed = _extract_json(raw_text)
     except ValueError:
         logger.error("Failed to parse SWOT JSON for %s: %s", ticker, raw_text[:500])
-        raise HTTPException(502, "AI returned malformed response — please try again")
+        raise HTTPException(502, "AI returned malformed response — please try again") from None
 
     result = {
         "ticker": ticker,
@@ -228,13 +228,13 @@ async def pestle_analysis(request: Request, ticker: str, user: dict = Depends(ge
         raw_text = response.content[0].text
     except Exception as e:
         logger.error("Claude API error for PESTLE %s: %s", ticker, e)
-        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.")
+        raise HTTPException(502, "AI analysis temporarily unavailable. Please try again.") from None
 
     try:
         parsed = _extract_json(raw_text)
     except ValueError:
         logger.error("Failed to parse PESTLE JSON for %s: %s", ticker, raw_text[:500])
-        raise HTTPException(502, "AI returned malformed response — please try again")
+        raise HTTPException(502, "AI returned malformed response — please try again") from None
 
     pestle_keys = ["political", "economic", "social", "technological", "legal", "environmental"]
     result = {"ticker": ticker}

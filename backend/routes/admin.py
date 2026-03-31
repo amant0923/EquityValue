@@ -147,7 +147,7 @@ async def list_users(request: Request):
             page += 1
     except Exception as e:
         logger.error(f"Failed to list auth users: {e}", exc_info=True)
-        raise HTTPException(500, "Failed to list auth users")
+        raise HTTPException(500, "Failed to list auth users") from None
 
     users = []
     for au in auth_users:
@@ -184,7 +184,7 @@ async def update_user_plan(
         sb.table("user_profiles").update({"plan": plan}).eq("id", user_id).execute()
     except Exception as e:
         logger.error(f"Failed to update plan: {e}", exc_info=True)
-        raise HTTPException(500, "Failed to update plan")
+        raise HTTPException(500, "Failed to update plan") from None
     return {"ok": True, "user_id": user_id, "plan": plan}
 
 
@@ -199,7 +199,7 @@ async def delete_user(request: Request, user_id: str):
         sb.auth.admin.delete_user(user_id)
     except Exception as e:
         logger.error(f"Failed to delete user: {e}", exc_info=True)
-        raise HTTPException(500, "Failed to delete user")
+        raise HTTPException(500, "Failed to delete user") from None
     return {"ok": True, "deleted": user_id}
 
 
@@ -217,14 +217,14 @@ async def reset_password(request: Request, user_id: str):
         raise
     except Exception as e:
         logger.error(f"Failed to find user: {e}", exc_info=True)
-        raise HTTPException(500, "User not found")
+        raise HTTPException(500, "User not found") from None
 
     # Send password reset email
     try:
         sb.auth.admin.generate_link({"type": "recovery", "email": email})
     except Exception as e:
         logger.error(f"Failed to send reset email: {e}", exc_info=True)
-        raise HTTPException(500, "Failed to send reset email")
+        raise HTTPException(500, "Failed to send reset email") from None
     return {"ok": True, "email": email}
 
 

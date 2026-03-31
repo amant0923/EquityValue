@@ -174,7 +174,7 @@ async def add_holding(request: Request, portfolio_id: str, body: AddHoldingReque
         return result.data[0]
     except Exception as e:
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
-            raise HTTPException(409, f"{ticker} already in this portfolio. Edit the existing holding instead.")
+            raise HTTPException(409, f"{ticker} already in this portfolio. Edit the existing holding instead.") from None
         raise
 
 
@@ -303,7 +303,7 @@ async def get_snapshots(request: Request, portfolio_id: str, days: str = "90", u
         try:
             days_int = int(days)
         except ValueError:
-            raise HTTPException(400, "Invalid days parameter")
+            raise HTTPException(400, "Invalid days parameter") from None
         if days_int < 1 or days_int > 3650:  # Max ~10 years
             raise HTTPException(400, "Days must be between 1 and 3650")
         cutoff = (date.today() - timedelta(days=days_int)).isoformat()

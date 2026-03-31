@@ -46,9 +46,9 @@ async def get_current_user(request: Request) -> dict:
             payload = jwt.decode(token, _jwt_secret, algorithms=["HS256", "ES256"], audience="authenticated")
             return payload
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token expired")
+            raise HTTPException(status_code=401, detail="Token expired") from None
         except jwt.InvalidTokenError:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(status_code=401, detail="Invalid token") from None
         except Exception as e:
             # Catches cryptography PEM errors, key format issues, etc.
             logger.warning("JWT local decode failed (falling back to Supabase API): %s", e)
@@ -69,9 +69,9 @@ async def get_current_user(request: Request) -> dict:
             if "expired" in err_msg or "invalid" in err_msg:
                 logger.info(f"Supabase auth: token rejected (expected): {e}")
                 detail = "Token expired" if "expired" in err_msg else "Invalid token"
-                raise HTTPException(status_code=401, detail=detail)
+                raise HTTPException(status_code=401, detail=detail) from None
             logger.error(f"Supabase auth verification failed: {e}")
-            raise HTTPException(status_code=401, detail="Authentication failed")
+            raise HTTPException(status_code=401, detail="Authentication failed") from None
 
     raise HTTPException(status_code=401, detail="Auth service unavailable")
 

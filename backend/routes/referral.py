@@ -53,7 +53,7 @@ async def track_referral(request: Request, body: ReferralSignup, user=Depends(ge
         }, on_conflict="referee_id").execute()
     except Exception as e:
         logger.error("Referral tracking failed: %s", e)
-        raise HTTPException(500, "Failed to track referral. Please try again.")
+        raise HTTPException(500, "Failed to track referral. Please try again.") from None
     return {"status": "tracked"}
 
 
@@ -105,7 +105,7 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
         sb.table("user_profiles").update({"referral_code": code}).eq("id", user_id).execute()
     except Exception:
         logger.error("Failed to save referral code")
-        raise HTTPException(500, "Could not generate referral code")
+        raise HTTPException(500, "Could not generate referral code") from None
     return {"code": code}
 
 
