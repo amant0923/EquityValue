@@ -34,3 +34,4 @@ frontend/public/stocks/
 # Pytest
 backend/.pytest_cache/
 .vercel
+.gstack/

@@ -132,9 +132,10 @@ async def confirm_student(request: Request, body: StudentConfirm, user=Depends(g
     sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
-    profile = sb.table("user_profiles").select(
+    _result = sb.table("user_profiles").select(
         "student_verify_token, student_verify_token_created_at"
-    ).eq("id", user["sub"]).single().execute().data
+    ).eq("id", user["sub"]).limit(1).execute()
+    profile = _result.data[0] if _result.data else None
     if not profile or not profile.get("student_verify_token"):
         raise HTTPException(400, "No pending student verification")
     # Check token expiry (24 hours)
@@ -166,7 +167,8 @@ async def student_checkout(request: Request, body: StudentCheckoutRequest, user=
     # Verify student status
     sb = get_supabase_service()
     if sb:
-        profile = sb.table("user_profiles").select("student_verified").eq("id", user["sub"]).single().execute().data
+        _result = sb.table("user_profiles").select("student_verified").eq("id", user["sub"]).limit(1).execute()
+        profile = _result.data[0] if _result.data else None
         if not profile or not profile.get("student_verified"):
             raise HTTPException(400, "Please verify your .edu email first")
     plan = body.plan

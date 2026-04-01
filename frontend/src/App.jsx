@@ -28,6 +28,7 @@ import OnboardingFlow from "./components/OnboardingFlow";
 import WatchlistGroups from "./components/WatchlistGroups";
 import WatchlistExport from "./components/WatchlistExport";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Lazy-loaded page components — only downloaded when the route is visited
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -78,9 +79,11 @@ const lsSet = (key, val)      => { try { localStorage.setItem(key, JSON.stringif
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

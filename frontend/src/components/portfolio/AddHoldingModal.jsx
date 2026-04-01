@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_URL } from "../../lib/api";
 
 export default function AddHoldingModal({ open, onClose, onAdd, editing }) {
   const [ticker, setTicker] = useState("");
@@ -8,6 +9,7 @@ export default function AddHoldingModal({ open, onClose, onAdd, editing }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchResults, setSearchResults] = useState([]);
+  const [searchError, setSearchError] = useState(null);
   const [searchTimeout, setSearchTimeout] = useState(null);
 
   const isEdit = !!editing;
@@ -32,14 +34,15 @@ export default function AddHoldingModal({ open, onClose, onAdd, editing }) {
     if (val.length >= 1 && !isEdit) {
       const timeout = setTimeout(async () => {
         try {
-          const res = await fetch(
-            `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/search/${val}`
-          );
+          setSearchError(null);
+          const res = await fetch(`${API_URL}/search/${val}`);
           if (res.ok) {
             const data = await res.json();
             setSearchResults((data.results || []).slice(0, 6));
           }
-        } catch {}
+        } catch {
+          setSearchError("Search failed, try again");
+        }
       }, 300);
       setSearchTimeout(timeout);
     } else {
@@ -144,6 +147,7 @@ export default function AddHoldingModal({ open, onClose, onAdd, editing }) {
                   ))}
                 </div>
               )}
+              {searchError && <p style={{color: '#ef4444', fontSize: '0.75rem', margin: '4px 0 0'}}>{searchError}</p>}
             </div>
 
             <div style={{ marginBottom: 14 }}>

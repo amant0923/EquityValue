@@ -309,12 +309,16 @@ def fire_alerts():
                 message = f"{ticker} verdict changed: {pre['verdict']} -> {cur['verdict']}"
 
         if message:
-            sb.table("alert_history").insert({
-                "user_id": alert["user_id"],
-                "ticker": ticker,
-                "alert_type": alert["alert_type"],
-                "message": message,
-            }).execute()
+            try:
+                sb.table("alert_history").insert({
+                    "user_id": alert["user_id"],
+                    "ticker": ticker,
+                    "alert_type": alert["alert_type"],
+                    "message": message,
+                }).execute()
+            except Exception as e:
+                # Duplicate alert (idempotent re-run) or other error — log and continue
+                print(f"  ALERT INSERT WARN {ticker}/{alert['alert_type']}: {e}")
             user_messages[alert["user_id"]].append({
                 "ticker": ticker,
                 "message": message,

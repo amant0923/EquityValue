@@ -3,7 +3,19 @@ import warnings
 import requests
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 warnings.filterwarnings("ignore")
+
+_yf_pool = ThreadPoolExecutor(max_workers=4)
+
+def _yf_with_timeout(fn, timeout=30):
+    """Run a yfinance call in a bounded thread pool with timeout."""
+    try:
+        return _yf_pool.submit(fn).result(timeout=timeout)
+    except FuturesTimeout:
+        return None
+    except Exception:
+        return None
 
 try:
     import yfinance as yf
@@ -309,8 +321,7 @@ def fetch_yfinance(ticker: str) -> dict:
         return {}
     result = {}
     try:
-        t    = yf.Ticker(ticker)
-        info = t.info or {}
+        info = _yf_with_timeout(lambda: yf.Ticker(ticker).info) or {}
         result["current_price"]    = _safe_val(info.get("currentPrice") or info.get("regularMarketPrice"))
         result["forward_eps"]      = _safe_val(info.get("forwardEps"))
         result["forward_pe"]       = _safe_val(info.get("forwardPE"))
@@ -488,7 +499,7 @@ def fetch_price_history(ticker: str, period: str = "1y") -> dict:
     # yfinance is the primary source for price history
     if USE_YFINANCE:
         try:
-            hist = yf.Ticker(ticker).history(period=period)
+            hist = _yf_with_timeout(lambda: yf.Ticker(ticker).history(period=period))
             if hist is not None and not hist.empty:
                 result = {
                     "dates":   [str(d.date()) for d in hist.index],

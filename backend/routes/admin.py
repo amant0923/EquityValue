@@ -136,8 +136,9 @@ async def list_users(request: Request):
     # Fetch auth users via Supabase Admin API (paginated, 50 per page)
     auth_users = []
     page = 1
+    max_pages = 50  # Safety limit: 50 pages * 50 users = 2500 users max
     try:
-        while True:
+        while page <= max_pages:
             batch = sb.auth.admin.list_users(page=page, per_page=50)
             if not batch:
                 break

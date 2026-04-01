@@ -30,12 +30,12 @@ class CreatePortfolioRequest(BaseModel):
 
 class AddHoldingRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=10)
-    shares: float = Field(..., gt=0)
-    avg_price: float = Field(..., gt=0)
+    shares: float = Field(..., gt=0, le=10_000_000)
+    avg_price: float = Field(..., gt=0, le=10_000_000)
 
 class EditHoldingRequest(BaseModel):
-    shares: float | None = Field(None, gt=0)
-    avg_price: float | None = Field(None, gt=0)
+    shares: float | None = Field(None, gt=0, le=10_000_000)
+    avg_price: float | None = Field(None, gt=0, le=10_000_000)
 
 
 # ── Helpers ─────────────────────────────────────────────────────

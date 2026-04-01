@@ -1,7 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { getAuthToken } from "../lib/api";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { getAuthToken, API_URL } from "../lib/api";
 
 function buildPrompt(data) {
   const km = data.key_metrics || {};

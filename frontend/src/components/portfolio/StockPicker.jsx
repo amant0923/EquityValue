@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { API_URL } from "../../lib/api";
 import "./StockPicker.css";
-
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function StockPicker({ selected = [], onSelect, maxStocks = 50 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [searchError, setSearchError] = useState(null);
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const debounceRef = useRef(null);
@@ -21,7 +21,8 @@ export default function StockPicker({ selected = [], onSelect, maxStocks = 50 })
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`${API}/search/${encodeURIComponent(query)}`);
+        setSearchError(null);
+        const res = await fetch(`${API_URL}/search/${encodeURIComponent(query)}`);
         const data = await res.json();
         const items = (data.results || []).filter(
           (r) => !selected.includes(r.symbol)
@@ -32,6 +33,7 @@ export default function StockPicker({ selected = [], onSelect, maxStocks = 50 })
       } catch {
         setResults([]);
         setOpen(false);
+        setSearchError("Search failed, try again");
       }
     }, 250);
     return () => clearTimeout(debounceRef.current);
@@ -127,6 +129,8 @@ export default function StockPicker({ selected = [], onSelect, maxStocks = 50 })
           ))}
         </div>
       )}
+
+      {searchError && <p style={{color: '#ef4444', fontSize: '0.875rem', margin: '4px 0'}}>{searchError}</p>}
 
       <div className="stock-picker__counter">
         {selected.length} / {maxStocks} stocks selected

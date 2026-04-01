@@ -74,7 +74,8 @@ async def convert_referral(request: Request, user=Depends(get_current_user)):
     # Award 1 month credit to referrer
     # Use select("referral_credits") instead of select("*") to minimize data transfer
     try:
-        referrer_profile = sb.table("user_profiles").select("referral_credits").eq("id", ref["referrer_id"]).single().execute().data
+        _result = sb.table("user_profiles").select("referral_credits").eq("id", ref["referrer_id"]).limit(1).execute()
+        referrer_profile = _result.data[0] if _result.data else None
         current_credits = referrer_profile.get("referral_credits", 0) if referrer_profile else 0
         sb.table("user_profiles").update({
             "referral_credits": current_credits + 1,
@@ -94,7 +95,8 @@ async def get_referral_code(request: Request, user=Depends(get_current_user)):
         raise HTTPException(503, "Database not configured")
     user_id = user["sub"]
     try:
-        profile = sb.table("user_profiles").select("referral_code").eq("id", user_id).single().execute().data
+        _result = sb.table("user_profiles").select("referral_code").eq("id", user_id).limit(1).execute()
+        profile = _result.data[0] if _result.data else None
     except Exception:
         profile = None
     if profile and profile.get("referral_code"):
@@ -121,7 +123,8 @@ async def referral_stats(request: Request, user=Depends(get_current_user)):
         rows = sb.table("referrals").select("status").eq("referrer_id", referrer_id).execute().data or []
         signups = len(rows)
         conversions = len([r for r in rows if r["status"] == "converted"])
-        profile = sb.table("user_profiles").select("referral_credits").eq("id", referrer_id).single().execute().data
+        _result = sb.table("user_profiles").select("referral_credits").eq("id", referrer_id).limit(1).execute()
+        profile = _result.data[0] if _result.data else None
         credits = profile.get("referral_credits", 0) if profile else 0
         return {"referrals": signups, "conversions": conversions, "credits_earned": credits}
     except Exception as e:

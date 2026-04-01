@@ -82,7 +82,7 @@ async def get_user_profile(user_id: str) -> dict:
     if not sb:
         return {"plan": "trial", "analyses_today": 0}
     try:
-        result = sb.table("user_profiles").select("*").eq("id", user_id).single().execute()
-        return result.data if result.data else {"plan": "trial", "analyses_today": 0}
+        result = sb.table("user_profiles").select("*").eq("id", user_id).limit(1).execute()
+        return result.data[0] if result.data else {"plan": "trial", "analyses_today": 0}
     except Exception:
         return {"plan": "trial", "analyses_today": 0}

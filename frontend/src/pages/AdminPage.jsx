@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "../lib/api";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import api, { API_URL } from "../lib/api";
 
 const PLAN_COLORS = {
   free: { bg: "rgba(148,163,184,0.12)", color: "#94a3b8", border: "rgba(148,163,184,0.3)" },

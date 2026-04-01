@@ -13,6 +13,10 @@ ADMIN_TOKEN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 
+# Analysis rate limits per plan
+PLAN_LIMITS = {"trial": 3, "expired": 0, "pro": 50, "lifetime": 999999}
+
+
 def require_env(name: str) -> str:
     """Return env var value or exit with an error if not set."""
     val = os.environ.get(name, "")

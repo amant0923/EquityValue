@@ -1,0 +1,21 @@
+name: Data Retention Cleanup
+on:
+  schedule:
+    - cron: "0 8 * * 0"  # Sunday 3am ET (8am UTC)
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install supabase
+      - name: Run cleanup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python backend/cleanup_old_data.py

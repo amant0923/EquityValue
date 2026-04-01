@@ -54,7 +54,7 @@ if sentry_dsn:
 # ── Shared Supabase client (created once, reused by all endpoints) ───────────
 # Uses service key to bypass RLS — backend is trusted, RLS protects against
 # direct PostgREST access via the public anon key.
-from config import SUPABASE_URL, SUPABASE_KEY
+from config import SUPABASE_URL, SUPABASE_KEY, PLAN_LIMITS
 try:
     from supabase import create_client as _create_sb
     _svc_key = os.environ.get("SUPABASE_SERVICE_KEY", "") or SUPABASE_KEY
@@ -155,14 +155,18 @@ async def audit_and_cost_middleware(request: Request, call_next):
                     # than trusting an unverified token.
                 except Exception:
                     pass  # Invalid/expired token — skip user attribution for this log entry
-            _asyncio.create_task(_asyncio.to_thread(
-                lambda: _supabase.table("api_usage_log").insert({
-                    "endpoint": path,
-                    "method": request.method,
-                    "user_id": user_id,
-                    "response_time_ms": elapsed_ms,
-                }).execute()
-            ))
+            async def _log_audit(sb, entry):
+                try:
+                    await _asyncio.to_thread(lambda: sb.table("api_usage_log").insert(entry).execute())
+                except Exception:
+                    pass  # Never let audit logging break requests
+
+            _asyncio.create_task(_log_audit(_supabase, {
+                "endpoint": path,
+                "method": request.method,
+                "user_id": user_id,
+                "response_time_ms": elapsed_ms,
+            }))
         except Exception:
             pass
     return response
@@ -296,7 +300,6 @@ async def get_valuation(ticker: str, request: Request, user: dict = Depends(get_
             profile = {"plan": "trial", "analyses_today": 0}
     plan = profile.get("plan", "trial")
     analyses_today = profile.get("analyses_today", 0)
-    PLAN_LIMITS = {"trial": 3, "expired": 0, "pro": 50, "lifetime": 999999}
     limit = PLAN_LIMITS.get(plan, 1)
     if user and analyses_today >= limit:
         raise HTTPException(status_code=429, detail="Daily analysis limit reached. Upgrade your plan for more.")
@@ -688,6 +691,20 @@ async def screener(request: Request, sector: str = None, min_pe: float = None, m
              min_evs: int = None, max_evs: int = None, sort_by: str = None,
              user: dict = Depends(get_optional_user)):
     """Filter S&P 500 stocks from Supabase by sector and fundamental metrics."""
+    if min_pe is not None and (min_pe < -1000 or min_pe > 1_000_000):
+        raise HTTPException(400, "min_pe out of range")
+    if max_pe is not None and (max_pe < -1000 or max_pe > 1_000_000):
+        raise HTTPException(400, "max_pe out of range")
+    if min_roe is not None and (min_roe < -1000 or min_roe > 1_000_000):
+        raise HTTPException(400, "min_roe out of range")
+    if min_rev_growth is not None and (min_rev_growth < -1000 or min_rev_growth > 1_000_000):
+        raise HTTPException(400, "min_rev_growth out of range")
+    if max_pb is not None and (max_pb < 0 or max_pb > 1_000_000):
+        raise HTTPException(400, "max_pb out of range")
+    if min_evs is not None and (min_evs < 0 or min_evs > 100):
+        raise HTTPException(400, "min_evs must be 0-100")
+    if max_evs is not None and (max_evs < 0 or max_evs > 100):
+        raise HTTPException(400, "max_evs must be 0-100")
     limit = min(limit, 500)
     try:
         query = _supabase.table("stock_fundamentals").select(
@@ -833,8 +850,12 @@ async def stripe_webhook(request: Request):
     try:
         if event["type"] == "checkout.session.completed":
             session_obj = event["data"]["object"]
-            user_id = session_obj["metadata"]["user_id"]
-            subscription = stripe.Subscription.retrieve(session_obj["subscription"])
+            metadata = session_obj.get("metadata") or {}
+            user_id = metadata.get("user_id")
+            subscription_id = session_obj.get("subscription")
+            if not user_id or not subscription_id:
+                raise HTTPException(status_code=400, detail="Malformed webhook: missing metadata or subscription")
+            subscription = stripe.Subscription.retrieve(subscription_id)
             price_id = subscription["items"]["data"][0]["price"]["id"]
             plan = price_id_to_plan(price_id)
             _supabase.table("user_profiles").update({
