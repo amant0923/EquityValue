@@ -52,8 +52,14 @@ def get_supabase_service():
 def parse_json_strings(row: dict) -> dict:
     """Parse any double-encoded JSON string fields in a Supabase row.
 
-    Refresh scripts stored dicts/lists with json.dumps() into JSONB columns,
-    causing double-encoding. This parses them back to native Python objects.
+    Refresh scripts store dicts/lists with json.dumps() into JSONB columns,
+    causing double-encoding (the Supabase client auto-serializes, so the
+    explicit json.dumps() wraps the value in an extra string layer).
+
+    This function is an intentional compatibility layer: every route that reads
+    from cache tables calls parse_json_strings() to undo the double-encoding.
+    Removing json.dumps() from refresh scripts would require re-running ALL
+    refresh pipelines to re-populate tables with correctly-encoded data.
     """
     import json
     for key, val in row.items():

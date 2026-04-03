@@ -116,9 +116,11 @@ def test_admin_pagination_has_max_guard():
 
 # ── Test 6: Audit logging safety ──────────────────────────────────────────
 
-def test_log_audit_defined_in_main():
-    """The _log_audit async helper should be defined to prevent unhandled task exceptions."""
+def test_log_audit_uses_bounded_pool():
+    """Audit logging should use a bounded thread pool, not the default executor."""
     import inspect
     import main
     source = inspect.getsource(main)
     assert "_log_audit" in source, "main.py should define _log_audit helper"
+    assert "_audit_pool" in source, "main.py should use a bounded _audit_pool for audit logging"
+    assert "_suppress_task_exception" in source, "main.py should suppress task exception warnings"

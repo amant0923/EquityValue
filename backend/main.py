@@ -120,11 +120,36 @@ async def security_headers_middleware(request: Request, call_next):
 # ── Audit logging + cost tagging middleware ──────────────────────────────────
 import asyncio as _asyncio
 import hashlib as _hashlib
+from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
+
+# Bounded thread pool for audit logging — prevents EAGAIN (errno 11) on
+# resource-constrained Render containers when the default executor (up to 32
+# threads) is exhausted under load.
+_audit_pool = _ThreadPoolExecutor(max_workers=2, thread_name_prefix="audit")
 
 COST_MAP = {
     "/thesis": 0.01, "/ai/thesis": 0.01,
     "/valuation": 0.001, "/comps": 0.001,
 }
+
+
+def _suppress_task_exception(task):
+    """Retrieve and discard task exception to prevent 'Task exception was never retrieved' warnings."""
+    if not task.cancelled():
+        task.exception()  # marks exception as retrieved
+
+
+async def _log_audit(sb, entry):
+    """Fire-and-forget audit log insert using a bounded thread pool."""
+    try:
+        loop = _asyncio.get_running_loop()
+        await loop.run_in_executor(
+            _audit_pool,
+            lambda: sb.table("api_usage_log").insert(entry).execute(),
+        )
+    except Exception:
+        pass  # Never let audit logging break requests
+
 
 @app.middleware("http")
 async def audit_and_cost_middleware(request: Request, call_next):
@@ -155,18 +180,13 @@ async def audit_and_cost_middleware(request: Request, call_next):
                     # than trusting an unverified token.
                 except Exception:
                     pass  # Invalid/expired token — skip user attribution for this log entry
-            async def _log_audit(sb, entry):
-                try:
-                    await _asyncio.to_thread(lambda: sb.table("api_usage_log").insert(entry).execute())
-                except Exception:
-                    pass  # Never let audit logging break requests
-
-            _asyncio.create_task(_log_audit(_supabase, {
+            task = _asyncio.create_task(_log_audit(_supabase, {
                 "endpoint": path,
                 "method": request.method,
                 "user_id": user_id,
                 "response_time_ms": elapsed_ms,
             }))
+            task.add_done_callback(_suppress_task_exception)
         except Exception:
             pass
     return response
