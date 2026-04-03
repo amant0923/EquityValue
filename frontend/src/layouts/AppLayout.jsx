@@ -8,6 +8,7 @@ import SearchBar from "../components/SearchBar";
 import AuthModal from "../components/AuthModal";
 import UpgradeModal from "../components/UpgradeModal";
 import AlertBell from "../components/AlertBell";
+import api from "../lib/api";
 
 export default function AppLayout() {
   const navigate = useNavigate();
@@ -117,6 +118,44 @@ export default function AppLayout() {
               )}
             </div>
           </header>
+
+          {profile?.payment_failed && (
+            <div style={{
+              background: "#f59e0b22",
+              border: "1px solid #f59e0b",
+              padding: "10px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: 13,
+              color: "#f59e0b",
+            }}>
+              <span>Your last payment failed. Please update your payment method to keep your Pro access.</span>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await api.post("/stripe/billing-portal");
+                    const url = res.data.portal_url;
+                    if (url) window.location.href = url;
+                  } catch {}
+                }}
+                style={{
+                  background: "#f59e0b",
+                  color: "#000",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "6px 14px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  marginLeft: 16,
+                }}
+              >
+                Update Payment
+              </button>
+            </div>
+          )}
 
           <MobileNav page={currentPage} setPage={handlePageChange} />
 
