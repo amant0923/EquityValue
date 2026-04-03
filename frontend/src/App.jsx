@@ -53,6 +53,7 @@ const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
 const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 const AdminMarginPage = lazy(() => import("./pages/AdminMarginPage"));
 const HelpPage = lazy(() => import("./pages/HelpPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 import AppLayout from "./layouts/AppLayout";
 
@@ -369,6 +370,7 @@ function AppInner() {
           <Route path="/portfolio" element={<ProtectedRoute><PortfolioListPage /></ProtectedRoute>} />
           <Route path="/portfolio/build" element={<ProtectedRoute><PortfolioBuildPage /></ProtectedRoute>} />
           <Route path="/portfolio/:id" element={<ProtectedRoute><PortfolioDetailPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           {/* Admin routes: auth enforced server-side via _require_admin + rate limiting. AdminPage also checks /admin/check on mount. */}
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/accuracy" element={<PublicAccuracyPage />} />

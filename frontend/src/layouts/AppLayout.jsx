@@ -41,6 +41,7 @@ export default function AppLayout() {
       portfolio: "/portfolio",
       blog: "/blog",
       referral: "/referral",
+      settings: "/settings",
       help: "/help",
     };
     navigate(routes[p] || `/${p}`);
@@ -66,7 +67,7 @@ export default function AppLayout() {
                 <span className="topbar-breadcrumb-home" onClick={() => navigate("/")}>Equity Valuation</span>
                 <span className="topbar-breadcrumb-sep">/</span>
                 <span className="topbar-breadcrumb-current">
-                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio", blog: "Blog", referral: "Refer a Friend", help: "Help", admin: "Admin" }[currentPage] || currentPage}
+                  {{ dashboard: "Dashboard", screener: "Screener", compare: "Compare", company: "Company", analysis: "Analysis", portfolio: "Portfolio", blog: "Blog", referral: "Refer a Friend", help: "Help", settings: "Settings", admin: "Admin" }[currentPage] || currentPage}
                 </span>
               </div>
             </div>
