@@ -868,11 +868,13 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Webhook signature verification failed.") from None
 
     try:
-        if event["type"] == "checkout.session.completed":
-            session_obj = event["data"]["object"]
-            metadata = session_obj.get("metadata") or {}
+        event_type = event["type"]
+        event_obj = event["data"]["object"]
+
+        if event_type == "checkout.session.completed":
+            metadata = event_obj.get("metadata") or {}
             user_id = metadata.get("user_id")
-            subscription_id = session_obj.get("subscription")
+            subscription_id = event_obj.get("subscription")
             if not user_id or not subscription_id:
                 raise HTTPException(status_code=400, detail="Malformed webhook: missing metadata or subscription")
             subscription = stripe.Subscription.retrieve(subscription_id)
@@ -880,19 +882,113 @@ async def stripe_webhook(request: Request):
             plan = price_id_to_plan(price_id)
             _supabase.table("user_profiles").update({
                 "plan": plan,
-                "stripe_customer_id": session_obj.get("customer", ""),
+                "stripe_customer_id": event_obj.get("customer", ""),
+                "payment_failed": False,
             }).eq("id", user_id).execute()
 
-        elif event["type"] == "customer.subscription.deleted":
-            sub_obj = event["data"]["object"]
-            customer_id = sub_obj.get("customer")
+        elif event_type == "customer.subscription.deleted":
+            customer_id = event_obj.get("customer")
             if customer_id:
                 _supabase.table("user_profiles").update({"plan": "expired"}).eq("stripe_customer_id", customer_id).execute()
+
+        elif event_type == "customer.subscription.updated":
+            customer_id = event_obj.get("customer")
+            if customer_id and event_obj.get("items", {}).get("data"):
+                price_id = event_obj["items"]["data"][0]["price"]["id"]
+                plan = price_id_to_plan(price_id)
+                status = event_obj.get("status", "")
+                if status in ("canceled", "unpaid"):
+                    plan = "expired"
+                _supabase.table("user_profiles").update({"plan": plan}).eq("stripe_customer_id", customer_id).execute()
+
+        elif event_type == "invoice.payment_failed":
+            customer_id = event_obj.get("customer")
+            if customer_id:
+                _supabase.table("user_profiles").update({"payment_failed": True}).eq("stripe_customer_id", customer_id).execute()
+
+        elif event_type == "invoice.payment_succeeded":
+            customer_id = event_obj.get("customer")
+            if customer_id:
+                _supabase.table("user_profiles").update({"payment_failed": False}).eq("stripe_customer_id", customer_id).execute()
 
     except Exception as e:
         import logging as _logging
         _logging.getLogger(__name__).error(f"Webhook processing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Webhook processing failed") from None
+
+@app.post("/stripe/billing-portal")
+@limiter.limit("5/minute")
+async def create_billing_portal(request: Request, user: dict = Depends(get_current_user)):
+    """Create a Stripe Billing Portal session for subscription management."""
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+    if not _supabase:
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    # Look up stripe_customer_id
+    result = _supabase.table("user_profiles").select("stripe_customer_id").eq("id", user["sub"]).single().execute()
+    customer_id = (result.data or {}).get("stripe_customer_id")
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="No active subscription found")
+
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url="https://equityvalue.ai/settings",
+        )
+        return {"portal_url": session.url}
+    except Exception as e:
+        logger.error("Billing portal error: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create billing portal session") from None
+
+@app.get("/stripe/subscription-status")
+@limiter.limit("10/minute")
+async def subscription_status(request: Request, user: dict = Depends(get_current_user)):
+    """Return current subscription details for the authenticated user."""
+    if not _supabase:
+        raise HTTPException(status_code=503, detail="Database not configured")
+
+    result = _supabase.table("user_profiles").select("plan, stripe_customer_id, payment_failed").eq("id", user["sub"]).single().execute()
+    profile = result.data or {}
+    plan = profile.get("plan", "trial")
+    customer_id = profile.get("stripe_customer_id")
+    payment_failed = profile.get("payment_failed", False)
+
+    base = {
+        "plan": plan,
+        "status": "active" if plan in ("pro", "lifetime") else plan,
+        "current_period_end": None,
+        "cancel_at_period_end": False,
+        "payment_method_last4": None,
+        "payment_failed": payment_failed,
+    }
+
+    # For non-Stripe plans (trial, expired, lifetime), return DB-only info
+    if not customer_id or not stripe.api_key:
+        return base
+
+    try:
+        subs = stripe.Subscription.list(customer=customer_id, limit=1)
+        if subs.data:
+            sub = subs.data[0]
+            base["status"] = sub.status
+            base["current_period_end"] = sub.current_period_end
+            base["cancel_at_period_end"] = sub.cancel_at_period_end
+
+            # Get payment method last4
+            default_pm = sub.default_payment_method
+            if default_pm:
+                if isinstance(default_pm, str):
+                    pm = stripe.PaymentMethod.retrieve(default_pm)
+                else:
+                    pm = default_pm
+                if pm.card:
+                    base["payment_method_last4"] = pm.card.last4
+    except Exception as e:
+        logger.error("Subscription status lookup error: %s", e)
+        # Return base info without Stripe details on error
+
+    return base
 
 @app.post("/cache/clear")
 @limiter.limit("3/minute")
