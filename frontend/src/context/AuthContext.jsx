@@ -61,7 +61,7 @@ export function AuthProvider({ children }) {
     const today = new Date().toISOString().slice(0, 10);
     const count = p.last_analysis_date === today ? p.analyses_today : 0;
     const planInfo = PLANS[plan] || PLANS.expired;
-    return { ...p, plan, analyses_today: count, analyses_total: p.analyses_total || 0, limit: planInfo.limit, planLabel: planInfo.label };
+    return { ...p, plan, analyses_today: count, analyses_total: p.analyses_total || 0, limit: planInfo.limit, planLabel: planInfo.label, payment_failed: !!p.payment_failed };
   };
 
   // Increment analysis count
@@ -199,6 +199,12 @@ export function AuthProvider({ children }) {
     return { daysLeft, analysesLeft };
   };
 
+  const refreshProfile = async () => {
+    if (!supabase || !user) return;
+    const p = await fetchProfile(user.id);
+    setProfile(p);
+  };
+
   const value = {
     user,
     profile: profile ? getEffectiveProfile(profile) : null,
@@ -212,6 +218,7 @@ export function AuthProvider({ children }) {
     getLimit,
     getToken,
     trialInfo,
+    refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
