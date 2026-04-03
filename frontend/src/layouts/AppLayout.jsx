@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "../components/Sidebar";
@@ -22,6 +22,15 @@ export default function AppLayout() {
   const [upgradeReason, setUpgradeReason] = useState("limit");
   const [theme, setTheme] = useState("dark");
   const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      setUpgradeReason(e.detail?.reason || "feature");
+      setShowUpgrade(true);
+    };
+    window.addEventListener("show-upgrade", handler);
+    return () => window.removeEventListener("show-upgrade", handler);
+  }, []);
 
   // Determine active page from pathname
   const pathParts = location.pathname.split("/").filter(Boolean);
