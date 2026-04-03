@@ -90,7 +90,7 @@ export default function App() {
 function AppInner() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked } = useAuth();
+  const { user, profile, loading: authLoading, signOut, recordAnalysis, canAnalyse, isFeatureUnlocked, refreshProfile } = useAuth();
 
   const [theme, setTheme]           = useState("dark");
   const [disclaimer, setDisclaimer] = useState(false);
@@ -137,6 +137,39 @@ function AppInner() {
     if (ref) {
       try { localStorage.setItem("ve_referral", ref); } catch {}
     }
+  }, []);
+
+  // Handle Stripe payment redirect
+  const [paymentToast, setPaymentToast] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (!payment) return;
+
+    if (payment === "success") {
+      setPaymentToast("success");
+      // Poll for plan update (webhook may be async)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        await refreshProfile();
+        if (attempts >= 5) clearInterval(poll);
+      }, 2000);
+      setTimeout(() => clearInterval(poll), 12000);
+    } else if (payment === "cancelled") {
+      setPaymentToast("cancelled");
+    }
+
+    // Remove query param from URL
+    params.delete("payment");
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params}`
+      : window.location.pathname;
+    window.history.replaceState({}, "", newUrl);
+
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => setPaymentToast(null), 8000);
   }, []);
 
   // Show onboarding for newly signed-in users
@@ -227,6 +260,23 @@ function AppInner() {
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
       <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
       {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+
+      {paymentToast && (
+        <div style={{
+          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+          zIndex: 10000, padding: "14px 28px", borderRadius: 10,
+          background: paymentToast === "success" ? "var(--green, #22c55e)" : "var(--text-muted, #888)",
+          color: "#fff", fontWeight: 600, fontSize: 14,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          {paymentToast === "success" ? "You're now on Pro! Welcome aboard." : "Payment cancelled."}
+          <button onClick={() => setPaymentToast(null)} style={{
+            background: "none", border: "none", color: "#fff", cursor: "pointer",
+            fontSize: 18, lineHeight: 1, padding: 0, marginLeft: 8,
+          }}>&times;</button>
+        </div>
+      )}
 
       <Suspense fallback={<AnalysisSkeleton />}>
       <Routes>
