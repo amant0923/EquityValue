@@ -66,6 +66,25 @@ export const TIER_LIMITS = {
     evs_history: true,
     accuracy_detail: true,
   },
+  lifetime: {
+    evs_breakdown: true,
+    valuation_models_limit: Infinity,
+    ai_thesis: true,
+    monte_carlo: true,
+    lbo: true,
+    watchlist_limit: Infinity,
+    pdf_export: true,
+    pdf_limit: Infinity,
+    compare: true,
+    compare_limit: Infinity,
+    sector_percentile: true,
+    peer_comparison: true,
+    screener_full: true,
+    intelligence_full: true,
+    financials_quarterly: true,
+    evs_history: true,
+    accuracy_detail: true,
+  },
 };
 
 /**

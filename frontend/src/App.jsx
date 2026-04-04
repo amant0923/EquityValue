@@ -148,7 +148,7 @@ function AppInner() {
     const payment = params.get("payment");
     if (!payment) return;
 
-    if (payment === "success") {
+    if (payment === "success" || payment === "lifetime_success") {
       setPaymentToast("success");
       // Poll for plan update (webhook may be async)
       let attempts = 0;

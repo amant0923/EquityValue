@@ -874,12 +874,21 @@ async def stripe_webhook(request: Request):
         if event_type == "checkout.session.completed":
             metadata = event_obj.get("metadata") or {}
             user_id = metadata.get("user_id")
+            if not user_id:
+                raise HTTPException(status_code=400, detail="Malformed webhook: missing user_id in metadata")
+
             subscription_id = event_obj.get("subscription")
-            if not user_id or not subscription_id:
-                raise HTTPException(status_code=400, detail="Malformed webhook: missing metadata or subscription")
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            price_id = subscription["items"]["data"][0]["price"]["id"]
-            plan = price_id_to_plan(price_id)
+            if subscription_id:
+                # Subscription checkout (Pro monthly/annual)
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                price_id = subscription["items"]["data"][0]["price"]["id"]
+                plan = price_id_to_plan(price_id)
+            elif metadata.get("deal_type") == "lifetime":
+                # One-time payment checkout (lifetime deal)
+                plan = "lifetime"
+            else:
+                raise HTTPException(status_code=400, detail="Malformed webhook: missing subscription and no deal_type")
+
             _supabase.table("user_profiles").update({
                 "plan": plan,
                 "stripe_customer_id": event_obj.get("customer", ""),

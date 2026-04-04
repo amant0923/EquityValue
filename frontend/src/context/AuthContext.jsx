@@ -8,9 +8,10 @@ const AuthContext = createContext({});
 export const useAuth = () => useContext(AuthContext);
 
 const PLANS = {
-  trial:   { label: "Trial",   limit: 1 },
-  expired: { label: "Expired", limit: 0 },
-  pro:     { label: "Pro",     limit: Infinity },
+  trial:    { label: "Trial",    limit: 1 },
+  expired:  { label: "Expired",  limit: 0 },
+  pro:      { label: "Pro",      limit: Infinity },
+  lifetime: { label: "Lifetime", limit: Infinity },
 };
 
 export function AuthProvider({ children }) {
