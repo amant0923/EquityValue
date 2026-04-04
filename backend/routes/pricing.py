@@ -92,12 +92,19 @@ async def verify_student(request: Request, body: StudentVerify, user=Depends(get
     if not sb:
         raise HTTPException(503, "Database not configured")
     try:
-        sb.table("user_profiles").update({
+        update_data = {
             "student_email": email,
             "student_verified": False,
             "student_verify_token": token,
-            "student_verify_token_created_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", user["sub"]).execute()
+        }
+        try:
+            sb.table("user_profiles").update({
+                **update_data,
+                "student_verify_token_created_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", user["sub"]).execute()
+        except Exception:
+            # student_verify_token_created_at column may not exist yet — retry without it
+            sb.table("user_profiles").update(update_data).eq("id", user["sub"]).execute()
     except Exception as e:
         logger.error("Student verification DB update failed")
         raise HTTPException(500, "Failed to initiate verification") from None
@@ -132,9 +139,15 @@ async def confirm_student(request: Request, body: StudentConfirm, user=Depends(g
     sb = get_supabase_service()
     if not sb:
         raise HTTPException(503, "Database not configured")
-    _result = sb.table("user_profiles").select(
-        "student_verify_token, student_verify_token_created_at"
-    ).eq("id", user["sub"]).limit(1).execute()
+    try:
+        _result = sb.table("user_profiles").select(
+            "student_verify_token, student_verify_token_created_at"
+        ).eq("id", user["sub"]).limit(1).execute()
+    except Exception:
+        # student_verify_token_created_at column may not exist — select without it
+        _result = sb.table("user_profiles").select(
+            "student_verify_token"
+        ).eq("id", user["sub"]).limit(1).execute()
     profile = _result.data[0] if _result.data else None
     if not profile or not profile.get("student_verify_token"):
         raise HTTPException(400, "No pending student verification")
