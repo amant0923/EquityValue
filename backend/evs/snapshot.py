@@ -109,29 +109,44 @@ def snapshot_valuations(ticker, valuation_result, price):
 
 
 def backfill_accuracy():
-    """Compare past snapshots (6/12 months ago) to current prices."""
+    """Compare past snapshots to current prices across multiple windows."""
     from data_fetcher import fetch_finnhub_price
     from datetime import timedelta
 
     today = datetime.now(timezone.utc).date()
 
-    # Pre-fetch sector for all tickers
-    fund_rows = sb.table("stock_fundamentals").select("ticker, sector").execute().data
+    # Pre-fetch sector and current prices for all tickers (bulk, no API calls)
+    fund_rows = sb.table("stock_fundamentals").select("ticker, sector, current_price").execute().data
     sector_map = {f["ticker"]: f.get("sector", "Unknown") for f in fund_rows}
+    price_map = {f["ticker"]: f.get("current_price") for f in fund_rows if f.get("current_price")}
 
-    for months, col_price, col_correct in [(6, "price_6mo", "direction_correct_6mo"),
-                                            (12, "price_12mo", "direction_correct_12mo")]:
-        target_date = (today - timedelta(days=months * 30)).isoformat()
+    windows = [
+        (14, "price_14d", "direction_correct_14d"),
+        (30, "price_30d", "direction_correct_30d"),
+        (180, "price_6mo", "direction_correct_6mo"),
+        (360, "price_12mo", "direction_correct_12mo"),
+    ]
+
+    for days, col_price, col_correct in windows:
+        target_date = (today - timedelta(days=days)).isoformat()
         snapshots = sb.table("valuation_snapshots") \
             .select("*") \
             .eq("snapshot_date", target_date) \
             .execute().data
 
+        if not snapshots:
+            continue
+
+        print(f"  Backfilling {col_price}: {len(snapshots)} snapshots from {target_date}")
+
         for snap in snapshots:
             ticker = snap["ticker"]
             try:
-                price_data = fetch_finnhub_price(ticker)
-                current_price = price_data.get("current_price") if price_data else None
+                current_price = price_map.get(ticker)
+                if not current_price:
+                    # Fallback to Finnhub for tickers not in fundamentals
+                    price_data = fetch_finnhub_price(ticker)
+                    current_price = price_data.get("current_price") if price_data else None
                 if not current_price:
                     continue
                 price_at = snap["price_at_snapshot"]
