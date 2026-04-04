@@ -235,7 +235,7 @@ AI_MODELS = {
     "trial": "claude-haiku-4-5-20251001",
     "expired": "claude-haiku-4-5-20251001",
     "pro": "claude-sonnet-4-20250514",
-    "lifetime": "claude-opus-4-20250115",
+    "lifetime": "claude-sonnet-4-20250514",
 }
 
 def get_ai_model_for_plan(plan: str) -> str:
