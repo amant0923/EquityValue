@@ -11,6 +11,14 @@ const tooltipStyle = {
   fontSize: 12,
 };
 
+const PEER_PALETTE = [
+  "var(--primary)",
+  "var(--primary2)",
+  "var(--green2)",
+  "var(--red)",
+  "var(--yellow)",
+];
+
 const fmtB = (v) => {
   if (v == null) return "--";
   const n = Number(v);
@@ -44,16 +52,24 @@ function MiniBarChart({ title, data, dataKey, subjectTicker, formatter }) {
           />
           <Tooltip
             contentStyle={tooltipStyle}
+            labelStyle={{ color: "var(--text)", fontWeight: 600, marginBottom: 4 }}
+            cursor={{ fill: "rgba(255,255,255,0.05)" }}
             formatter={(v) => [formatter ? formatter(v) : v, title]}
           />
           <Bar dataKey={dataKey} radius={[3, 3, 0, 0]}>
-            {data.map((entry, i) => (
-              <Cell
-                key={i}
-                fill={entry.ticker === subjectTicker ? "var(--primary2)" : "rgba(148,163,184,0.4)"}
-                opacity={0.85}
-              />
-            ))}
+            {data.map((entry, i) => {
+              const isSubject = entry.ticker === subjectTicker;
+              const color = isSubject
+                ? "var(--primary2)"
+                : PEER_PALETTE[i % PEER_PALETTE.length];
+              return (
+                <Cell
+                  key={i}
+                  fill={color}
+                  opacity={isSubject ? 1 : 0.7}
+                />
+              );
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
