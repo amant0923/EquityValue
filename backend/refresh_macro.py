@@ -16,7 +16,7 @@ from supabase import create_client
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", os.environ.get("SUPABASE_KEY", ""))
-FRED_API_KEY = os.environ.get("FRED_API_KEY", "dda0d98c26bb10421a55ffe896a096ff")
+FRED_API_KEY = os.environ.get("FRED_API_KEY") or "dda0d98c26bb10421a55ffe896a096ff"
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise SystemExit("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set.")

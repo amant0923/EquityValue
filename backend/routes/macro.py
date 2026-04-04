@@ -96,9 +96,7 @@ async def macro_sector(request: Request, sector: str, user: dict = Depends(get_o
 
 @router.post("/refresh")
 async def macro_refresh(request: Request):
-    """Manually trigger macro data refresh. Requires FRED_API_KEY to be set."""
-    if not os.environ.get("FRED_API_KEY"):
-        raise HTTPException(403, "FRED_API_KEY not configured")
+    """Manually trigger macro data refresh. Uses FRED_API_KEY env var or built-in fallback."""
 
     from refresh_macro import refresh_overview
     try:
