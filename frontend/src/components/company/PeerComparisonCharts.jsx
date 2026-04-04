@@ -9,6 +9,7 @@ const tooltipStyle = {
   border: "1px solid var(--border)",
   borderRadius: 8,
   fontSize: 12,
+  color: "var(--text)",
 };
 
 const PEER_PALETTE = [
