@@ -162,7 +162,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: "What can I do on the free trial?",
-        a: "The 7-day trial gives you 1 analysis per day, access to 8 valuation models, price charts, fundamentals, and peer comparison. AI thesis, Monte Carlo, LBO, PDF export, and full screener require Pro.",
+        a: "The 14-day trial gives you 3 analyses per day (15 total), access to all 12 valuation models, price charts, fundamentals, peer comparison, plus 2 free AI thesis reports and 2 stock comparisons. Monte Carlo, LBO, PDF export, and full screener require Pro.",
       },
       {
         q: "What does Pro include?",

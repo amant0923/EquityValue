@@ -11,16 +11,35 @@
  */
 
 export const TIER_LIMITS = {
+  guest: {
+    evs_breakdown: true,        // let anonymous visitors see value
+    valuation_models_limit: Infinity,
+    ai_thesis: false,
+    monte_carlo: false,
+    lbo: false,
+    watchlist_limit: 0,
+    pdf_export: false,
+    compare: false,
+    compare_limit: 0,
+    sector_percentile: true,
+    peer_comparison: true,
+    screener_full: false,
+    intelligence_full: false,
+    financials_quarterly: false,
+    evs_history: false,
+    accuracy_detail: true,
+  },
   trial: {
     evs_breakdown: true,        // full depth during trial
     valuation_models_limit: Infinity,
-    ai_thesis: false,           // gated — Pro only
+    ai_thesis: true,            // unlocked during trial (2 uses max)
+    ai_thesis_limit: 2,         // hard cap during trial
     monte_carlo: false,         // gated — Pro only
     lbo: false,                 // gated — Pro only
-    watchlist_limit: 3,
+    watchlist_limit: 5,
     pdf_export: false,          // gated — Pro only
-    compare: false,             // gated — Pro only
-    compare_limit: 0,
+    compare: true,              // let them compare during trial (2 max)
+    compare_limit: 2,
     sector_percentile: true,    // show during trial
     peer_comparison: true,      // show during trial
     screener_full: false,       // basic screener during trial

@@ -190,15 +190,15 @@ function AppInner() {
     const sym = (t || ticker).trim().toUpperCase();
     if (!sym) return;
 
-    if (!user) {
-      setAuthMode("login");
-      setShowAuth(true);
-      return;
-    }
-
     if (!canAnalyse()) {
-      setUpgradeReason("limit");
-      setShowUpgrade(true);
+      if (!user) {
+        // Guest hit their free analysis limit — prompt signup
+        setUpgradeReason("guest_limit");
+        setShowUpgrade(true);
+      } else {
+        setUpgradeReason("limit");
+        setShowUpgrade(true);
+      }
       return;
     }
 
@@ -259,7 +259,7 @@ function AppInner() {
     <>
       {disclaimer && <DisclaimerModal onAccept={() => { setDisclaimer(false); lsSet("ve_disclaimer", "1"); }} />}
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
-      <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
+      <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} onShowAuth={(mode) => { setShowUpgrade(false); setAuthMode(mode || "signup"); setShowAuth(true); }} />}</AnimatePresence>
       {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
 
       {paymentToast && (

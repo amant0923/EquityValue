@@ -60,7 +60,7 @@ export default function AppLayout() {
   return (
     <>
       <AnimatePresence>{showAuth && <AuthModal onClose={() => setShowAuth(false)} initialMode={authMode} />}</AnimatePresence>
-      <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} />}</AnimatePresence>
+      <AnimatePresence>{showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} reason={upgradeReason} onShowAuth={(mode) => { setShowUpgrade(false); setAuthMode(mode || "signup"); setShowAuth(true); }} />}</AnimatePresence>
 
       <div className="app-shell">
         <Sidebar

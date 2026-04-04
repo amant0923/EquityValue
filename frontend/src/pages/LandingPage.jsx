@@ -22,17 +22,18 @@ const PRICING = [
     name: "Trial",
     price: "$0",
     period: "",
-    desc: "7 days to explore the full platform",
+    desc: "14 days to explore the full platform",
     cta: "Start Free Trial",
     ctaStyle: "outline",
     features: [
-      "1 analysis per day (5 total)",
+      "3 analyses per day (15 total)",
       "All 12 valuation models",
       "EVS score & breakdown",
-      "Sector percentile ranking",
+      "AI investment thesis (2 free)",
+      "Compare stocks (2 free)",
       "Peer comparison",
     ],
-    notIncluded: ["AI investment thesis", "Monte Carlo & LBO", "PDF export", "Compare stocks"],
+    notIncluded: ["Monte Carlo & LBO", "PDF export", "Full screener"],
   },
   {
     name: "Pro",
@@ -277,7 +278,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
       <section id="pricing" className="relative z-10">
         <div className="text-center mb-12">
           <h2 className="text-[clamp(1.4rem,3vw,1.9rem)] font-bold text-text tracking-[-0.8px] mb-3">Simple, transparent pricing</h2>
-          <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start with a 7-day free trial. No credit card required.</p>
+          <p className="text-[0.92rem] text-text2 leading-[1.7] max-w-[520px] mx-auto">Start with a 14-day free trial. No credit card required.</p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
             <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
             <button
@@ -382,7 +383,7 @@ export default function LandingPage({ ticker, setTicker, onSearch, loading, onEn
         <h2 className="text-[clamp(1.4rem,3vw,2rem)] font-bold text-text tracking-[-0.8px]">
           <span className="bg-gradient-to-r from-primary2 to-indigo2 bg-clip-text text-transparent">Ready to see what the market is missing?</span>
         </h2>
-        <p className="text-[0.92rem] text-text2">Run your first valuation in seconds. Start your 7-day free trial.</p>
+        <p className="text-[0.92rem] text-text2">Run your first valuation in seconds. Start your 14-day free trial.</p>
         <button
           className="flex items-center gap-2 bg-gradient-to-r from-primary to-indigo text-white border-none px-8 py-3.5 rounded-lg font-sans text-[0.92rem] font-bold cursor-pointer transition-all shadow-[var(--shadow-blue)] mt-2 hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
           onClick={onEnterApp}

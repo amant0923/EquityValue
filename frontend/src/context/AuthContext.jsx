@@ -8,7 +8,7 @@ const AuthContext = createContext({});
 export const useAuth = () => useContext(AuthContext);
 
 const PLANS = {
-  trial:    { label: "Trial",    limit: 1 },
+  trial:    { label: "Trial",    limit: 3 },
   expired:  { label: "Expired",  limit: 0 },
   pro:      { label: "Pro",      limit: Infinity },
   lifetime: { label: "Lifetime", limit: Infinity },
@@ -51,14 +51,14 @@ export function AuthProvider({ children }) {
     // Backward compatibility: map old tier names
     if (plan === "free") plan = "trial";
     if (plan === "max") plan = "pro";
-    // Auto-expire trial after 7 days
+    // Auto-expire trial after 14 days
     if (plan === "trial" && p.trial_started) {
       const trialEnd = new Date(p.trial_started);
-      trialEnd.setDate(trialEnd.getDate() + 7);
+      trialEnd.setDate(trialEnd.getDate() + 14);
       if (new Date() > trialEnd) plan = "expired";
     }
-    // Also expire if total analyses used up (5 max during trial)
-    if (plan === "trial" && (p.analyses_total || 0) >= 5) plan = "expired";
+    // Also expire if total analyses used up (15 max during trial)
+    if (plan === "trial" && (p.analyses_total || 0) >= 15) plan = "expired";
     const today = new Date().toISOString().slice(0, 10);
     const count = p.last_analysis_date === today ? p.analyses_today : 0;
     const planInfo = PLANS[plan] || PLANS.expired;
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
 
   // Increment analysis count
   const recordAnalysis = async () => {
-    if (!supabase || !user) return true; // Allow if no auth
+    if (!supabase || !user) return recordGuestAnalysis(); // Guest localStorage tracking
     const today = new Date().toISOString().slice(0, 10);
     const ep = getEffectiveProfile(profile);
     if (ep.plan === "expired") return false;
@@ -85,21 +85,44 @@ export function AuthProvider({ children }) {
     return true;
   };
 
+  // Guest (anonymous) analysis tracking via localStorage
+  const GUEST_ANALYSIS_KEY = "ve_guest_analyses";
+  const GUEST_LIMIT = 2;
+
+  const getGuestAnalysesUsed = () => {
+    try { return parseInt(localStorage.getItem(GUEST_ANALYSIS_KEY) || "0", 10); }
+    catch { return 0; }
+  };
+
+  const recordGuestAnalysis = () => {
+    const used = getGuestAnalysesUsed();
+    if (used >= GUEST_LIMIT) return false;
+    try { localStorage.setItem(GUEST_ANALYSIS_KEY, String(used + 1)); }
+    catch { /* ignore */ }
+    return true;
+  };
+
   const canAnalyse = () => {
-    if (!supabase || !user) return true; // No auth = allow
+    if (!supabase || !user) {
+      // Anonymous guest: allow up to GUEST_LIMIT analyses
+      return getGuestAnalysesUsed() < GUEST_LIMIT;
+    }
     const ep = getEffectiveProfile(profile);
     if (ep.plan === "expired") return false;
     return ep.analyses_today < ep.limit;
   };
 
   const isFeatureUnlocked = (feature) => {
-    if (!supabase || !user) return false; // No auth = deny access
+    if (!supabase || !user) {
+      // Anonymous guest: use guest tier
+      return isFeatureAllowed("guest", feature);
+    }
     const ep = getEffectiveProfile(profile);
     return isFeatureAllowed(ep.plan, feature);
   };
 
   const getLimit = (feature) => {
-    if (!supabase || !user) return 0; // No auth = no access
+    if (!supabase || !user) return getFeatureLimit("guest", feature);
     const ep = getEffectiveProfile(profile);
     const plan = ep.plan;
     return getFeatureLimit(plan, feature);
@@ -194,9 +217,9 @@ export function AuthProvider({ children }) {
     const ep = getEffectiveProfile(profile);
     if (ep.plan !== "trial") return null;
     const trialEnd = new Date(profile.trial_started || Date.now());
-    trialEnd.setDate(trialEnd.getDate() + 7);
+    trialEnd.setDate(trialEnd.getDate() + 14);
     const daysLeft = Math.max(0, Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24)));
-    const analysesLeft = Math.max(0, 5 - (ep.analyses_total || 0));
+    const analysesLeft = Math.max(0, 15 - (ep.analyses_total || 0));
     return { daysLeft, analysesLeft };
   };
 
@@ -204,6 +227,12 @@ export function AuthProvider({ children }) {
     if (!supabase || !user) return;
     const p = await fetchProfile(user.id);
     setProfile(p);
+  };
+
+  const guestInfo = () => {
+    if (user) return null; // Not a guest
+    const used = getGuestAnalysesUsed();
+    return { analysesUsed: used, analysesLeft: Math.max(0, GUEST_LIMIT - used), limit: GUEST_LIMIT };
   };
 
   const value = {
@@ -219,6 +248,7 @@ export function AuthProvider({ children }) {
     getLimit,
     getToken,
     trialInfo,
+    guestInfo,
     refreshProfile,
   };
 

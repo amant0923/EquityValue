@@ -17,7 +17,7 @@ const PLANS = [
   },
 ];
 
-export default function UpgradeModal({ onClose, reason = "limit", currentPlan = "trial" }) {
+export default function UpgradeModal({ onClose, reason = "limit", currentPlan = "trial", onShowAuth }) {
   const { user } = useAuth();
   const [upgrading, setUpgrading] = useState(false);
   const [annual, setAnnual] = useState(false);
@@ -82,41 +82,83 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
 
         <div className="upg-header">
           <h2 className="upg-title">
-            {reason === "limit" && currentPlan === "expired"
+            {reason === "guest_limit"
+              ? "Create a free account"
+              : reason === "limit" && currentPlan === "expired"
               ? "Your trial has ended"
               : reason === "limit"
               ? "Daily limit reached"
               : "Upgrade to unlock"}
           </h2>
           <p className="upg-sub">
-            {reason === "limit" && currentPlan === "expired"
-              ? "Your 7-day trial has ended. Upgrade to Pro to continue analysing stocks."
+            {reason === "guest_limit"
+              ? "Sign up for a free 14-day trial — 3 analyses per day, AI thesis, and more."
+              : reason === "limit" && currentPlan === "expired"
+              ? "Your 14-day trial has ended. Upgrade to Pro to continue analysing stocks."
               : reason === "limit"
-              ? "You've used your analysis for today. Upgrade for unlimited access."
+              ? "You've used your analyses for today. Upgrade for unlimited access."
               : "This feature is available on the Pro plan."}
           </p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
-            <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
-            <button
-              onClick={() => setAnnual(!annual)}
-              style={{
-                width: 44, height: 24, borderRadius: 12, border: "none",
-                background: annual ? "var(--primary)" : "var(--border)",
-                position: "relative", cursor: "pointer", transition: "background 0.2s",
-              }}
-            >
-              <div style={{
-                width: 18, height: 18, borderRadius: 9, background: "#fff",
-                position: "absolute", top: 3, left: annual ? 23 : 3, transition: "left 0.2s",
-              }} />
-            </button>
-            <span style={{ fontSize: 13, color: annual ? "var(--text)" : "var(--text3)", fontWeight: annual ? 600 : 400 }}>
-              Annual <span style={{ color: "#22c55e", fontSize: 11, fontWeight: 700 }}>Save 20%</span>
-            </span>
-          </div>
+          {reason !== "guest_limit" && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
+              <span style={{ fontSize: 13, color: annual ? "var(--text3)" : "var(--text)", fontWeight: annual ? 400 : 600 }}>Monthly</span>
+              <button
+                onClick={() => setAnnual(!annual)}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, border: "none",
+                  background: annual ? "var(--primary)" : "var(--border)",
+                  position: "relative", cursor: "pointer", transition: "background 0.2s",
+                }}
+              >
+                <div style={{
+                  width: 18, height: 18, borderRadius: 9, background: "#fff",
+                  position: "absolute", top: 3, left: annual ? 23 : 3, transition: "left 0.2s",
+                }} />
+              </button>
+              <span style={{ fontSize: 13, color: annual ? "var(--text)" : "var(--text3)", fontWeight: annual ? 600 : 400 }}>
+                Annual <span style={{ color: "#22c55e", fontSize: 11, fontWeight: 700 }}>Save 20%</span>
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="upg-plans">
+        {reason === "guest_limit" && !user && (
+          <div className="upg-guest-cta">
+            <div className="upg-guest-features">
+              <div className="upg-guest-feature">14-day free trial</div>
+              <div className="upg-guest-feature">3 analyses per day</div>
+              <div className="upg-guest-feature">AI investment thesis included</div>
+              <div className="upg-guest-feature">No credit card required</div>
+            </div>
+            <button
+              className="upg-plan-cta"
+              style={{ background: "var(--primary)", maxWidth: 340, width: "100%", margin: "0 auto" }}
+              onClick={() => { onClose(); if (onShowAuth) onShowAuth("signup"); }}
+            >
+              Create Free Account
+            </button>
+            <p style={{ fontSize: "0.72rem", color: "var(--text3)", textAlign: "center", marginTop: 12 }}>
+              Already have an account?{" "}
+              <button
+                style={{ background: "none", border: "none", color: "var(--primary2)", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", textDecoration: "underline", padding: 0 }}
+                onClick={() => { onClose(); if (onShowAuth) onShowAuth("login"); }}
+              >
+                Log in
+              </button>
+            </p>
+            <style>{`
+              .upg-guest-cta { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+              .upg-guest-features { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 20px; }
+              .upg-guest-feature {
+                font-size: 0.75rem; color: var(--text2); padding: 6px 14px;
+                background: rgba(129,140,248,0.06); border: 1px solid rgba(129,140,248,0.15);
+                border-radius: 20px;
+              }
+            `}</style>
+          </div>
+        )}
+
+        {reason !== "guest_limit" && <div className="upg-plans">
           {PLANS.map((plan, i) => (
             <div key={i} className={`upg-plan${plan.featured ? " upg-plan--featured" : ""}`}>
               <div className="upg-plan-name">{plan.name}</div>
@@ -152,10 +194,10 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
               </button>
             </div>
           ))}
-        </div>
+        </div>}
 
-        {/* Lifetime Deal */}
-        {lifetimeStatus?.available && (
+        {/* Lifetime Deal — only show for logged-in users, not guests */}
+        {reason !== "guest_limit" && lifetimeStatus?.available && (
           <div className="upg-lifetime">
             <div className="upg-lifetime-badge">Limited Offer</div>
             <div className="upg-lifetime-title">Founding Pro — $99 lifetime</div>
@@ -181,8 +223,8 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
           </div>
         )}
 
-        {/* Student Discount */}
-        <div className="upg-student">
+        {/* Student Discount — only for logged-in users */}
+        {reason !== "guest_limit" && <div className="upg-student">
           {!showStudent ? (
             <button className="upg-student-toggle" onClick={() => setShowStudent(true)}>
               Student? Get 50% off
@@ -220,7 +262,7 @@ export default function UpgradeModal({ onClose, reason = "limit", currentPlan = 
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {checkoutError && (
           <div style={{
