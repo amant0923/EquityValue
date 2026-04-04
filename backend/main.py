@@ -37,6 +37,7 @@ from routes.governance import router as governance_router
 from routes.wacc import router as wacc_router
 from routes.estimates import router as estimates_router
 from utils.thesis_cache import get_cached_thesis, cache_thesis
+from utils.thesis_prompt import build_thesis_prompt
 
 # ── Sentry error tracking initialization ──────────────────────────────────────
 sentry_dsn = os.environ.get("SENTRY_DSN")
@@ -451,55 +452,10 @@ async def generate_thesis(ticker: str, request: Request, user: dict = Depends(ge
         raise HTTPException(status_code=404, detail="Ticker not found.")
     data = normalise(raw)
     valuation = run_valuation(ticker, data)
-
-    # Build context for Claude
     consensus = valuation.get("consensus", {})
-    metrics = valuation.get("key_metrics", {})
-    applicable = [v for v in valuation.get("valuations", []) if v.get("applicable")]
 
-    today = datetime.utcnow().strftime('%d %B %Y')
-    prompt = f"""You are a senior equity research analyst at a top-tier investment bank.
-Today's date is {today}. Use this exact date in the memo header — do not use any other date.
-Write a concise but comprehensive investment memo for {data.get('name', ticker)} ({ticker}).
-
-COMPANY DATA:
-- Sector: {data.get('sector', 'N/A')} | Industry: {data.get('industry', 'N/A')}
-- Current Price: ${data.get('price', 'N/A')}
-- Market Cap: {f"${data['market_cap']:,.0f}" if data.get('market_cap') else 'N/A'}
-- Revenue: {f"${data['revenue']:,.0f}" if data.get('revenue') else 'N/A'}
-- EBITDA: {f"${data['ebitda']:,.0f}" if data.get('ebitda') else 'N/A'}
-- Net Income: {f"${data['net_income']:,.0f}" if data.get('net_income') else 'N/A'}
-- Free Cash Flow: {f"${data['free_cashflow']:,.0f}" if data.get('free_cashflow') else 'N/A'}
-
-KEY METRICS:
-- P/E: {metrics.get('pe_ratio', 'N/A')} | Forward P/E: {data.get('forward_pe', 'N/A')}
-- EV/EBITDA: {metrics.get('ev_ebitda', 'N/A')} | P/S: {metrics.get('ps_ratio', 'N/A')}
-- ROE: {metrics.get('roe', 'N/A')} | Profit Margin: {metrics.get('profit_margin', 'N/A')}
-- Revenue Growth: {metrics.get('revenue_growth', 'N/A')} | Beta: {metrics.get('beta', 'N/A')}
-- Debt/Equity: {data.get('debt_to_equity', 'N/A')}
-
-VALUATION MODELS APPLIED:
-{chr(10).join([f"- {v['model']}: ${v['intrinsic_value']} ({v['verdict']}, {v['upside_pct']}% upside)" for v in applicable])}
-
-CONSENSUS: {consensus.get('overall_verdict', 'N/A')} at ${consensus.get('average_intrinsic_value', 'N/A')} ({consensus.get('upside_pct', 'N/A')}% vs current)
-
-Write the memo in this exact structure:
-## Investment Thesis
-[2-3 sentence summary of the overall investment case]
-
-## Bull Case
-[3 key reasons the stock could outperform — be specific with numbers]
-
-## Bear Case  
-[3 key risks that could cause underperformance — be specific]
-
-## Valuation Assessment
-[Analysis of the valuation models applied and what they collectively suggest]
-
-## Recommendation
-[Clear BUY / HOLD / SELL with price target and key catalysts to watch]
-
-Be direct, analytical, and use specific financial data. Write like a professional analyst, not a chatbot."""
+    # Build comprehensive prompt with all available data
+    prompt = build_thesis_prompt(ticker, data, valuation, sb)
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -515,7 +471,7 @@ Be direct, analytical, and use specific financial data. Write like a professiona
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model=ai_model,
-            max_tokens=1500,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}]
         )
         thesis_text = message.content[0].text
