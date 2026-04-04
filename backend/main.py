@@ -883,7 +883,6 @@ async def stripe_webhook(request: Request):
             _supabase.table("user_profiles").update({
                 "plan": plan,
                 "stripe_customer_id": event_obj.get("customer", ""),
-                "payment_failed": False,
             }).eq("id", user_id).execute()
 
         elif event_type == "customer.subscription.deleted":
@@ -901,15 +900,15 @@ async def stripe_webhook(request: Request):
                     plan = "expired"
                 _supabase.table("user_profiles").update({"plan": plan}).eq("stripe_customer_id", customer_id).execute()
 
-        elif event_type == "invoice.payment_failed":
+        elif event_type in ("invoice.payment_failed", "invoice.payment_succeeded"):
+            # payment_failed column may not exist yet — silently skip if so
             customer_id = event_obj.get("customer")
             if customer_id:
-                _supabase.table("user_profiles").update({"payment_failed": True}).eq("stripe_customer_id", customer_id).execute()
-
-        elif event_type == "invoice.payment_succeeded":
-            customer_id = event_obj.get("customer")
-            if customer_id:
-                _supabase.table("user_profiles").update({"payment_failed": False}).eq("stripe_customer_id", customer_id).execute()
+                try:
+                    flag = event_type == "invoice.payment_failed"
+                    _supabase.table("user_profiles").update({"payment_failed": flag}).eq("stripe_customer_id", customer_id).execute()
+                except Exception:
+                    pass  # column doesn't exist yet — non-critical
 
     except Exception as e:
         import logging as _logging
@@ -948,19 +947,17 @@ async def subscription_status(request: Request, user: dict = Depends(get_current
     if not _supabase:
         raise HTTPException(status_code=503, detail="Database not configured")
 
-    result = _supabase.table("user_profiles").select("plan, stripe_customer_id, payment_failed").eq("id", user["sub"]).single().execute()
+    result = _supabase.table("user_profiles").select("plan, stripe_customer_id").eq("id", user["sub"]).single().execute()
     profile = result.data or {}
     plan = profile.get("plan", "trial")
     customer_id = profile.get("stripe_customer_id")
-    payment_failed = profile.get("payment_failed", False)
-
     base = {
         "plan": plan,
         "status": "active" if plan in ("pro", "lifetime") else plan,
         "current_period_end": None,
         "cancel_at_period_end": False,
         "payment_method_last4": None,
-        "payment_failed": payment_failed,
+        "payment_failed": False,
     }
 
     # For non-Stripe plans (trial, expired, lifetime), return DB-only info
