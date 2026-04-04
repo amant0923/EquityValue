@@ -48,6 +48,7 @@ export default function AppLayout() {
       screener: "/screener",
       compare: "/compare",
       analysis: "/analysis",
+      accuracy: "/accuracy",
       portfolio: "/portfolio",
       blog: "/blog",
       referral: "/referral",
